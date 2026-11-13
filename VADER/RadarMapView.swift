@@ -544,7 +544,10 @@ private struct RegnvaktMapView: UIViewRepresentable {
         map.allowsRotating = false
         map.allowsTilting = false
         map.minimumZoomLevel = 3
-        map.maximumZoomLevel = 12
+        // RainViewer's radar tiles are not available at higher zoom levels.
+        // Cap the map at the provider's supported detail level to avoid its
+        // 'Zoom level not supported' tile placeholder covering the map.
+        map.maximumZoomLevel = 7
         map.setCenter(coordinate, zoomLevel: 7.0, animated: false)
         context.coordinator.latestImage = radarImage
         context.coordinator.latestTileURL = radarTileURL
