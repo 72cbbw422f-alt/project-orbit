@@ -8,6 +8,14 @@ struct PlaceSearchResult: Identifiable {
     let coordinate: CLLocationCoordinate2D
 }
 
+struct SavedWeatherPlace: Identifiable, Codable, Equatable {
+    var id: UUID
+    var name: String
+    var latitude: Double
+    var longitude: Double
+    var isFavorite: Bool
+}
+
 @MainActor
 final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var snapshot: WeatherSnapshot?
@@ -17,12 +25,18 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
     @Published var placeSearchResults: [PlaceSearchResult] = []
     @Published var placeSearchStatus = ""
     @Published var isSearchingPlaces = false
+    @Published private(set) var savedPlaces: [SavedWeatherPlace] = []
+    private let savedPlacesKey = "Regnvakt.savedPlaces.v1"
     private let manager = CLLocationManager()
     private let geocoder = CLGeocoder()
     private var lastFetch: Date?
 
     override init() {
         super.init()
+        if let data = UserDefaults.standard.data(forKey: savedPlacesKey),
+           let places = try? JSONDecoder().decode([SavedWeatherPlace].self, from: data) {
+            savedPlaces = places
+        }
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyKilometer
         manager.distanceFilter = 1500
