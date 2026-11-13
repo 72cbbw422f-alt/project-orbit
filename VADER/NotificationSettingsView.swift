@@ -133,6 +133,7 @@ struct NotificationSettingsView: View {
         .onChange(of: windEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
         .onChange(of: thunderEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
         .onChange(of: frostEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
+        .onChange(of: smhiEnabled) { _, enabled in if !enabled { SMHIWarningService.clearPendingNotifications() } }
         .onChange(of: leadMinutes) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
         .onChange(of: quietHours) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
     }
@@ -194,6 +195,7 @@ struct NotificationSettingsView: View {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in
             Task { @MainActor in
                 await refreshPermissionStatus()
+                WeatherNotificationScheduler.refreshFromStoredForecast()
                 requestingPermission = false
             }
         }
