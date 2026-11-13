@@ -219,7 +219,7 @@ struct NotificationInboxView: View {
                     Text("Det här är notiser som iPhone faktiskt har i sin väntande kö.").font(.system(size: 10)).foregroundStyle(.white.opacity(0.55))
                     if pending.isEmpty { emptyCard("Inga kommande vädernotiser är schemalagda just nu.", icon: "calendar.badge.clock") }
                     ForEach(pending, id: \.identifier) { item in
-                        let watch = (item.content.userInfo["watch"] as? String) ?? watchName(from: item.identifier)
+                        let watch = (item.content.userInfo["watch"] as? String) ?? watchNameFromIdentifier(item.identifier)
                         let fireDate = (item.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate()
                             ?? (item.trigger as? UNTimeIntervalNotificationTrigger).map { Date().addingTimeInterval($0.timeInterval) }
                         VStack(alignment: .leading, spacing: 5) {
@@ -275,7 +275,8 @@ struct NotificationInboxView: View {
         }
     }
 
-    private func watchName(from identifier: String) -> String {
+    private func watchNameFromIdentifier(_ identifier: String) -> String {
+        if identifier.hasPrefix("smhi.") { return "SMHI" }
         let parts = identifier.split(separator: ".")
         guard parts.count > 2 else { return "VÄDERVAKT" }
         return watchName(from: String(parts[2]))
