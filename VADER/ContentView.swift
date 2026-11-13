@@ -32,7 +32,8 @@ struct ContentView: View {
                         status: weatherModel.status,
                         isLive: weatherModel.snapshot != nil,
                         refresh: { weatherModel.refresh() },
-                        showSevenDayForecast: { showingSevenDayForecast = true }
+                        showSevenDayForecast: { showingSevenDayForecast = true },
+                        showPlaceSearch: { showingPlaceSearch = true }
                     )
                 case .radar: RPlaceholder(title: "Radar", subtitle: "Nederbördsradar", icon: "dot.radiowaves.left.and.right")
                 case .watch: VaktDashboard(weather: weatherModel.snapshot ?? .demo, days: weatherModel.days, hours: weatherModel.hours)
@@ -79,6 +80,7 @@ private struct ReferenceWeatherHome: View {
     let isLive: Bool
     let refresh: () -> Void
     let showSevenDayForecast: () -> Void
+    let showPlaceSearch: () -> Void
     private let bars: [CGFloat] = [0.08,0.12,0.16,0.22,0.30,0.38,0.48,0.58,0.70,0.83,0.96,1.0,0.86,0.72,0.64,0.57,0.48,0.36,0.26,0.19,0.16,0.14,0.12,0.10]
     private var watchTitle: String {
         let condition = weather.condition.lowercased()
@@ -181,7 +183,7 @@ private struct ReferenceWeatherHome: View {
                     .font(.system(size: 7, weight: .bold)).tracking(0.7)
                     .foregroundStyle(RTheme.muted)
                 HStack(spacing: 13) {
-                    Button { showingPlaceSearch = true } label: {
+                    Button(action: showPlaceSearch) {
                         Image(systemName: "magnifyingglass")
                             .font(.system(size: 14, weight: .semibold)).foregroundStyle(RTheme.cyan)
                     }.buttonStyle(.plain)
