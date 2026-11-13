@@ -78,36 +78,54 @@ enum SMHIWarningService {
     }
 
     static func checkAndNotify(at coordinate: CLLocationCoordinate2D) async {
-        guard (UserDefaults.standard.object(forKey: "Regnvakt.notifications.enabled") as? Bool ?? true),
-              (UserDefaults.standard.object(forKey: "Regnvakt.notifications.smhi") as? Bool ?? true) else { return }
+        let defaults = UserDefaults.standard
+        guard (defaults.object(forKey: "Regnvakt.notifications.enabled") as? Bool ?? true),
+              (defaults.object(forKey: "Regnvakt.notifications.smhi") as? Bool ?? true) else { return }
+        let center = UNUserNotificationCenter.current()
+        let authorization = await center.notificationSettings()
+        guard authorization.authorizationStatus == .authorized ||
+              authorization.authorizationStatus == .provisional ||
+              authorization.authorizationStatus == .ephemeral else { return }
+
         do {
             let current = try await warnings(at: coordinate)
             let national = try await nationwideWarnings()
             let signatures = Set(current.map { $0.id + "|" + $0.level + "|" + $0.title })
             let nationalSignatures = Set(national.map { $0.id + "|" + $0.level + "|" + $0.title })
             let nationalKey = "Regnvakt.smhi.nationalSignatures.v1"
-            if let previousNational = UserDefaults.standard.stringArray(forKey: nationalKey) {
-                let oldNational = Set(previousNational)
-                if nationalSignatures.contains(where: { !oldNational.contains($0) }) {
-                    UserDefaults.standard.set(true, forKey: "Regnvakt.smhi.hasNewNationalWarnings")
-                }
+            let previousNational = Set(defaults.stringArray(forKey: nationalKey) ?? [])
+            if nationalSignatures.contains(where: { !previousNational.contains($0) }) {
+                defaults.set(true, forKey: "Regnvakt.smhi.hasNewNationalWarnings")
             }
-            UserDefaults.standard.set(Array(nationalSignatures), forKey: nationalKey)
+            defaults.set(Array(nationalSignatures), forKey: nationalKey)
+
+            // Treat the first successful check as a baseline too: active warnings
+            // must not be silently ignored just because the app has never checked before.
             let key = "Regnvakt.smhi.warningSignatures.v1"
-            if let previous = UserDefaults.standard.stringArray(forKey: key) {
-                let old = Set(previous)
-                for warning in current where !old.contains(warning.id + "|" + warning.level + "|" + warning.title) {
-                    let content = UNMutableNotificationContent()
-                    content.title = "SMHI: \(warning.level)"
-                    content.body = "\(warning.title) – \(warning.area)"
-                    content.sound = .default
-                    let request = UNNotificationRequest(identifier: "smhi-\(warning.id)-\(warning.level)", content: content, trigger: UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false))
-                    try? await UNUserNotificationCenter.current().add(request)
-                    UserDefaults.standard.set(true, forKey: "Regnvakt.notifications.hasUnread")
+            let previous = Set(defaults.stringArray(forKey: key) ?? [])
+            for warning in current where !previous.contains(warning.id + "|" + warning.level + "|" + warning.title) {
+                let content = UNMutableNotificationContent()
+                content.title = "SMHI: \(warning.level)"
+                content.body = "\(warning.title) – \(warning.area)"
+                content.sound = .default
+                content.userInfo = ["watch": "smhi", "warningID": warning.id, "area": warning.area]
+                let safeID = warning.id.replacingOccurrences(of: "[^A-Za-z0-9.-]", with: "-", options: .regularExpression)
+                let request = UNNotificationRequest(
+                    identifier: "smhi.\(safeID).\(warning.level)",
+                    content: content,
+                    trigger: UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false)
+                )
+                do {
+                    try await center.add(request)
+                    defaults.set(true, forKey: "Regnvakt.notifications.hasUnread")
+                } catch {
+                    // A later weather refresh retries while the warning remains active.
                 }
             }
-            UserDefaults.standard.set(Array(signatures), forKey: key)
-        } catch { }
+            defaults.set(Array(signatures), forKey: key)
+        } catch {
+            // Preserve previous signatures so failed requests do not erase alert history.
+        }
     }
     private static func rank(_ level: String) -> Int {
         let value = level.lowercased()
