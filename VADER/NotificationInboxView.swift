@@ -46,9 +46,10 @@ enum SMHIWarningService {
             let eventName = (event["sv"] as? String) ?? "Vädervarning"
             let areas = item["warningAreas"] as? [[String: Any]] ?? []
             for area in areas {
-                // SMHI returns each warning area's "area" as a GeoJSON Feature:
-                // geometry is directly on the warning-area object, not nested under area.area.
-                guard let geometry = area["area"] as? [String: Any],
+                // SMHI warning-area "area" is a GeoJSON Feature; the polygon
+                // geometry and coordinates are nested inside that feature.
+                guard let feature = area["area"] as? [String: Any],
+                      let geometry = feature["geometry"] as? [String: Any],
                       let type = geometry["type"] as? String,
                       let coordinates = geometry["coordinates"] else { continue }
                 if let coordinate, !contains(coordinate, geometryType: type, coordinates: coordinates) { continue }
