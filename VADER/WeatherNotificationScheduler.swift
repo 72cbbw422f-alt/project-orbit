@@ -124,7 +124,7 @@ enum WeatherNotificationScheduler {
             let wetNow = hasPrecipitation ||
                 (hour.precipitationChance >= 50 && forecastShowsWetWeather)
             let wetWithinThreeHours = wetNow ||
-                lastWetForecastDate.map { date.timeIntervalSince($0) <= 3 * 60 * 60 } ?? false
+                (lastWetForecastDate.map { date.timeIntervalSince($0) <= 3 * 60 * 60 } ?? false)
             var active: [Event] = []
 
             if defaults.object(forKey: "Regnvakt.notifications.rain") as? Bool ?? true,
