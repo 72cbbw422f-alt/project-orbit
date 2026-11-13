@@ -99,7 +99,7 @@ struct NotificationSettingsView: View {
                 .padding(14).background(panel, in: RoundedRectangle(cornerRadius: 18))
                 .overlay(RoundedRectangle(cornerRadius: 18).stroke(line, lineWidth: 1))
 
-                Text("Inställningarna sparas på den här enheten. SMHI-varningar hämtas för vald plats när prognosen uppdateras och visas under klockan. Regnvakt kontrollerar inte varningar kontinuerligt i bakgrunden.")
+                Text("Inställningarna sparas på den här enheten. Ändringar schemalägger om kommande lokala aviseringar från senast hämtade prognos. Frost- och halkvarningar kan skickas även under tysta timmar. iOS kan begränsa bakgrundsuppdateringar, så öppna appen regelbundet för att hålla prognosen aktuell.")
                     .font(.system(size: 9, weight: .medium)).foregroundStyle(muted.opacity(0.85))
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 3)
@@ -110,6 +110,14 @@ struct NotificationSettingsView: View {
         }
         .background(Color(red: 0.008, green: 0.025, blue: 0.055).ignoresSafeArea())
         .task { await refreshPermissionStatus() }
+        .onChange(of: notificationsEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
+        .onChange(of: rainEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
+        .onChange(of: snowEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
+        .onChange(of: windEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
+        .onChange(of: thunderEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
+        .onChange(of: frostEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
+        .onChange(of: leadMinutes) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
+        .onChange(of: quietHours) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
     }
 
     private func watchToggle(_ title: String, subtitle: String, icon: String, value: Binding<Bool>) -> some View {
