@@ -38,7 +38,8 @@ struct ContentView: View {
                         showSevenDayForecast: { showingSevenDayForecast = true },
                         showWeatherDetails: { showingWeatherDetails = true },
                         showHourlyForecast: { showingHourlyForecast = true },
-                        showPlaceSearch: { showingPlaceSearch = true }
+                        showPlaceSearch: { showingPlaceSearch = true },
+                        selectForecastDay: { selectedForecastDay = $0 }
                     )
                 case .radar: RPlaceholder(title: "Radar", subtitle: "Nederbördsradar", icon: "dot.radiowaves.left.and.right")
                 case .watch: VaktDashboard(weather: weatherModel.snapshot ?? .demo, days: weatherModel.days, hours: weatherModel.hours)
@@ -109,6 +110,7 @@ private struct ReferenceWeatherHome: View {
     let showWeatherDetails: () -> Void
     let showHourlyForecast: () -> Void
     let showPlaceSearch: () -> Void
+    let selectForecastDay: (DayForecast) -> Void
     private let bars: [CGFloat] = [0.08,0.12,0.16,0.22,0.30,0.38,0.48,0.58,0.70,0.83,0.96,1.0,0.86,0.72,0.64,0.57,0.48,0.36,0.26,0.19,0.16,0.14,0.12,0.10]
     private var watchTitle: String {
         let condition = weather.condition.lowercased()
@@ -494,7 +496,7 @@ private struct ReferenceWeatherHome: View {
             } else {
                 HStack(spacing: 5) {
                     ForEach(days.prefix(7)) { day in
-                        Button { selectedForecastDay = day } label: {
+                        Button { selectForecastDay(day) } label: {
                             VStack(spacing: 6) {
                                 Text(day.day == "Idag" ? "Idag" : String(day.day.prefix(3)))
                                     .font(.system(size: 9, weight: .bold)).foregroundStyle(RTheme.muted)
@@ -703,6 +705,7 @@ private struct ReferenceWeatherHome: View {
 }
 
 private struct TodayWeatherDetails: View {
+    @Environment(\.dismiss) private var dismiss
     let weather: WeatherSnapshot
     let days: [DayForecast]
     let hours: [HourForecast]
