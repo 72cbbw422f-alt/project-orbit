@@ -68,8 +68,8 @@ enum SMHIWarningService {
     }
 
     static func checkAndNotify(at coordinate: CLLocationCoordinate2D) async {
-        guard UserDefaults.standard.bool(forKey: "Regnvakt.notifications.enabled"),
-              UserDefaults.standard.bool(forKey: "Regnvakt.notifications.smhi") else { return }
+        guard (UserDefaults.standard.object(forKey: "Regnvakt.notifications.enabled") as? Bool ?? true),
+              (UserDefaults.standard.object(forKey: "Regnvakt.notifications.smhi") as? Bool ?? true) else { return }
         do {
             let current = try await warnings(at: coordinate)
             let signatures = Set(current.map { $0.id + "|" + $0.level + "|" + $0.title })
