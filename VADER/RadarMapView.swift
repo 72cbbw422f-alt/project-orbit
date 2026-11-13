@@ -292,12 +292,12 @@ struct RadarMapView: View {
                     HStack(spacing: 7) {
                         Circle().fill(Color(red: 0.35, green: 0.88, blue: 0.83)).frame(width: 7, height: 7)
                         Text("RADAR • \(provider.rawValue.uppercased())")
-                            .font(.system(size: 10, weight: .heavy))
+                            .font(.system(size: 12, weight: .heavy))
                             .tracking(0.8)
                             .foregroundStyle(.white)
                         Spacer()
                         Text("© OpenStreetMap")
-                            .font(.system(size: 9, weight: .medium))
+                            .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(.white.opacity(0.85))
                     }
                     .padding(.horizontal, 12)
@@ -315,8 +315,8 @@ struct RadarMapView: View {
                             .foregroundStyle(Color(red: 0.98, green: 0.58, blue: 0.40))
                         VStack(alignment: .leading, spacing: 3) {
                             Text(precipitationType).font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
-                            Text(typeDetail).font(.system(size: 10, weight: .medium)).foregroundStyle(.white.opacity(0.68))
-                            Text(radarAtPlace).font(.system(size: 10, weight: .semibold)).foregroundStyle(Color(red: 0.35, green: 0.88, blue: 0.83))
+                            Text(typeDetail).font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.68))
+                            Text(radarAtPlace).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color(red: 0.35, green: 0.88, blue: 0.83))
                         }
                         Spacer()
                         Button { showTypeInfo = true } label: {
@@ -330,23 +330,23 @@ struct RadarMapView: View {
                         HStack(spacing: 8) {
                             ProgressView().tint(.cyan)
                             Text("Hämtar radarobservationer…")
-                                .font(.system(size: 11, weight: .medium))
+                                .font(.system(size: 12, weight: .medium))
                                 .foregroundStyle(.white.opacity(0.8))
                         }.frame(maxWidth: .infinity, alignment: .leading)
                     } else if let errorMessage {
-                        Text(errorMessage).font(.system(size: 11, weight: .medium)).foregroundStyle(.orange)
+                        Text(errorMessage).font(.system(size: 12, weight: .medium)).foregroundStyle(.orange)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
                     if let selectedFrame {
                         HStack(alignment: .firstTextBaseline) {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("VALD RADARTID").font(.system(size: 9, weight: .heavy)).tracking(1).foregroundStyle(Color.cyan)
+                                Text("VALD RADARTID").font(.system(size: 12, weight: .heavy)).tracking(1).foregroundStyle(Color.cyan)
                                 Text(selectedFrame.time.formatted(date: .omitted, time: .shortened))
                                     .font(.system(size: 24, weight: .bold, design: .rounded).monospacedDigit()).foregroundStyle(.white)
                             }
                             Spacer()
-                            Text("SENASTE 2 TIMMARNA").font(.system(size: 9, weight: .heavy)).tracking(0.8).foregroundStyle(.white.opacity(0.6))
+                            Text("SENASTE 2 TIMMARNA").font(.system(size: 12, weight: .heavy)).tracking(0.8).foregroundStyle(.white.opacity(0.6))
                         }
                         Slider(value: Binding(
                             get: { Double(selectedIndex) },
@@ -366,9 +366,9 @@ struct RadarMapView: View {
                             Button { selectedIndex = min(frames.count - 1, selectedIndex + 1) } label: { Image(systemName: "forward.end.fill").font(.system(size: 17)) }
                             Spacer()
                             VStack(alignment: .trailing, spacing: 2) {
-                                Text("UPPDATERAD").font(.system(size: 8, weight: .heavy)).tracking(0.8).foregroundStyle(.white.opacity(0.48))
+                                Text("UPPDATERAD").font(.system(size: 12, weight: .heavy)).tracking(0.8).foregroundStyle(.white.opacity(0.48))
                                 Text(lastUpdated?.formatted(date: .omitted, time: .shortened) ?? "—")
-                                    .font(.system(size: 10, weight: .semibold)).foregroundStyle(.white.opacity(0.75))
+                                    .font(.system(size: 12, weight: .semibold)).foregroundStyle(.white.opacity(0.75))
                             }
                         }
                         .foregroundStyle(Color(red: 0.98, green: 0.66, blue: 0.47))
@@ -382,7 +382,7 @@ struct RadarMapView: View {
                         Spacer()
                         Text("Karta © OpenStreetMap")
                     }
-                    .font(.system(size: 9, weight: .medium)).foregroundStyle(.white.opacity(0.55))
+                    .font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.55))
                 }
                 .padding(16)
                 .background(
