@@ -99,7 +99,7 @@ struct NotificationSettingsView: View {
                 .padding(14).background(panel, in: RoundedRectangle(cornerRadius: 18))
                 .overlay(RoundedRectangle(cornerRadius: 18).stroke(line, lineWidth: 1))
 
-                Text("Inställningarna sparas på den här enheten. Regnvakt hämtar officiella SMHI-varningar för vald position när prognosen uppdateras och visar dem under klockan. Nya eller ändrade varningar kan ge en lokal avisering. Kontrollen sker när appen hämtar ny data – inte kontinuerligt i bakgrunden.")
+                Text("Inställningarna sparas på den här enheten. SMHI-varningar hämtas för vald plats när prognosen uppdateras och visas under klockan. Regnvakt kontrollerar inte varningar kontinuerligt i bakgrunden.")
                     .font(.system(size: 9, weight: .medium)).foregroundStyle(muted.opacity(0.85))
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 3)
