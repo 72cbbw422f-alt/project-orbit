@@ -12,6 +12,7 @@ private enum RTheme {
 struct ContentView: View {
     @State private var selectedTab: WeatherTab = .weather
     @State private var showingSevenDayForecast = false
+    @State private var showingWeatherDetails = false
     @State private var showingPlaceSearch = false
     @StateObject private var weatherModel = WeatherViewModel()
 
@@ -33,6 +34,7 @@ struct ContentView: View {
                         isLive: weatherModel.snapshot != nil,
                         refresh: { weatherModel.refresh() },
                         showSevenDayForecast: { showingSevenDayForecast = true },
+                        showWeatherDetails: { showingWeatherDetails = true },
                         showPlaceSearch: { showingPlaceSearch = true }
                     )
                 case .radar: RPlaceholder(title: "Radar", subtitle: "Nederbördsradar", icon: "dot.radiowaves.left.and.right")
@@ -60,6 +62,13 @@ struct ContentView: View {
                 .presentationBackground(RTheme.bg)
                 .preferredColorScheme(.dark)
         }
+        .sheet(isPresented: $showingWeatherDetails) {
+            TodayWeatherDetails(weather: weatherModel.snapshot ?? .demo, days: weatherModel.days)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(RTheme.bg)
+                .preferredColorScheme(.dark)
+        }
         .sheet(isPresented: $showingPlaceSearch) {
             PlaceSearchSheet(model: weatherModel)
                 .presentationDetents([.medium, .large])
@@ -80,6 +89,7 @@ private struct ReferenceWeatherHome: View {
     let isLive: Bool
     let refresh: () -> Void
     let showSevenDayForecast: () -> Void
+    let showWeatherDetails: () -> Void
     let showPlaceSearch: () -> Void
     private let bars: [CGFloat] = [0.08,0.12,0.16,0.22,0.30,0.38,0.48,0.58,0.70,0.83,0.96,1.0,0.86,0.72,0.64,0.57,0.48,0.36,0.26,0.19,0.16,0.14,0.12,0.10]
     private var watchTitle: String {
@@ -109,6 +119,7 @@ private struct ReferenceWeatherHome: View {
                     precipitationCard
                     compactMetrics
                     daylightStrip
+                    todayDetailsButton
                     hourlyCard
                     sevenDayForecast
                     Text(isLive ? "VÄDERDATA: OPEN-METEO  •  PLATS: GPS" : "VÄNTAR PÅ GPS OCH LIVEVÄDER")
@@ -485,11 +496,10 @@ private struct ReferenceWeatherHome: View {
     private var compactMetrics: some View {
         HStack(spacing: 7) {
             circularMetric(title:"Luftfuktighet",symbol:"humidity.fill",value:"\(weather.humidity)%",progress:Double(weather.humidity)/100,tint:RTheme.cyan)
-            circularMetric(title:"Tryck",symbol:"gauge",value:"1012",progress:0.62,tint:Color(red:0.42,green:0.72,blue:0.94),suffix:"hPa")
-            circularMetric(title:"UV-index",symbol:"sun.max.fill",value:"\(weather.uvIndex)",progress:0.03,tint:.green,suffix:"Låg")
-            moonMetric.frame(width: 132)
+            circularMetric(title:"Tryck",symbol:"gauge",value:weather.pressure > 0 ? String(format:"%.0f",weather.pressure) : "—",progress:0.62,tint:Color(red:0.42,green:0.72,blue:0.94),suffix:"hPa")
+            moonMetric.frame(width: 166)
         }
-        .frame(height: 116)
+        .frame(height: 142)
     }
 
     private func circularMetric(title:String,symbol:String,value:String,progress:Double,tint:Color,suffix:String?=nil)->some View {
@@ -533,31 +543,41 @@ private struct ReferenceWeatherHome: View {
     }
 
     private var moonMetric: some View {
-        VStack(alignment:.leading,spacing:5) {
-            Label("Sol & måne",systemImage:"moon.stars.fill")
-                .font(.system(size:8,weight:.semibold)).foregroundStyle(.white).lineLimit(1)
-            HStack(spacing:7) {
-                VStack(spacing:2) {
-                    Image(systemName:"sunrise.fill").font(.system(size:13)).foregroundStyle(.orange)
-                    Text(weather.sunriseTime).font(.system(size:10,weight:.bold,design:.rounded)).foregroundStyle(.white)
-                    Image(systemName:"sunset.fill").font(.system(size:13)).foregroundStyle(.orange)
-                    Text(weather.sunsetTime).font(.system(size:10,weight:.bold,design:.rounded)).foregroundStyle(.white)
+        VStack(alignment:.leading,spacing:7) {
+            Label("Sol & måne",systemImage:"sun.horizon.fill")
+                .font(.system(size:10,weight:.bold)).foregroundStyle(.white)
+            HStack(alignment:.center,spacing:8) {
+                VStack(alignment:.leading,spacing:5) {
+                    HStack(spacing:5) {
+                        Image(systemName:"sunrise.fill").font(.system(size:15)).foregroundStyle(.orange)
+                        VStack(alignment:.leading,spacing:0) {
+                            Text("UPPGÅNG").font(.system(size:6,weight:.heavy)).foregroundStyle(RTheme.muted)
+                            Text(weather.sunriseTime).font(.system(size:13,weight:.bold,design:.rounded)).foregroundStyle(.white)
+                        }
+                    }
+                    HStack(spacing:5) {
+                        Image(systemName:"sunset.fill").font(.system(size:15)).foregroundStyle(.orange)
+                        VStack(alignment:.leading,spacing:0) {
+                            Text("NEDGÅNG").font(.system(size:6,weight:.heavy)).foregroundStyle(RTheme.muted)
+                            Text(weather.sunsetTime).font(.system(size:13,weight:.bold,design:.rounded)).foregroundStyle(.white)
+                        }
+                    }
                 }
-                Spacer(minLength:0)
+                Rectangle().fill(RTheme.line).frame(width:1,height:66)
                 VStack(spacing:3) {
                     Image(systemName:moonPhaseInfo.symbol)
-                        .font(.system(size:34))
+                        .font(.system(size:43))
                         .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(Color(red:0.82,green:0.87,blue:0.98))
-                        .shadow(color:.white.opacity(0.22),radius:5)
+                        .foregroundStyle(Color(red:0.86,green:0.90,blue:1))
+                        .shadow(color:.white.opacity(0.28),radius:7)
                     Text("\(moonPhaseInfo.illumination)%")
-                        .font(.system(size:10,weight:.bold,design:.rounded)).foregroundStyle(.white)
+                        .font(.system(size:12,weight:.bold,design:.rounded)).foregroundStyle(.white)
                     Text(moonPhaseInfo.name)
-                        .font(.system(size:6,weight:.medium)).foregroundStyle(RTheme.muted)
+                        .font(.system(size:7,weight:.medium)).foregroundStyle(RTheme.muted)
                         .lineLimit(1).minimumScaleFactor(0.7)
-                }
+                }.frame(maxWidth:.infinity)
             }
-        }.frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading).padding(7)
+        }.frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading).padding(9)
             .background(RTheme.panel,in:RoundedRectangle(cornerRadius:17))
             .overlay(RoundedRectangle(cornerRadius:17).stroke(RTheme.line.opacity(0.7),lineWidth:1))
     }
@@ -566,9 +586,9 @@ private struct ReferenceWeatherHome: View {
         HStack(spacing:8) {
             Image(systemName:"sun.max.fill").font(.system(size:17)).foregroundStyle(.yellow)
             VStack(alignment:.leading,spacing:2) {
-                Text("Dagslängd").font(.system(size:8,weight:.semibold)).foregroundStyle(RTheme.muted)
+                Text("Dagslängd").font(.system(size:11,weight:.semibold)).foregroundStyle(RTheme.muted)
                 Text(weather.daylightMinutes > 0 ? String(format:"%d h %02d min",weather.daylightMinutes/60,weather.daylightMinutes%60) : "Beräknas")
-                    .font(.system(size:12,weight:.bold,design:.rounded)).foregroundStyle(.white)
+                    .font(.system(size:16,weight:.bold,design:.rounded)).foregroundStyle(.white)
             }
             Spacer(minLength:3)
             if weather.daylightChangeMinutes != 0 {
@@ -576,7 +596,7 @@ private struct ReferenceWeatherHome: View {
                     .font(.system(size:12,weight:.heavy))
                     .foregroundStyle(weather.daylightChangeMinutes > 0 ? .green : .red)
                 Text("\(abs(weather.daylightChangeMinutes)) min \(weather.daylightChangeMinutes > 0 ? "längre" : "kortare") än igår")
-                    .font(.system(size:8,weight:.semibold)).foregroundStyle(.white)
+                    .font(.system(size:10,weight:.semibold)).foregroundStyle(.white)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else {
                 Text("Jämfört med igår")
@@ -585,6 +605,26 @@ private struct ReferenceWeatherHome: View {
         }.padding(.horizontal,12).padding(.vertical,9)
             .background(RTheme.panel,in:Capsule())
             .overlay(Capsule().stroke(RTheme.line.opacity(0.7),lineWidth:1))
+    }
+
+    private var todayDetailsButton: some View {
+        Button(action: showWeatherDetails) {
+            HStack(spacing:10) {
+                Image(systemName:"chart.bar.doc.horizontal.fill")
+                    .font(.system(size:17,weight:.semibold)).foregroundStyle(RTheme.cyan)
+                VStack(alignment:.leading,spacing:2) {
+                    Text("Dagens väder i detalj")
+                        .font(.system(size:12,weight:.bold)).foregroundStyle(.white)
+                    Text("UV, lufttryck, fuktighet, vind och mer")
+                        .font(.system(size:9,weight:.medium)).foregroundStyle(RTheme.muted)
+                }
+                Spacer()
+                Image(systemName:"chevron.right").font(.system(size:11,weight:.bold)).foregroundStyle(RTheme.cyan)
+            }
+            .padding(.horizontal,13).padding(.vertical,11)
+            .background(RTheme.panel,in:RoundedRectangle(cornerRadius:15))
+            .overlay(RoundedRectangle(cornerRadius:15).stroke(RTheme.line.opacity(0.8),lineWidth:1))
+        }.buttonStyle(.plain)
     }
 
     private var hourlyCard: some View {
