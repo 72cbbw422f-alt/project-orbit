@@ -115,16 +115,21 @@ private enum RadarService {
         let height = cgImage.height
         let bytesPerPixel = 4
         var pixels = [UInt8](repeating: 0, count: width * height * bytesPerPixel)
-        guard let context = CGContext(
-            data: &pixels,
-            width: width,
-            height: height,
-            bitsPerComponent: 8,
-            bytesPerRow: width * bytesPerPixel,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { throw URLError(.cannotDecodeContentData) }
-        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+        let rendered = pixels.withUnsafeMutableBytes { buffer -> Bool in
+            guard let baseAddress = buffer.baseAddress,
+                  let context = CGContext(
+                    data: baseAddress,
+                    width: width,
+                    height: height,
+                    bitsPerComponent: 8,
+                    bytesPerRow: width * bytesPerPixel,
+                    space: CGColorSpaceCreateDeviceRGB(),
+                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                  ) else { return false }
+            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+        guard rendered else { throw URLError(.cannotDecodeContentData) }
 
         var opaqueSamples = 0
         for dy in -2...2 {
