@@ -415,40 +415,39 @@ private struct ReferenceWeatherHome: View {
     }
 
     private var precipitationCard: some View {
-        VStack(alignment:.leading,spacing:8) {
-            Label("Nederbörd kommande 2 timmar",systemImage:"cloud.drizzle.fill")
-                .font(.system(size:14,weight:.bold)).foregroundStyle(.white)
-            HStack(alignment:.bottom,spacing:5) {
-                VStack(alignment:.trailing,spacing:12) {
-                    Text("Kraftig"); Text("Måttlig"); Text("Lätt")
-                }
-                .font(.system(size:8,weight:.medium)).foregroundStyle(RTheme.muted)
-                .frame(width:38,height:70,alignment:.bottom)
-                GeometryReader { proxy in
-                    ZStack(alignment:.bottom) {
-                        VStack(spacing:0) {
-                            ForEach(0..<3,id:\.self) { _ in
-                                Rectangle().fill(.white.opacity(0.17)).frame(height:1)
-                                Spacer(minLength:0)
+        VStack(alignment: .leading, spacing: 9) {
+            Label("Nederbörd kommande timmar", systemImage: "cloud.drizzle.fill")
+                .font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
+            if hours.isEmpty {
+                Text("Nederbördsprognos saknas just nu.")
+                    .font(.system(size: 10, weight: .medium)).foregroundStyle(RTheme.muted)
+            } else {
+                let forecast = Array(hours.prefix(8))
+                let maximum = max(forecast.map(\.precipitation).max() ?? 0.1, 0.1)
+                HStack(alignment: .bottom, spacing: 5) {
+                    ForEach(forecast) { hour in
+                        VStack(spacing: 5) {
+                            Text(String(format: "%.1f", hour.precipitation))
+                                .font(.system(size: 8, weight: .semibold)).foregroundStyle(RTheme.muted)
+                                .lineLimit(1).minimumScaleFactor(0.7)
+                            GeometryReader { proxy in
+                                VStack {
+                                    Spacer(minLength: 0)
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(LinearGradient(colors: [RTheme.cyan, RTheme.blue], startPoint: .top, endPoint: .bottom))
+                                        .frame(height: max(3, proxy.size.height * CGFloat(hour.precipitation / maximum)))
+                                }
                             }
+                            .frame(height: 66)
+                            Text(hour.time)
+                                .font(.system(size: 8, weight: .medium)).foregroundStyle(RTheme.muted)
                         }
-                        HStack(alignment:.bottom,spacing:3) {
-                            ForEach(bars.indices,id:\.self) { index in
-                                RoundedRectangle(cornerRadius:2)
-                                    .fill(LinearGradient(colors:[RTheme.cyan,Color(red:0.0,green:0.45,blue:0.88)],startPoint:.top,endPoint:.bottom))
-                                    .frame(maxWidth:.infinity)
-                                    .frame(height:max(3,proxy.size.height*bars[index]))
-                            }
-                        }
+                        .frame(maxWidth: .infinity)
                     }
-                }.frame(height:70)
+                }
+                Text("Prognostiserad nederbörd per timme, mm.")
+                    .font(.system(size: 8)).foregroundStyle(RTheme.muted.opacity(0.85))
             }
-            HStack {
-                Text("Nu"); Spacer(); Text("15 min"); Spacer(); Text("30 min"); Spacer(); Text("45 min"); Spacer(); Text("60 min"); Spacer(); Text("90 min"); Spacer(); Text("120 min")
-            }.font(.system(size:8,weight:.medium)).foregroundStyle(RTheme.muted)
-                .padding(.leading,43)
-            Text("Illustrativ kurva – inte en uppmätt prognos.")
-                .font(.system(size:8)).foregroundStyle(RTheme.muted.opacity(0.8))
         }.referencePanel()
     }
 
