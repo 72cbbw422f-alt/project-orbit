@@ -656,6 +656,102 @@ private struct ReferenceWeatherHome: View {
     }
 }
 
+private struct TodayWeatherDetails: View {
+    let weather: WeatherSnapshot
+    let days: [DayForecast]
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                RTheme.bg.ignoresSafeArea()
+                ScrollView(showsIndicators:false) {
+                    VStack(alignment:.leading,spacing:14) {
+                        VStack(alignment:.leading,spacing:4) {
+                            Text(weather.place).font(.system(size:22,weight:.bold,design:.rounded)).foregroundStyle(.white)
+                            Text("Dagens väderförhållanden").font(.system(size:12,weight:.medium)).foregroundStyle(RTheme.muted)
+                        }.frame(maxWidth:.infinity,alignment:.leading)
+                        HStack(spacing:10) {
+                            Image(systemName:"cloud.sun.fill").font(.system(size:38)).foregroundStyle(RTheme.cyan)
+                            VStack(alignment:.leading,spacing:2) {
+                                Text("\(weather.temperature)°").font(.system(size:34,weight:.bold,design:.rounded)).foregroundStyle(.white)
+                                Text(weather.condition).font(.system(size:13,weight:.semibold)).foregroundStyle(RTheme.muted)
+                                Text("Känns som \(weather.feelsLike)°").font(.system(size:11)).foregroundStyle(RTheme.muted)
+                            }
+                            Spacer()
+                        }.referencePanel()
+                        Text("LUFT OCH KLIMAT").font(.system(size:9,weight:.heavy)).tracking(1).foregroundStyle(RTheme.cyan)
+                        LazyVGrid(columns:[GridItem(.flexible()),GridItem(.flexible())],spacing:9) {
+                            detailMetric("Luftfuktighet","\(weather.humidity)%","humidity.fill")
+                            detailMetric("Lufttryck",weather.pressure > 0 ? String(format:"%.0f hPa",weather.pressure) : "—","gauge")
+                            detailMetric("UV-index","\(weather.uvIndex)","sun.max.fill")
+                            detailMetric("Nederbörd nu",String(format:"%.1f mm",weather.precipitationToday),"drop.fill")
+                        }
+                        Text("VIND").font(.system(size:9,weight:.heavy)).tracking(1).foregroundStyle(RTheme.cyan)
+                        LazyVGrid(columns:[GridItem(.flexible()),GridItem(.flexible())],spacing:9) {
+                            detailMetric("Medelvind",String(format:"%.1f m/s",weather.wind),"wind")
+                            detailMetric("Byvind",String(format:"%.1f m/s",weather.windGust),"wind")
+                            detailMetric("Riktning",weather.windDirectionText,"location.north.fill")
+                            detailMetric("Vindvinkel",String(format:"%.0f°",weather.windDirectionDegrees),"safari")
+                        }
+                        Text("SOL OCH DAGSLJUS").font(.system(size:9,weight:.heavy)).tracking(1).foregroundStyle(RTheme.cyan)
+                        VStack(spacing:10) {
+                            HStack {
+                                Label("Soluppgång",systemImage:"sunrise.fill").foregroundStyle(.orange)
+                                Spacer()
+                                Text(weather.sunriseTime).foregroundStyle(.white)
+                            }
+                            HStack {
+                                Label("Solnedgång",systemImage:"sunset.fill").foregroundStyle(.orange)
+                                Spacer()
+                                Text(weather.sunsetTime).foregroundStyle(.white)
+                            }
+                            Divider().overlay(RTheme.line)
+                            HStack {
+                                Label("Dagslängd",systemImage:"sun.max.fill").foregroundStyle(.yellow)
+                                Spacer()
+                                Text(String(format:"%d h %02d min",weather.daylightMinutes/60,weather.daylightMinutes%60)).foregroundStyle(.white)
+                            }
+                            HStack {
+                                Text("Förändring mot igår").foregroundStyle(RTheme.muted)
+                                Spacer()
+                                Text("\(weather.daylightChangeMinutes > 0 ? "+" : "")\(weather.daylightChangeMinutes) min").foregroundStyle(weather.daylightChangeMinutes >= 0 ? .green : .red)
+                            }
+                        }.font(.system(size:12,weight:.semibold)).referencePanel()
+                        if let today = days.first {
+                            Text("DAGENS PROGNOS").font(.system(size:9,weight:.heavy)).tracking(1).foregroundStyle(RTheme.cyan)
+                            HStack(spacing:12) {
+                                Image(systemName:today.symbol).font(.system(size:27)).foregroundStyle(RTheme.cyan)
+                                VStack(alignment:.leading,spacing:3) {
+                                    Text(today.condition).font(.system(size:13,weight:.bold)).foregroundStyle(.white)
+                                    Text("Nederbördsrisk \(today.precipitationChance)% • \(String(format:"%.1f",today.precipitation)) mm").font(.system(size:10)).foregroundStyle(RTheme.muted)
+                                }
+                                Spacer()
+                                VStack(alignment:.trailing,spacing:3) {
+                                    Text("\(today.high)°").foregroundStyle(.white)
+                                    Text("\(today.low)°").foregroundStyle(RTheme.muted)
+                                }.font(.system(size:13,weight:.bold,design:.rounded))
+                            }.referencePanel()
+                        }
+                    }.padding(16)
+                }
+            }
+            .navigationTitle("Dagens väder")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark,for:.navigationBar)
+        }.preferredColorScheme(.dark)
+    }
+
+    private func detailMetric(_ title:String,_ value:String,_ symbol:String) -> some View {
+        VStack(alignment:.leading,spacing:8) {
+            Image(systemName:symbol).font(.system(size:16,weight:.semibold)).foregroundStyle(RTheme.cyan)
+            Text(value).font(.system(size:20,weight:.bold,design:.rounded)).foregroundStyle(.white)
+            Text(title).font(.system(size:10,weight:.medium)).foregroundStyle(RTheme.muted)
+        }.frame(maxWidth:.infinity,alignment:.leading).padding(13)
+            .background(RTheme.panel,in:RoundedRectangle(cornerRadius:15))
+            .overlay(RoundedRectangle(cornerRadius:15).stroke(RTheme.line.opacity(0.7),lineWidth:1))
+    }
+}
+
 private struct PlaceSearchSheet: View {
     @ObservedObject var model: WeatherViewModel
     @Environment(\.dismiss) private var dismiss
