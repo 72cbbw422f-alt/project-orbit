@@ -55,7 +55,7 @@ private struct RadarTileMap: UIViewRepresentable {
         map.setRegion(
             MKCoordinateRegion(
                 center: safeCoordinate,
-                span: MKCoordinateSpan(latitudeDelta: 1.2, longitudeDelta: 1.2)
+                span: MKCoordinateSpan(latitudeDelta: 3.5, longitudeDelta: 3.5)
             ),
             animated: false
         )
