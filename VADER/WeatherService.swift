@@ -195,7 +195,12 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                 days = result.days
                 hours = result.hours
                 WeatherNotificationScheduler.refresh(place: placeName, hours: result.hours)
-                Task { await SMHIWarningService.checkAndNotify(at: CLLocationCoordinate2D(latitude: latitude, longitude: longitude)) }
+                Task {
+                    let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+                    let marks = try? await CLGeocoder().reverseGeocodeLocation(CLLocation(latitude: latitude, longitude: longitude), preferredLocale: Locale(identifier: "sv_SE"))
+                    let county = marks?.first?.administrativeArea
+                    await SMHIWarningService.checkAndNotify(at: coordinate, county: county)
+                }
                 status = "Liveprognos • Open-Meteo"
             } catch {
                 status = "Kunde inte hämta väderdata. Försök igen."
