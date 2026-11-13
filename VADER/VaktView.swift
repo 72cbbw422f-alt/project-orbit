@@ -84,8 +84,8 @@ struct VaktDashboard: View {
             VStack(alignment: .leading, spacing: 13) {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("VÄDERVAKTER").font(.system(size: 27, weight: .black, design: .rounded)).foregroundStyle(.white)
-                        Text("BEVAKNING FÖR \(weather.place.uppercased())").font(.system(size: 9, weight: .bold)).tracking(1).foregroundStyle(WatchPalette.muted)
+                        Text("VÄDERVAKTER").font(.system(size: 31, weight: .black, design: .rounded)).foregroundStyle(.white)
+                        Text("BEVAKNING FÖR \(weather.place.uppercased())").font(.system(size: 15, weight: .bold)).tracking(1).foregroundStyle(WatchPalette.muted)
                     }
                     Spacer()
                     Image(systemName: "shield.lefthalf.filled").font(.system(size: 29)).foregroundStyle(WatchPalette.cyan)
@@ -93,9 +93,9 @@ struct VaktDashboard: View {
                 HStack(spacing: 8) {
                     Circle().fill(activeWatches.isEmpty ? Color.green : Color.orange).frame(width: 7, height: 7)
                     Text(activeWatches.isEmpty ? "Inga förhöjda risker i prognosen" : "\(activeWatches.count) aktiva bevakningar i prognosen")
-                        .font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
+                        .font(.system(size: 16, weight: .semibold)).foregroundStyle(.white)
                     Spacer()
-                    Text("PROGNOSBASERAT").font(.system(size: 8, weight: .heavy)).tracking(0.7).foregroundStyle(WatchPalette.cyan)
+                    Text("PROGNOSBASERAT").font(.system(size: 16, weight: .heavy)).tracking(0.7).foregroundStyle(WatchPalette.cyan)
                 }.padding(12).background(WatchPalette.panel, in: RoundedRectangle(cornerRadius: 15)).overlay(RoundedRectangle(cornerRadius: 15).stroke(WatchPalette.line, lineWidth: 1))
 
                 ForEach(watches) { watch in
@@ -103,8 +103,8 @@ struct VaktDashboard: View {
                 }
 
                 Text("Väderprognosen visar vilka bevakningar som är aktiva. SMHI-varningar är officiella och visas separat när de berör vald plats.")
-                    .font(.system(size: 9, weight: .medium)).foregroundStyle(WatchPalette.muted).fixedSize(horizontal: false, vertical: true).padding(.horizontal, 3)
-                Text("PROGNOS: OPEN-METEO  •  VARNINGAR: SMHI").font(.system(size: 8, weight: .bold)).tracking(0.7).foregroundStyle(WatchPalette.muted.opacity(0.7)).frame(maxWidth: .infinity).padding(.top, 3).padding(.bottom, 20)
+                    .font(.system(size: 15, weight: .medium)).foregroundStyle(WatchPalette.muted).fixedSize(horizontal: false, vertical: true).padding(.horizontal, 3)
+                Text("PROGNOS: OPEN-METEO  •  VARNINGAR: SMHI").font(.system(size: 16, weight: .bold)).tracking(0.7).foregroundStyle(WatchPalette.muted.opacity(0.7)).frame(maxWidth: .infinity).padding(.top, 3).padding(.bottom, 20)
             }
             .padding(.horizontal, 14).padding(.top, 22)
         }
@@ -124,10 +124,10 @@ struct VaktDashboard: View {
                 Image(systemName: watch.symbol).font(.system(size: 34, weight: .medium)).symbolRenderingMode(.hierarchical).foregroundStyle(watch.tint).shadow(color: watch.tint.opacity(0.4), radius: 10)
             }.frame(width: 76, height: 82)
             VStack(alignment: .leading, spacing: 5) {
-                Text(watch.title).font(.system(size: 13, weight: .heavy)).foregroundStyle(.white)
-                Text(watch.subtitle).font(.system(size: 9, weight: .medium)).foregroundStyle(WatchPalette.muted).lineLimit(2)
-                Text(watch.detail).font(.system(size: 10, weight: .medium)).foregroundStyle(.white.opacity(0.88)).lineLimit(2)
-                HStack(spacing: 5) { Circle().fill(watch.active ? watch.tint : WatchPalette.muted.opacity(0.55)).frame(width: 6, height: 6).shadow(color: watch.active ? watch.tint : .clear, radius: watch.active ? 6 : 0); Text(watch.level) }.font(.system(size: 8, weight: .heavy)).tracking(0.6).foregroundStyle(watch.active ? watch.tint : WatchPalette.muted)
+                Text(watch.title).font(.system(size: 16, weight: .heavy)).foregroundStyle(.white)
+                Text(watch.subtitle).font(.system(size: 15, weight: .medium)).foregroundStyle(WatchPalette.muted).lineLimit(2)
+                Text(watch.detail).font(.system(size: 16, weight: .medium)).foregroundStyle(.white.opacity(0.88)).lineLimit(2)
+                HStack(spacing: 5) { Circle().fill(watch.active ? watch.tint : WatchPalette.muted.opacity(0.55)).frame(width: 6, height: 6).shadow(color: watch.active ? watch.tint : .clear, radius: watch.active ? 6 : 0); Text(watch.level) }.font(.system(size: 16, weight: .heavy)).tracking(0.6).foregroundStyle(watch.active ? watch.tint : WatchPalette.muted)
             }
             Spacer(minLength: 0)
         }
@@ -168,27 +168,27 @@ private struct WatchDetailSheet: View {
                             .foregroundStyle(watch.tint).frame(width: 62, height: 62)
                             .background(watch.tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(watch.title).font(.system(size: 19, weight: .heavy)).foregroundStyle(.white)
-                            Text(watch.level).font(.system(size: 10, weight: .heavy)).tracking(1).foregroundStyle(watch.tint)
+                            Text(watch.title).font(.system(size: 22, weight: .heavy)).foregroundStyle(.white)
+                            Text(watch.level).font(.system(size: 16, weight: .heavy)).tracking(1).foregroundStyle(watch.tint)
                         }
                         Spacer()
                     }
-                    Text(watch.detail).font(.system(size: 14, weight: .medium)).foregroundStyle(.white)
+                    Text(watch.detail).font(.system(size: 16, weight: .medium)).foregroundStyle(.white)
                         .padding(14).frame(maxWidth: .infinity, alignment: .leading)
                         .background(WatchPalette.panel, in: RoundedRectangle(cornerRadius: 15))
                     VStack(alignment: .leading, spacing: 9) {
-                        Text("KOMMANDE PROGNOSPUNKTER").font(.system(size: 10, weight: .heavy)).tracking(1).foregroundStyle(WatchPalette.cyan)
+                        Text("KOMMANDE PROGNOSPUNKTER").font(.system(size: 16, weight: .heavy)).tracking(1).foregroundStyle(WatchPalette.cyan)
                         if relevantHours.isEmpty {
-                            Text("Inga relevanta händelser hittades i den hämtade timprognosen.").font(.system(size: 12)).foregroundStyle(WatchPalette.muted)
+                            Text("Inga relevanta händelser hittades i den hämtade timprognosen.").font(.system(size: 15)).foregroundStyle(WatchPalette.muted)
                         } else {
                             ForEach(relevantHours.prefix(12)) { hour in
                                 HStack {
-                                    Text(hour.time).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+                                    Text(hour.time).font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
                                     Spacer()
-                                    Text("\(hour.temperature)°").font(.system(size: 13, weight: .bold, design: .rounded)).foregroundStyle(.white)
-                                    Text(hour.condition).font(.system(size: 11)).foregroundStyle(WatchPalette.muted)
+                                    Text("\(hour.temperature)°").font(.system(size: 16, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                                    Text(hour.condition).font(.system(size: 16)).foregroundStyle(WatchPalette.muted)
                                     if watch.id == "frost" {
-                                        Text(String(format: "%.1f mm", hour.precipitation)).font(.system(size: 10, weight: .medium)).foregroundStyle(WatchPalette.muted)
+                                        Text(String(format: "%.1f mm", hour.precipitation)).font(.system(size: 16, weight: .medium)).foregroundStyle(WatchPalette.muted)
                                     }
                                 }
                                 .padding(.vertical, 5)
@@ -198,17 +198,17 @@ private struct WatchDetailSheet: View {
                     }
                     .padding(13).background(WatchPalette.panel, in: RoundedRectangle(cornerRadius: 15))
                     VStack(alignment: .leading, spacing: 7) {
-                        Text("LOKALA AVISERINGAR").font(.system(size: 10, weight: .heavy)).tracking(1).foregroundStyle(WatchPalette.cyan)
-                        Text(notificationStatus).font(.system(size: 12, weight: .medium)).foregroundStyle(WatchPalette.muted)
+                        Text("LOKALA AVISERINGAR").font(.system(size: 16, weight: .heavy)).tracking(1).foregroundStyle(WatchPalette.cyan)
+                        Text(notificationStatus).font(.system(size: 15, weight: .medium)).foregroundStyle(WatchPalette.muted)
                         Button(action: sendTestNotification) {
                             Label("Skicka testavisering om 5 sekunder", systemImage: "bell.badge")
-                                .font(.system(size: 12, weight: .bold)).frame(maxWidth: .infinity).padding(12)
+                                .font(.system(size: 15, weight: .bold)).frame(maxWidth: .infinity).padding(12)
                                 .background(WatchPalette.cyan.opacity(0.16), in: RoundedRectangle(cornerRadius: 12))
                                 .foregroundStyle(WatchPalette.cyan)
                         }.buttonStyle(.plain)
-                        if !testStatus.isEmpty { Text(testStatus).font(.system(size: 11)).foregroundStyle(WatchPalette.muted) }
+                        if !testStatus.isEmpty { Text(testStatus).font(.system(size: 16)).foregroundStyle(WatchPalette.muted) }
                         Text("Antalet visar väntande notiser i iOS, inte en garanti för att de visas vid exakt tid. Fokus och iOS-inställningar kan påverka leveransen.")
-                            .font(.system(size: 10)).foregroundStyle(WatchPalette.muted.opacity(0.85))
+                            .font(.system(size: 16)).foregroundStyle(WatchPalette.muted.opacity(0.85))
                     }
                     .padding(13).background(WatchPalette.panel, in: RoundedRectangle(cornerRadius: 15))
                 }.padding(16)
@@ -273,16 +273,16 @@ struct ActiveWatchSummary: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Label("AKTIVA VÄDERVAKTER", systemImage: "shield.lefthalf.filled")
-                        .font(.system(size: 10, weight: .heavy)).foregroundStyle(.white)
+                        .font(.system(size: 16, weight: .heavy)).foregroundStyle(.white)
                     Spacer()
-                    Text("\(activeTitles.count) AKTIVA").font(.system(size: 8, weight: .heavy)).foregroundStyle(WatchPalette.cyan)
+                    Text("\(activeTitles.count) AKTIVA").font(.system(size: 16, weight: .heavy)).foregroundStyle(WatchPalette.cyan)
                 }
                 HStack(spacing: 7) {
                     ForEach(Array(activeTitles.enumerated()), id: \.offset) { _, item in
                         HStack(spacing: 5) {
                             Image(systemName: item.1).foregroundStyle(WatchPalette.cyan)
                             Text(item.0).foregroundStyle(.white)
-                        }.font(.system(size: 8, weight: .heavy)).padding(.horizontal, 9).padding(.vertical, 8)
+                        }.font(.system(size: 16, weight: .heavy)).padding(.horizontal, 9).padding(.vertical, 8)
                             .background(.white.opacity(0.06), in: Capsule())
                             .overlay(Capsule().stroke(WatchPalette.line, lineWidth: 1))
                     }
