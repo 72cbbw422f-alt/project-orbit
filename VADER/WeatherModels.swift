@@ -12,6 +12,10 @@ struct WeatherSnapshot {
     let humidity: Int
     let uvIndex: Int
     let precipitationToday: Double
+    var sunriseTime: String = "—:—"
+    var sunsetTime: String = "—:—"
+    var daylightMinutes: Int = 0
+    var daylightChangeMinutes: Int = 0
 
     static let demo = WeatherSnapshot(
         place: "Din plats",
