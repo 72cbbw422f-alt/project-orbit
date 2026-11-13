@@ -43,6 +43,8 @@ jobs:
             -destination 'generic/platform=iOS' \
             -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
+            CURRENT_PROJECT_VERSION="${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}" \
+            MARKETING_VERSION="1.0.${GITHUB_RUN_NUMBER}" \
             build
 
       - name: Package unsigned IPA
