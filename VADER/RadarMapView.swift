@@ -1,5 +1,6 @@
 import SwiftUI
 import MapKit
+import Combine
 
 private struct RainViewerFrame: Identifiable, Decodable {
     let time: TimeInterval
@@ -27,11 +28,89 @@ private enum RainViewerService {
     }
 }
 
+private struct RadarTileMap: UIViewRepresentable {
+    let coordinate: CLLocationCoordinate2D
+    let host: String
+    let frame: RainViewerFrame?
+
+    private var safeCoordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(
+            latitude: coordinate.latitude.isFinite ? min(85, max(-85, coordinate.latitude)) : 61.7274,
+            longitude: coordinate.longitude.isFinite ? min(180, max(-180, coordinate.longitude)) : 17.1058
+        )
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> MKMapView {
+        let map = MKMapView(frame: .zero)
+        map.delegate = context.coordinator
+        map.mapType = .mutedStandard
+        map.overrideUserInterfaceStyle = .dark
+        map.showsCompass = true
+        map.showsScale = true
+        map.pointOfInterestFilter = .excludingAll
+        map.isRotateEnabled = false
+        map.isPitchEnabled = false
+        map.setRegion(
+            MKCoordinateRegion(
+                center: safeCoordinate,
+                span: MKCoordinateSpan(latitudeDelta: 1.2, longitudeDelta: 1.2)
+            ),
+            animated: false
+        )
+        return map
+    }
+
+    func updateUIView(_ map: MKMapView, context: Context) {
+        let target = safeCoordinate
+        if context.coordinator.lastLatitude != target.latitude ||
+            context.coordinator.lastLongitude != target.longitude {
+            context.coordinator.lastLatitude = target.latitude
+            context.coordinator.lastLongitude = target.longitude
+            map.setRegion(
+                MKCoordinateRegion(
+                    center: target,
+                    span: MKCoordinateSpan(latitudeDelta: 1.2, longitudeDelta: 1.2)
+                ),
+                animated: false
+            )
+        }
+
+        guard !host.isEmpty, let frame, context.coordinator.lastFrameID != frame.id else { return }
+        context.coordinator.lastFrameID = frame.id
+        let oldTiles = map.overlays.filter { $0 is MKTileOverlay }
+        map.removeOverlays(oldTiles)
+
+        let template = "\(host)\(frame.path)/256/{z}/{x}/{y}/2/1_1.png"
+        let overlay = MKTileOverlay(urlTemplate: template)
+        overlay.canReplaceMapContent = false
+        overlay.minimumZ = 0
+        overlay.maximumZ = 7
+        overlay.tileSize = CGSize(width: 256, height: 256)
+        map.addOverlay(overlay, level: .aboveLabels)
+    }
+
+    final class Coordinator: NSObject, MKMapViewDelegate {
+        var lastFrameID: TimeInterval?
+        var lastLatitude = Double.nan
+        var lastLongitude = Double.nan
+
+        func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            guard let tileOverlay = overlay as? MKTileOverlay else {
+                return MKOverlayRenderer(overlay: overlay)
+            }
+            let renderer = MKTileOverlayRenderer(tileOverlay: tileOverlay)
+            renderer.alpha = 0.78
+            return renderer
+        }
+    }
+}
+
 struct RadarMapView: View {
     let coordinate: CLLocationCoordinate2D?
     let place: String
 
-    @State private var cameraPosition: MapCameraPosition = .automatic
     @State private var frames: [RainViewerFrame] = []
     @State private var selectedIndex = 0
     @State private var isLoading = false
@@ -44,16 +123,10 @@ struct RadarMapView: View {
 
     private var mapCoordinate: CLLocationCoordinate2D {
         let value = coordinate ?? CLLocationCoordinate2D(latitude: 61.7274, longitude: 17.1058)
-        let latitude = value.latitude.isFinite ? min(85, max(-85, value.latitude)) : 61.7274
-        let longitude = value.longitude.isFinite ? min(180, max(-180, value.longitude)) : 17.1058
-        return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-    }
-
-    private var initialPosition: MapCameraPosition {
-        .region(MKCoordinateRegion(
-            center: mapCoordinate,
-            span: MKCoordinateSpan(latitudeDelta: 1.2, longitudeDelta: 1.2)
-        ))
+        return CLLocationCoordinate2D(
+            latitude: value.latitude.isFinite ? min(85, max(-85, value.latitude)) : 61.7274,
+            longitude: value.longitude.isFinite ? min(180, max(-180, value.longitude)) : 17.1058
+        )
     }
 
     private var selectedFrame: RainViewerFrame? {
@@ -88,29 +161,20 @@ struct RadarMapView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 10)
 
-                Map(position: $cameraPosition) {
-                    Marker(place, coordinate: mapCoordinate).tint(.cyan)
-                }
-                .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
-                .mapControls {
-                    MapCompass()
-                    MapScaleView()
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 18))
-                .padding(.horizontal, 10)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                RadarTileMap(coordinate: mapCoordinate, host: host, frame: selectedFrame)
+                    .clipShape(RoundedRectangle(cornerRadius: 18))
+                    .padding(.horizontal, 10)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 VStack(spacing: 10) {
-                    HStack {
-                        HStack(spacing: 7) {
-                            Circle().fill(frames.isEmpty ? .orange : .cyan).frame(width: 7, height: 7)
-                            Text(frames.isEmpty ? "RADAR" : "RADARDATA HÄMTAD")
-                                .font(.system(size: 9, weight: .heavy))
-                                .tracking(0.8)
-                                .foregroundStyle(.white)
-                        }
+                    HStack(spacing: 7) {
+                        Circle().fill(frames.isEmpty ? .orange : .cyan).frame(width: 7, height: 7)
+                        Text(frames.isEmpty ? "RADAR" : "RADARLAGER AKTIVT")
+                            .font(.system(size: 9, weight: .heavy))
+                            .tracking(0.8)
+                            .foregroundStyle(.white)
                         Spacer()
-                        Text("RainViewer")
+                        Text("Data: RainViewer")
                             .font(.system(size: 9, weight: .medium))
                             .foregroundStyle(.white.opacity(0.65))
                     }
@@ -118,7 +182,7 @@ struct RadarMapView: View {
                     if isLoading {
                         HStack(spacing: 8) {
                             ProgressView().tint(.cyan)
-                            Text("Hämtar radartider…")
+                            Text("Hämtar radarbilder…")
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundStyle(.white.opacity(0.8))
                         }.frame(maxWidth: .infinity, alignment: .leading)
@@ -127,14 +191,16 @@ struct RadarMapView: View {
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.orange)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                    } else if let selectedFrame {
+                    }
+
+                    if let selectedFrame {
                         HStack {
                             Text(Date(timeIntervalSince1970: selectedFrame.time)
                                 .formatted(date: .omitted, time: .shortened))
                                 .font(.system(size: 12, weight: .bold, design: .rounded))
                                 .foregroundStyle(.white)
                             Spacer()
-                            Text("HISTORISKA RADARTIDER")
+                            Text("SENASTE 2 TIMMARNA")
                                 .font(.system(size: 8, weight: .heavy))
                                 .tracking(0.7)
                                 .foregroundStyle(.cyan)
@@ -150,22 +216,16 @@ struct RadarMapView: View {
                         .tint(.cyan)
                         .disabled(frames.count < 2)
                         HStack(spacing: 14) {
-                            Button {
-                                selectedIndex = max(0, selectedIndex - 1)
-                            } label: {
+                            Button { selectedIndex = max(0, selectedIndex - 1) } label: {
                                 Image(systemName: "backward.end.fill")
                             }
-                            Button {
-                                isPlaying.toggle()
-                            } label: {
+                            Button { isPlaying.toggle() } label: {
                                 Image(systemName: isPlaying ? "pause.fill" : "play.fill")
                                     .font(.system(size: 15, weight: .bold))
                                     .frame(width: 40, height: 40)
                                     .background(Color.cyan.opacity(0.18), in: Circle())
                             }
-                            Button {
-                                selectedIndex = min(frames.count - 1, selectedIndex + 1)
-                            } label: {
+                            Button { selectedIndex = min(frames.count - 1, selectedIndex + 1) } label: {
                                 Image(systemName: "forward.end.fill")
                             }
                             Spacer()
@@ -177,17 +237,12 @@ struct RadarMapView: View {
                         }
                         .font(.system(size: 15, weight: .bold))
                         .foregroundStyle(.cyan)
-                    } else {
-                        Text("Tryck på uppdatera för att hämta tillgängliga radartider.")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.8))
-                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
                     HStack {
-                        Text("Kartunderlag: Apple Maps")
+                        Text("Apple Maps + nederbördsradar")
                         Spacer()
-                        Text("Nederbördsbild kopplas in i nästa steg")
+                        Text("Historiska radarbilder")
                     }
                     .font(.system(size: 8, weight: .medium))
                     .foregroundStyle(.white.opacity(0.6))
@@ -197,7 +252,6 @@ struct RadarMapView: View {
                 .padding(10)
             }
         }
-        .onAppear { cameraPosition = initialPosition }
         .task { await refreshRadar() }
         .onReceive(playback) { _ in
             guard isPlaying, !frames.isEmpty else { return }
@@ -218,7 +272,7 @@ struct RadarMapView: View {
             selectedIndex = max(0, frames.count - 1)
             lastUpdated = Date()
         } catch {
-            errorMessage = "Radartider kunde inte hämtas just nu."
+            errorMessage = "Radarbilder kunde inte hämtas just nu."
         }
         isLoading = false
     }
