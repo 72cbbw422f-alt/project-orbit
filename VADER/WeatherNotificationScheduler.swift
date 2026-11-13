@@ -71,7 +71,6 @@ enum WeatherNotificationScheduler {
             content.title = event.title
             content.body = "\(event.body) • \(place)"
             content.sound = .default
-            content.interruptionLevel = event.safetyCritical ? .timeSensitive : .active
             content.userInfo = ["watch": event.type, "place": place, "safetyCritical": event.safetyCritical]
             let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
             let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
