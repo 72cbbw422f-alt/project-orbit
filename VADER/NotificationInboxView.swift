@@ -25,6 +25,14 @@ enum SMHIWarningService {
     static let endpoint = URL(string: "https://opendata-download-warnings.smhi.se/ibww/api/version/1/warning.json")!
 
     static func warnings(at coordinate: CLLocationCoordinate2D) async throws -> [SMHIWarning] {
+        try await fetchWarnings(filterCoordinate: coordinate)
+    }
+
+    static func nationwideWarnings() async throws -> [SMHIWarning] {
+        try await fetchWarnings(filterCoordinate: nil)
+    }
+
+    private static func fetchWarnings(filterCoordinate coordinate: CLLocationCoordinate2D?) async throws -> [SMHIWarning] {
         var request = URLRequest(url: endpoint)
         request.cachePolicy = .reloadRevalidatingCacheData
         request.timeoutInterval = 20
@@ -42,7 +50,7 @@ enum SMHIWarningService {
                       let geometry = geometryRoot["geometry"] as? [String: Any],
                       let type = geometry["type"] as? String,
                       let coordinates = geometry["coordinates"] else { continue }
-                guard contains(coordinate, geometryType: type, coordinates: coordinates) else { continue }
+                if let coordinate, !contains(coordinate, geometryType: type, coordinates: coordinates) { continue }
                 let levelObject = area["warningLevel"] as? [String: Any] ?? [:]
                 let level = levelObject["sv"] as? String ?? "Meddelande"
                 let areaName = (area["areaName"] as? [String: Any])?["sv"] as? String ?? "Berört område"
@@ -182,6 +190,116 @@ struct NotificationInboxView: View {
             catch { errorMessage = "Kunde inte hämta SMHI-varningar. Kontrollera anslutningen och försök igen." }
         } else { errorMessage = "Väntar på en giltig position från vädertjänsten." }
         delivered = await UNUserNotificationCenter.current().deliveredNotifications().sorted { $0.date > $1.date }
+        isLoading = false
+    }
+}
+
+struct NationalWarningsView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var warnings: [SMHIWarning] = []
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    @State private var lastUpdated: Date?
+    private let cyan = Color(red: 0.04, green: 0.78, blue: 0.98)
+
+    private var yellowCount: Int { warnings.filter { $0.level.localizedCaseInsensitiveContains("gul") }.count }
+    private var orangeCount: Int { warnings.filter { $0.level.localizedCaseInsensitiveContains("orange") }.count }
+    private var redCount: Int { warnings.filter { $0.level.localizedCaseInsensitiveContains("röd") }.count }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("SVERIGE JUST NU").font(.system(size: 10, weight: .heavy)).tracking(1.4).foregroundStyle(cyan)
+                        Text("SMHI-varningar").font(.system(size: 27, weight: .black, design: .rounded)).foregroundStyle(.white)
+                        Text("Aktiva vädervarningar i hela Sverige").font(.system(size: 12)).foregroundStyle(.white.opacity(0.65))
+                    }
+                    HStack(spacing: 8) {
+                        levelCount("Gula", count: yellowCount, color: .yellow)
+                        levelCount("Orange", count: orangeCount, color: .orange)
+                        levelCount("Röda", count: redCount, color: .red)
+                    }
+                    HStack {
+                        Text("AKTIVA VARNINGAR").font(.system(size: 10, weight: .heavy)).tracking(1).foregroundStyle(cyan)
+                        Spacer()
+                        Button { Task { await load() } } label: {
+                            Label("Uppdatera", systemImage: "arrow.clockwise").font(.system(size: 11, weight: .bold))
+                        }.foregroundStyle(cyan)
+                    }
+                    if isLoading { ProgressView().tint(cyan).frame(maxWidth: .infinity).padding() }
+                    if let errorMessage {
+                        Label(errorMessage, systemImage: "wifi.exclamationmark").font(.system(size: 12)).foregroundStyle(.orange)
+                    }
+                    if !isLoading && warnings.isEmpty && errorMessage == nil {
+                        Label("Inga aktiva SMHI-varningar i Sverige just nu.", systemImage: "checkmark.shield.fill")
+                            .font(.system(size: 13, weight: .medium)).foregroundStyle(.green)
+                            .frame(maxWidth: .infinity, alignment: .leading).padding(15)
+                            .background(Color.green.opacity(0.09), in: RoundedRectangle(cornerRadius: 15))
+                    }
+                    ForEach(warnings) { warning in
+                        warningCard(warning)
+                    }
+                    if let lastUpdated {
+                        Text("Senast hämtad " + lastUpdated.formatted(date: .omitted, time: .shortened))
+                            .font(.system(size: 10)).foregroundStyle(.white.opacity(0.45))
+                    }
+                    Text("Källa: SMHI:s öppna varnings-API. Översikten visar aktiva varningar nationellt och uppdateras när du hämtar information.")
+                        .font(.system(size: 10)).foregroundStyle(.white.opacity(0.48))
+                }.padding(16)
+            }
+            .background(Color(red: 0.008, green: 0.025, blue: 0.055))
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Klar") { dismiss() }.foregroundStyle(cyan) } }
+            .task { await load() }
+        }.preferredColorScheme(.dark)
+    }
+
+    private func levelCount(_ title: String, count: Int, color: Color) -> some View {
+        VStack(spacing: 3) {
+            Text("\(count)").font(.system(size: 23, weight: .black, design: .rounded)).foregroundStyle(color)
+            Text(title).font(.system(size: 10, weight: .bold)).foregroundStyle(.white.opacity(0.75))
+        }.frame(maxWidth: .infinity).padding(.vertical, 12)
+            .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 13))
+            .overlay(RoundedRectangle(cornerRadius: 13).stroke(color.opacity(0.3), lineWidth: 1))
+    }
+
+    private func warningCard(_ warning: SMHIWarning) -> some View {
+        let lower = warning.title.lowercased()
+        let symbol = lower.contains("vind") ? "wind" : lower.contains("snö") ? "cloud.snow.fill" :
+            lower.contains("regn") || lower.contains("nederbörd") ? "cloud.rain.fill" :
+            lower.contains("åska") ? "cloud.bolt.rain.fill" :
+            lower.contains("is") || lower.contains("halka") ? "car.side.fill" :
+            lower.contains("värme") ? "sun.max.fill" : "exclamationmark.triangle.fill"
+        return VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 8) {
+                Image(systemName: symbol).font(.system(size: 20, weight: .semibold)).foregroundStyle(warning.color)
+                Text(warning.level.uppercased()).font(.system(size: 9, weight: .black)).tracking(0.9).foregroundStyle(warning.color)
+                Spacer()
+                Text("SMHI").font(.system(size: 9, weight: .bold)).foregroundStyle(.white.opacity(0.5))
+            }
+            Text(warning.title).font(.system(size: 17, weight: .bold, design: .rounded)).foregroundStyle(.white)
+            Label(warning.area, systemImage: "mappin.and.ellipse").font(.system(size: 11, weight: .semibold)).foregroundStyle(cyan)
+            if !warning.description.isEmpty { Text(warning.description).font(.system(size: 11)).foregroundStyle(.white.opacity(0.83)) }
+            if !warning.advice.isEmpty {
+                Divider().overlay(.white.opacity(0.14))
+                Text("ATT TÄNKA PÅ").font(.system(size: 9, weight: .heavy)).foregroundStyle(cyan)
+                Text(warning.advice).font(.system(size: 11)).foregroundStyle(.white.opacity(0.78))
+            }
+            if !warning.start.isEmpty {
+                Text("Start: " + warning.start).font(.system(size: 9)).foregroundStyle(.white.opacity(0.5))
+            }
+        }.padding(14).background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(warning.color.opacity(0.5), lineWidth: 1))
+    }
+
+    @MainActor private func load() async {
+        isLoading = true; errorMessage = nil
+        do {
+            warnings = try await SMHIWarningService.nationwideWarnings()
+            lastUpdated = Date()
+        } catch {
+            errorMessage = "Kunde inte hämta Sveriges varningar. Kontrollera anslutningen och försök igen."
+        }
         isLoading = false
     }
 }
