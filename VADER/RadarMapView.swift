@@ -86,8 +86,12 @@ private enum SWEREF99 {
         let tauPrime = sin(xiPrime) / sqrt(sinhEta * sinhEta + cos(xiPrime) * cos(xiPrime))
         var tau = tauPrime
         for _ in 0..<5 {
-            let sigma = sinh(0.5 * log((1 + tau * sqrt(e2)) / (1 - tau * sqrt(e2))))
-            let next = tau * sqrt(1 + sigma * sigma) - sigma * sqrt(1 + tau * tau)
+            let tauE = tau * sqrt(e2)
+            let atanhTauE = 0.5 * (log(1 + tauE) - log(1 - tauE))
+            let sigma = sinh(atanhTauE)
+            let rootSigma = sqrt(1 + sigma * sigma)
+            let rootTau = sqrt(1 + tau * tau)
+            let next = tau * rootSigma - sigma * rootTau
             if abs(next - tau) < 1e-13 { tau = next; break }
             tau = next
         }
@@ -416,9 +420,9 @@ private struct RegnvaktMapView: UIViewRepresentable {
             }
             let quad = MLNCoordinateQuad(
                 topLeft: SWEREF99.imageCorners[0],
-                topRight: SWEREF99.imageCorners[3],
+                bottomLeft: SWEREF99.imageCorners[1],
                 bottomRight: SWEREF99.imageCorners[2],
-                bottomLeft: SWEREF99.imageCorners[1]
+                topRight: SWEREF99.imageCorners[3]
             )
             let source = MLNImageSource(identifier: "regnvakt-smhi-source", coordinateQuad: quad, image: image)
             let layer = MLNRasterStyleLayer(identifier: "regnvakt-smhi-radar", source: source)
