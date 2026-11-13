@@ -127,25 +127,33 @@ enum WeatherNotificationScheduler {
                 (lastWetForecastDate.map { date.timeIntervalSince($0) <= 3 * 60 * 60 } ?? false)
             var active: [Event] = []
 
+            // Rain: notify for a meaningful forecast probability or measurable amount.
             if defaults.object(forKey: "Regnvakt.notifications.rain") as? Bool ?? true,
                isRain,
-               (hour.precipitationChance >= 60 || hour.precipitation >= 0.3) {
+               (hour.precipitationChance >= 40 || hour.precipitation >= 0.3) {
                 active.append(Event(type: "rain", title: "Regn väntas",
-                    body: "Regn väntas omkring \(hour.time). Nederbördsrisk \(hour.precipitationChance)%.",
+                    body: "Regn väntas omkring \(hour.time). Sannolikhet \(hour.precipitationChance)%, mängd cirka \(String(format: "%.1f", hour.precipitation)) mm.",
                     date: date, safetyCritical: false))
             }
-            if defaults.object(forKey: "Regnvakt.notifications.snow") as? Bool ?? true, isSnow {
-                active.append(Event(type: "snow", title: "Snö väntas",
-                    body: "Snöfall väntas omkring \(hour.time).", date: date, safetyCritical: false))
+            // Snow: require either a reasonable probability or measurable snowfall.
+            if defaults.object(forKey: "Regnvakt.notifications.snow") as? Bool ?? true,
+               isSnow,
+               (hour.precipitationChance >= 40 || hour.precipitation >= 0.2) {
+                active.append(Event(type: "snow", title: "Snöfall väntas",
+                    body: "Snöfall väntas omkring \(hour.time). Sannolikhet \(hour.precipitationChance)%.",
+                    date: date, safetyCritical: false))
             }
-            if defaults.object(forKey: "Regnvakt.notifications.wind") as? Bool ?? true, hour.gust >= 14 {
-                active.append(Event(type: "wind", title: "Kraftiga vindbyar",
-                    body: String(format: "Vindbyar på cirka %.0f m/s väntas omkring %@.", hour.gust, hour.time),
+            // Wind: consider both sustained wind and gusts; gusts carry the higher threshold.
+            if defaults.object(forKey: "Regnvakt.notifications.wind") as? Bool ?? true,
+               hour.gust >= 17 || hour.wind >= 11 {
+                active.append(Event(type: "wind", title: "Kraftig vind väntas",
+                    body: String(format: "Vind cirka %.0f m/s med byar upp mot %.0f m/s omkring %@.", hour.wind, hour.gust, hour.time),
                     date: date, safetyCritical: false))
             }
             if defaults.object(forKey: "Regnvakt.notifications.thunder") as? Bool ?? true, isThunder {
                 active.append(Event(type: "thunder", title: "Åskrisk",
-                    body: "Åska finns i prognosen omkring \(hour.time).", date: date, safetyCritical: false))
+                    body: "Åska finns i prognosen omkring \(hour.time). Kontrollera SMHI:s lokala varningar och sök skydd vid åska.",
+                    date: date, safetyCritical: false))
             }
 
             if defaults.object(forKey: "Regnvakt.notifications.frost") as? Bool ?? true {
