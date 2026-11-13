@@ -13,7 +13,7 @@ struct SavedPlacesView: View {
     let onSelectPlace: () -> Void
 
     private var favorite: SavedWeatherPlace? {
-        model.savedPlaces.first(where: \\.isFavorite)
+        model.savedPlaces.first(where: \.isFavorite)
     }
 
     var body: some View {
