@@ -247,13 +247,13 @@ private enum OpenMeteoService {
         hourFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
         let displayHour = DateFormatter()
         displayHour.locale = Locale(identifier: "sv_SE")
-        displayHour.timeZone = TimeZone.current
+        displayHour.timeZone = apiTimeZone
         displayHour.dateFormat = "HH"
         let now = Date()
         let currentHour = Calendar.current.date(bySetting: .minute, value: 0, of: now) ?? now
         let startIndex = hourlyTimes.firstIndex { (hourFormatter.date(from: $0) ?? .distantPast) >= currentHour } ?? 0
         let hours: [HourForecast] = hourlyTimes.indices
-            .filter { $0 >= startIndex && $0 < startIndex + 8 }
+            .filter { $0 >= startIndex && $0 < startIndex + 48 }
             .compactMap { i in
                 guard i < hourlyTemps.count, i < hourlyCodes.count else { return nil }
                 let code = hourlyCodes[i].intValue
