@@ -2,13 +2,23 @@ import Foundation
 import CoreLocation
 import Combine
 
+struct PlaceSearchResult: Identifiable {
+    let id = UUID()
+    let name: String
+    let coordinate: CLLocationCoordinate2D
+}
+
 @MainActor
 final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var snapshot: WeatherSnapshot?
     @Published var days: [DayForecast] = []
     @Published var hours: [HourForecast] = []
     @Published var status = "Väntar på platsåtkomst…"
+    @Published var placeSearchResults: [PlaceSearchResult] = []
+    @Published var placeSearchStatus = ""
+    @Published var isSearchingPlaces = false
     private let manager = CLLocationManager()
+    private let geocoder = CLGeocoder()
     private var lastFetch: Date?
 
     override init() {
@@ -22,13 +32,13 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
     func requestLocation() {
         switch manager.authorizationStatus {
         case .notDetermined:
-            status = "Tillåt platsåtkomst för lokalt väder"
+            status = "Tillåt platsåtkomst eller sök efter en ort"
             manager.requestWhenInUseAuthorization()
         case .authorizedAlways, .authorizedWhenInUse:
             status = "Hämtar din position…"
             manager.requestLocation()
         case .denied, .restricted:
-            status = "Platsåtkomst avstängd – aktivera i Inställningar"
+            status = "Platsåtkomst avstängd – sök efter ort eller stad"
         @unknown default:
             status = "Kan inte läsa platsåtkomst"
         }
@@ -39,12 +49,52 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
         requestLocation()
     }
 
+    func searchPlaces(_ query: String) {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else {
+            placeSearchResults = []
+            placeSearchStatus = "Skriv en ort eller stad."
+            return
+        }
+        isSearchingPlaces = true
+        placeSearchStatus = "Söker…"
+        Task {
+            do {
+                let placemarks = try await geocoder.geocodeAddressString(query, in: nil, preferredLocale: Locale(identifier: "sv_SE"))
+                placeSearchResults = placemarks.compactMap { placemark in
+                    guard let location = placemark.location else { return nil }
+                    let name = [placemark.locality, placemark.subAdministrativeArea, placemark.administrativeArea]
+                        .compactMap { $0 }.reduce(into: [String]()) { parts, part in
+                            if !parts.contains(part) { parts.append(part) }
+                        }.prefix(2).joined(separator: ", ")
+                    return PlaceSearchResult(name: name.isEmpty ? (placemark.name ?? query) : name,
+                                              coordinate: location.coordinate)
+                }
+                placeSearchStatus = placeSearchResults.isEmpty ? "Hittade ingen ort. Prova ett annat namn." : "Välj plats för att hämta väder."
+            } catch {
+                placeSearchResults = []
+                placeSearchStatus = "Sökningen misslyckades. Kontrollera anslutningen och försök igen."
+            }
+            isSearchingPlaces = false
+        }
+    }
+
+    func selectPlace(_ place: PlaceSearchResult) {
+        lastFetch = nil
+        status = "Hämtar prognos för \(place.name)…"
+        loadWeather(latitude: place.coordinate.latitude, longitude: place.coordinate.longitude, placeName: place.name)
+    }
+
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        requestLocation()
+        if manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse {
+            requestLocation()
+        } else if manager.authorizationStatus == .denied || manager.authorizationStatus == .restricted {
+            status = "Platsåtkomst avstängd – sök efter ort eller stad"
+        }
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        status = "Kunde inte hämta position. Kontrollera platsåtkomst och försök igen."
+        status = "Kunde inte hämta position – sök efter ort eller stad."
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
@@ -53,9 +103,31 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
         lastFetch = Date()
         status = "Hämtar prognos för din position…"
         Task {
+            let placeName: String
             do {
-                let result = try await OpenMeteoService.fetch(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude)
-                snapshot = result.current.replacingPlace("Din plats")
+                let marks = try await geocoder.reverseGeocodeLocation(location, preferredLocale: Locale(identifier: "sv_SE"))
+                if let mark = marks.first {
+                    placeName = [mark.locality, mark.subAdministrativeArea, mark.administrativeArea]
+                        .compactMap { $0 }
+                        .reduce(into: [String]()) { parts, part in
+                            if !parts.contains(part) { parts.append(part) }
+                        }.prefix(2).joined(separator: ", ")
+                } else {
+                    placeName = "Min position"
+                }
+            } catch {
+                placeName = "Min position"
+            }
+            loadWeather(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude, placeName: placeName)
+        }
+    }
+
+    private func loadWeather(latitude: Double, longitude: Double, placeName: String) {
+        status = "Hämtar prognos för \(placeName)…"
+        Task {
+            do {
+                let result = try await OpenMeteoService.fetch(latitude: latitude, longitude: longitude)
+                snapshot = result.current.replacingPlace(placeName)
                 days = result.days
                 hours = result.hours
                 status = "Liveprognos • Open-Meteo"
@@ -64,7 +136,6 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
             }
         }
     }
-
 }
 
 private enum OpenMeteoService {
