@@ -13,6 +13,10 @@ settings:
     INFOPLIST_KEY_UILaunchStoryboardName: LaunchScreen
     INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.weather
     INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: VÄDER använder din position för att visa lokalt väder.
+packages:
+  MapLibre:
+    url: https://github.com/maplibre/maplibre-gl-native-distribution
+    from: 6.31.0
 targets:
   VADER:
     type: application
