@@ -169,7 +169,7 @@ private struct ReferenceWeatherHome: View {
                     hourlyCard
                     sevenDayForecast
                     Text(isLive ? "VÄDERDATA: OPEN-METEO  •  PLATS: GPS" : "VÄNTAR PÅ GPS OCH LIVEVÄDER")
-                        .font(.system(size: 8, weight: .bold, design: .rounded))
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
                         .tracking(1.1).foregroundStyle(.white.opacity(0.48))
                         .padding(.top, 1).padding(.bottom, 18)
                 }
@@ -204,7 +204,7 @@ private struct ReferenceWeatherHome: View {
                     .fixedSize(horizontal: true, vertical: false)
                     .lineLimit(1)
                 Text("VÄDER • VARNINGAR • KOLL")
-                    .font(.system(size: 6.5, weight: .heavy, design: .rounded))
+                    .font(.system(size: 12, weight: .heavy, design: .rounded))
                     .tracking(0.8)
                     .foregroundStyle(RTheme.muted)
                     .lineLimit(1)
@@ -259,16 +259,16 @@ private struct ReferenceWeatherHome: View {
                     .font(.system(size: 20, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                 Text(Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(Locale(identifier: "sv_SE"))).capitalized)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(RTheme.cyan)
                 Text(status)
-                    .font(.system(size: 9, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(RTheme.muted)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 5) {
                 Text(lastUpdated.map { "UPPDATERAD \($0.formatted(date: .omitted, time: .shortened))" } ?? "INVÄNTAR DATA")
-                    .font(.system(size: 8, weight: .bold)).tracking(0.5)
+                    .font(.system(size: 12, weight: .bold)).tracking(0.5)
                     .foregroundStyle(lastUpdated == nil ? RTheme.muted : RTheme.cyan)
                 HStack(spacing: 13) {
                     Button(action: showPlaceSearch) {
@@ -356,14 +356,14 @@ private struct ReferenceWeatherHome: View {
         return VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 5) {
                 Label("VÄDERVAKTEN", systemImage: "shield.lefthalf.filled")
-                    .font(.system(size: 9, weight: .heavy))
+                    .font(.system(size: 12, weight: .heavy))
                     .padding(.horizontal, 8).padding(.vertical, 5)
                     .background(LinearGradient(colors:[RTheme.blue,RTheme.cyan.opacity(0.72)],startPoint:.leading,endPoint:.trailing),in:Capsule())
                     .foregroundStyle(.white)
                 Spacer(minLength: 1)
                 HStack(spacing: 3) {
                     Circle().fill(isLive ? .green : .orange).frame(width:6,height:6)
-                    Text(isLive ? "LIVE" : "DEMO").font(.system(size:7,weight:.heavy))
+                    Text(isLive ? "LIVE" : "DEMO").font(.system(size:12,weight:.heavy))
                 }.foregroundStyle(isLive ? .green : .orange)
             }
             Text("Nästa väderhändelse")
@@ -379,16 +379,16 @@ private struct ReferenceWeatherHome: View {
                     .lineLimit(2).minimumScaleFactor(0.68)
             }
             Text(event.detail)
-                .font(.system(size: 9, weight: .medium)).foregroundStyle(.white.opacity(0.88))
+                .font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.88))
                 .lineLimit(3).fixedSize(horizontal:false,vertical:true)
             Spacer(minLength: 0)
             HStack {
                 Label(event.level, systemImage: "eye.fill")
-                    .font(.system(size: 8, weight: .heavy))
+                    .font(.system(size: 12, weight: .heavy))
                     .foregroundStyle(event.tint)
                 Spacer()
                 Text("KOMMANDE TIMMAR")
-                    .font(.system(size: 7, weight: .bold)).tracking(0.5)
+                    .font(.system(size: 12, weight: .bold)).tracking(0.5)
                     .foregroundStyle(RTheme.muted)
             }
         }
@@ -412,8 +412,8 @@ private struct ReferenceWeatherHome: View {
     private func miniRainStat(icon: String, title: String, value: String) -> some View {
         VStack(alignment:.leading,spacing:3) {
             Image(systemName:icon).font(.system(size:12,weight:.semibold)).foregroundStyle(RTheme.cyan)
-            Text(title).font(.system(size:7,weight:.medium)).foregroundStyle(RTheme.muted).lineLimit(1)
-            Text(value).font(.system(size:9,weight:.bold)).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.7)
+            Text(title).font(.system(size:12,weight:.medium)).foregroundStyle(RTheme.muted).lineLimit(1)
+            Text(value).font(.system(size:12,weight:.bold)).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.7)
         }.frame(maxWidth:.infinity,alignment:.leading)
     }
 
@@ -438,7 +438,7 @@ private struct ReferenceWeatherHome: View {
                     Spacer()
                     Text("S")
                 }
-                .font(.system(size: 8, weight: .heavy))
+                .font(.system(size: 12, weight: .heavy))
                 .foregroundStyle(.white)
                 .padding(.vertical, 4)
                 HStack {
@@ -446,7 +446,7 @@ private struct ReferenceWeatherHome: View {
                     Spacer()
                     Text("Ö")
                 }
-                .font(.system(size: 8, weight: .heavy))
+                .font(.system(size: 12, weight: .heavy))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 4)
 
@@ -461,7 +461,7 @@ private struct ReferenceWeatherHome: View {
                         .font(.system(size: 17, weight: .black, design: .rounded))
                         .foregroundStyle(.white)
                     Text("VINDRIKTNING")
-                        .font(.system(size: 6, weight: .heavy))
+                        .font(.system(size: 12, weight: .heavy))
                         .tracking(0.4)
                         .foregroundStyle(RTheme.muted)
                 }
@@ -483,11 +483,11 @@ private struct ReferenceWeatherHome: View {
         VStack(spacing: 3) {
             HStack {
                 Text(title)
-                    .font(.system(size: 8, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(RTheme.muted)
                 Spacer(minLength: 2)
                 Text(String(format: "%.1f m/s", value))
-                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
@@ -510,7 +510,7 @@ private struct ReferenceWeatherHome: View {
                 .font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
             if hours.isEmpty {
                 Text("Nederbördsprognos saknas just nu.")
-                    .font(.system(size: 10, weight: .medium)).foregroundStyle(RTheme.muted)
+                    .font(.system(size: 12, weight: .medium)).foregroundStyle(RTheme.muted)
             } else {
                 let forecast = Array(hours.prefix(8))
                 let maximum = max(forecast.map(\.precipitation).max() ?? 0.1, 0.1)
@@ -518,7 +518,7 @@ private struct ReferenceWeatherHome: View {
                     ForEach(forecast) { hour in
                         VStack(spacing: 5) {
                             Text(String(format: "%.1f", hour.precipitation))
-                                .font(.system(size: 8, weight: .semibold)).foregroundStyle(RTheme.muted)
+                                .font(.system(size: 12, weight: .semibold)).foregroundStyle(RTheme.muted)
                                 .lineLimit(1).minimumScaleFactor(0.7)
                             GeometryReader { proxy in
                                 VStack {
@@ -530,13 +530,13 @@ private struct ReferenceWeatherHome: View {
                             }
                             .frame(height: 66)
                             Text(hour.time)
-                                .font(.system(size: 8, weight: .medium)).foregroundStyle(RTheme.muted)
+                                .font(.system(size: 12, weight: .medium)).foregroundStyle(RTheme.muted)
                         }
                         .frame(maxWidth: .infinity)
                     }
                 }
                 Text("Prognostiserad nederbörd per timme, mm.")
-                    .font(.system(size: 8)).foregroundStyle(RTheme.muted.opacity(0.85))
+                    .font(.system(size: 12)).foregroundStyle(RTheme.muted.opacity(0.85))
             }
         }.referencePanel()
     }
@@ -548,18 +548,18 @@ private struct ReferenceWeatherHome: View {
                     .font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
                 Spacer()
                 Text("TRYCK PÅ EN DAG")
-                    .font(.system(size: 8, weight: .heavy)).tracking(0.7).foregroundStyle(RTheme.cyan)
+                    .font(.system(size: 12, weight: .heavy)).tracking(0.7).foregroundStyle(RTheme.cyan)
             }
             if days.isEmpty {
                 Text("Veckoprognosen visas när väderdata har hämtats.")
-                    .font(.system(size: 10, weight: .medium)).foregroundStyle(RTheme.muted)
+                    .font(.system(size: 12, weight: .medium)).foregroundStyle(RTheme.muted)
             } else {
                 HStack(spacing: 5) {
                     ForEach(days.prefix(7)) { day in
                         Button { selectForecastDay(day) } label: {
                             VStack(spacing: 6) {
                                 Text(day.day == "Idag" ? "Idag" : String(day.day.prefix(3)))
-                                    .font(.system(size: 9, weight: .bold)).foregroundStyle(RTheme.muted)
+                                    .font(.system(size: 12, weight: .bold)).foregroundStyle(RTheme.muted)
                                     .lineLimit(1).minimumScaleFactor(0.7)
                                 Image(systemName: day.symbol).symbolRenderingMode(.palette)
                                     .foregroundStyle(Color(red:0.86,green:0.91,blue:1),RTheme.cyan)
@@ -567,9 +567,9 @@ private struct ReferenceWeatherHome: View {
                                 Text("\(day.high)°")
                                     .font(.system(size: 13, weight: .bold, design: .rounded)).foregroundStyle(.white)
                                 Text("\(day.low)°")
-                                    .font(.system(size: 10, weight: .medium, design: .rounded)).foregroundStyle(RTheme.muted)
+                                    .font(.system(size: 12, weight: .medium, design: .rounded)).foregroundStyle(RTheme.muted)
                                 Text("\(day.precipitationChance)%")
-                                    .font(.system(size: 8, weight: .bold)).foregroundStyle(RTheme.cyan)
+                                    .font(.system(size: 12, weight: .bold)).foregroundStyle(RTheme.cyan)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 9)
@@ -585,9 +585,9 @@ private struct ReferenceWeatherHome: View {
 
     private func forecastDetail(icon: String, title: String, value: String) -> some View {
         VStack(spacing: 4) {
-            Image(systemName: icon).font(.system(size: 10)).foregroundStyle(RTheme.cyan)
-            Text(title).font(.system(size: 7, weight: .medium)).foregroundStyle(RTheme.muted)
-            Text(value).font(.system(size: 9, weight: .bold)).foregroundStyle(.white)
+            Image(systemName: icon).font(.system(size: 12)).foregroundStyle(RTheme.cyan)
+            Text(title).font(.system(size: 12, weight: .medium)).foregroundStyle(RTheme.muted)
+            Text(value).font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
         }.frame(maxWidth: .infinity)
     }
 
@@ -605,13 +605,13 @@ private struct ReferenceWeatherHome: View {
             HStack(spacing:3) {
                 Image(systemName:symbol).foregroundStyle(tint)
                 Text(title).foregroundStyle(.white)
-            }.font(.system(size:8,weight:.semibold)).lineLimit(1).minimumScaleFactor(0.65)
+            }.font(.system(size:12,weight:.semibold)).lineLimit(1).minimumScaleFactor(0.65)
             ZStack {
                 Circle().trim(from:0.08,to:0.92).stroke(.white.opacity(0.14),style:StrokeStyle(lineWidth:5,lineCap:.round)).rotationEffect(.degrees(90))
                 Circle().trim(from:0.08,to:0.08+0.84*min(max(progress,0),1)).stroke(tint,style:StrokeStyle(lineWidth:5,lineCap:.round)).rotationEffect(.degrees(90))
                 VStack(spacing:0) {
                     Text(value).font(.system(size:15,weight:.bold,design:.rounded)).foregroundStyle(.white).minimumScaleFactor(0.7)
-                    if let suffix { Text(suffix).font(.system(size:7,weight:.medium)).foregroundStyle(RTheme.muted) }
+                    if let suffix { Text(suffix).font(.system(size:12,weight:.medium)).foregroundStyle(RTheme.muted) }
                 }
             }.frame(width:55,height:55)
         }.frame(maxWidth:.infinity,maxHeight:.infinity).padding(6)
@@ -650,14 +650,14 @@ private struct ReferenceWeatherHome: View {
                 HStack(spacing: 8) {
                     Image(systemName: "sunrise.fill").font(.system(size: 22)).foregroundStyle(.orange)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("SOLUPPGÅNG").font(.system(size: 8, weight: .heavy)).foregroundStyle(RTheme.muted)
+                        Text("SOLUPPGÅNG").font(.system(size: 12, weight: .heavy)).foregroundStyle(RTheme.muted)
                         Text(weather.sunriseTime).font(.system(size: 20, weight: .bold, design: .rounded)).foregroundStyle(.white)
                     }
                 }
                 HStack(spacing: 8) {
                     Image(systemName: "sunset.fill").font(.system(size: 22)).foregroundStyle(.orange)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("SOLNEDGÅNG").font(.system(size: 8, weight: .heavy)).foregroundStyle(RTheme.muted)
+                        Text("SOLNEDGÅNG").font(.system(size: 12, weight: .heavy)).foregroundStyle(RTheme.muted)
                         Text(weather.sunsetTime).font(.system(size: 20, weight: .bold, design: .rounded)).foregroundStyle(.white)
                     }
                 }
@@ -675,7 +675,7 @@ private struct ReferenceWeatherHome: View {
                 Text("\(moonPhaseInfo.illumination)% belyst")
                     .font(.system(size: 16, weight: .bold, design: .rounded)).foregroundStyle(.white)
                 Text(moonPhaseInfo.name)
-                    .font(.system(size: 10, weight: .medium)).foregroundStyle(RTheme.muted)
+                    .font(.system(size: 12, weight: .medium)).foregroundStyle(RTheme.muted)
                     .lineLimit(1).minimumScaleFactor(0.75)
             }
             .frame(maxWidth: .infinity)
@@ -690,7 +690,7 @@ private struct ReferenceWeatherHome: View {
         HStack(spacing:8) {
             Image(systemName:"sun.max.fill").font(.system(size:17)).foregroundStyle(.yellow)
             VStack(alignment:.leading,spacing:2) {
-                Text("Dagslängd").font(.system(size:11,weight:.semibold)).foregroundStyle(RTheme.muted)
+                Text("Dagslängd").font(.system(size:12,weight:.semibold)).foregroundStyle(RTheme.muted)
                 Text(weather.daylightMinutes > 0 ? String(format:"%d h %02d min",weather.daylightMinutes/60,weather.daylightMinutes%60) : "Beräknas")
                     .font(.system(size:16,weight:.bold,design:.rounded)).foregroundStyle(.white)
             }
@@ -704,7 +704,7 @@ private struct ReferenceWeatherHome: View {
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else {
                 Text("Jämfört med igår")
-                    .font(.system(size:8,weight:.medium)).foregroundStyle(RTheme.muted)
+                    .font(.system(size:12,weight:.medium)).foregroundStyle(RTheme.muted)
             }
         }.padding(.horizontal,12).padding(.vertical,9)
             .background(RTheme.panel,in:Capsule())
@@ -721,7 +721,7 @@ private struct ReferenceWeatherHome: View {
                         .font(.system(size:12,weight:.bold)).foregroundStyle(.white)
                                     }
                 Spacer()
-                Image(systemName:"chevron.right").font(.system(size:11,weight:.bold)).foregroundStyle(RTheme.cyan)
+                Image(systemName:"chevron.right").font(.system(size:12,weight:.bold)).foregroundStyle(RTheme.cyan)
             }
             .padding(.horizontal,13).padding(.vertical,11)
             .background(RTheme.panel,in:RoundedRectangle(cornerRadius:15))
@@ -740,12 +740,12 @@ private struct ReferenceWeatherHome: View {
                         Text("VISA MER")
                         Image(systemName: "chevron.right")
                     }
-                    .font(.system(size: 9, weight: .bold)).foregroundStyle(RTheme.cyan)
+                    .font(.system(size: 12, weight: .bold)).foregroundStyle(RTheme.cyan)
                 }.buttonStyle(.plain)
             }
             if hours.isEmpty {
                 Text("Timprognosen visas när väderdata har hämtats.")
-                    .font(.system(size: 9, weight: .medium)).foregroundStyle(RTheme.muted)
+                    .font(.system(size: 12, weight: .medium)).foregroundStyle(RTheme.muted)
             } else {
                 let nextHours = Array(hours.prefix(8))
                 let temps = nextHours.map { Double($0.temperature) }
@@ -758,7 +758,7 @@ private struct ReferenceWeatherHome: View {
                         Text("\(Int((high + low) / 2))°")
                         Spacer()
                         Text("\(Int(low))°")
-                    }.font(.system(size: 8, weight: .medium, design: .rounded))
+                    }.font(.system(size: 12, weight: .medium, design: .rounded))
                      .foregroundStyle(RTheme.muted).frame(width: 25, height: 76)
                     GeometryReader { proxy in
                         ZStack {
@@ -787,11 +787,11 @@ private struct ReferenceWeatherHome: View {
                 HStack(spacing: 0) {
                     ForEach(nextHours) { hour in
                         VStack(spacing: 5) {
-                            Text(hour.time).font(.system(size: 9, weight: .semibold)).foregroundStyle(.white)
+                            Text(hour.time).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
                             Image(systemName: hour.symbol).symbolRenderingMode(.palette)
                                 .foregroundStyle(Color(red: 0.82, green: 0.90, blue: 1), RTheme.cyan)
                                 .font(.system(size: 18)).frame(height: 22)
-                            Text("\(hour.precipitationChance)%").font(.system(size: 8, weight: .bold)).foregroundStyle(RTheme.cyan)
+                            Text("\(hour.precipitationChance)%").font(.system(size: 12, weight: .bold)).foregroundStyle(RTheme.cyan)
                             Text("\(hour.temperature)°").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundStyle(.white)
                         }.frame(maxWidth: .infinity)
                     }
@@ -836,20 +836,20 @@ private struct TodayWeatherDetails: View {
                         .overlay(RoundedRectangle(cornerRadius:22).stroke(RTheme.line,lineWidth:1))
 
                         if !days.isEmpty {
-                            Text("KOMMANDE 7 DAGAR").font(.system(size:9,weight:.heavy)).tracking(1.2).foregroundStyle(RTheme.cyan)
+                            Text("KOMMANDE 7 DAGAR").font(.system(size:12,weight:.heavy)).tracking(1.2).foregroundStyle(RTheme.cyan)
                             ScrollView(.horizontal,showsIndicators:false) {
                                 HStack(spacing:8) {
                                     ForEach(days.prefix(7)) { day in
                                         VStack(spacing:7) {
-                                            Text(day.day).font(.system(size:10,weight:.bold)).foregroundStyle(RTheme.muted)
+                                            Text(day.day).font(.system(size:12,weight:.bold)).foregroundStyle(RTheme.muted)
                                             Image(systemName:day.symbol).symbolRenderingMode(.palette)
                                                 .foregroundStyle(Color(red:0.88,green:0.91,blue:1),RTheme.cyan).font(.system(size:22))
                                             Text("\(day.high)°").font(.system(size:15,weight:.bold,design:.rounded)).foregroundStyle(.white)
-                                            Text("\(day.low)°").font(.system(size:11,weight:.medium)).foregroundStyle(RTheme.muted)
+                                            Text("\(day.low)°").font(.system(size:12,weight:.medium)).foregroundStyle(RTheme.muted)
                                             if day.precipitationChance > 0 {
-                                                Text("\(day.precipitationChance)%").font(.system(size:9,weight:.bold)).foregroundStyle(RTheme.cyan)
+                                                Text("\(day.precipitationChance)%").font(.system(size:12,weight:.bold)).foregroundStyle(RTheme.cyan)
                                             } else {
-                                                Text("—").font(.system(size:9)).foregroundStyle(RTheme.muted)
+                                                Text("—").font(.system(size:12)).foregroundStyle(RTheme.muted)
                                             }
                                         }
                                         .frame(width:66)
@@ -862,11 +862,11 @@ private struct TodayWeatherDetails: View {
                         }
 
                         if !hours.isEmpty {
-                            Text("TEMPERATUR UNDER DAGEN").font(.system(size:9,weight:.heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
+                            Text("TEMPERATUR UNDER DAGEN").font(.system(size:12,weight:.heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
                             temperatureChart
                         }
 
-                        Text("VÄDER JUST NU").font(.system(size:9,weight:.heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
+                        Text("VÄDER JUST NU").font(.system(size:12,weight:.heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
                         LazyVGrid(columns:[GridItem(.flexible()),GridItem(.flexible())],spacing:9) {
                             detailMetric("Luftfuktighet","\(weather.humidity)%","humidity.fill")
                             detailMetric("Lufttryck",weather.pressure > 0 ? String(format:"%.0f hPa",weather.pressure) : "—","gauge")
@@ -880,7 +880,7 @@ private struct TodayWeatherDetails: View {
                             summaryTile(title:"NEDERBÖRD",value:String(format:"%.1f mm",weather.precipitationToday),subtitle:"Just nu",symbol:"drop.fill",tint:RTheme.cyan)
                             summaryTile(title:"VIND",value:String(format:"%.1f m/s",weather.wind),subtitle:"Byvind \(String(format:"%.1f",weather.windGust)) m/s",symbol:"wind",tint:Color(red:0.78,green:0.86,blue:1))
                         }
-                        Text("VINDRIKTNING OCH STYRKA").font(.system(size:9,weight:.heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
+                        Text("VINDRIKTNING OCH STYRKA").font(.system(size:12,weight:.heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
                         HStack(spacing:10) {
                             Image(systemName:"location.north.circle.fill")
                                 .font(.system(size:32)).rotationEffect(.degrees(weather.windDirectionDegrees))
@@ -888,12 +888,12 @@ private struct TodayWeatherDetails: View {
                             VStack(alignment:.leading,spacing:3) {
                                 Text(weather.windDirectionText).font(.system(size:19,weight:.bold)).foregroundStyle(.white)
                                 Text(String(format:"%.0f° • Medelvind %.1f m/s • Byvind %.1f m/s",weather.windDirectionDegrees,weather.wind,weather.windGust))
-                                    .font(.system(size:10,weight:.medium)).foregroundStyle(RTheme.muted)
+                                    .font(.system(size:12,weight:.medium)).foregroundStyle(RTheme.muted)
                             }
                             Spacer()
                         }.referencePanel()
 
-                        Text("SOL OCH DAGSLJUS").font(.system(size:9,weight:.heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
+                        Text("SOL OCH DAGSLJUS").font(.system(size:12,weight:.heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
                         VStack(spacing:10) {
                             HStack { Label("Soluppgång",systemImage:"sunrise.fill").foregroundStyle(.orange); Spacer(); Text(weather.sunriseTime).foregroundStyle(.white) }
                             HStack { Label("Solnedgång",systemImage:"sunset.fill").foregroundStyle(.orange); Spacer(); Text(weather.sunsetTime).foregroundStyle(.white) }
@@ -902,19 +902,19 @@ private struct TodayWeatherDetails: View {
                             HStack { Text("Förändring mot igår").foregroundStyle(RTheme.muted); Spacer(); Text("\(weather.daylightChangeMinutes > 0 ? "+" : "")\(weather.daylightChangeMinutes) min").foregroundStyle(weather.daylightChangeMinutes >= 0 ? .green : .red) }
                         }.font(.system(size:12,weight:.semibold)).referencePanel()
 
-                        Text("VÄDER TIMME FÖR TIMME").font(.system(size:9,weight:.heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
+                        Text("VÄDER TIMME FÖR TIMME").font(.system(size:12,weight:.heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
                         VStack(spacing:0) {
                             ForEach(hours.prefix(24)) { hour in
                                 HStack(spacing:9) {
-                                    Text(hour.time).font(.system(size:11,weight:.bold)).foregroundStyle(.white).frame(width:38,alignment:.leading)
+                                    Text(hour.time).font(.system(size:12,weight:.bold)).foregroundStyle(.white).frame(width:38,alignment:.leading)
                                     Image(systemName:hour.symbol).font(.system(size:18)).foregroundStyle(RTheme.cyan).frame(width:25)
                                     Text("\(hour.temperature)°").font(.system(size:13,weight:.bold,design:.rounded)).foregroundStyle(.white).frame(width:34)
                                     VStack(alignment:.leading,spacing:2) {
-                                        Text("Nederbördsrisk \(hour.precipitationChance)%").font(.system(size:9,weight:.semibold)).foregroundStyle(RTheme.cyan)
-                                        Text(String(format:"Vind %.1f • By %.1f m/s",hour.wind,hour.gust)).font(.system(size:8)).foregroundStyle(RTheme.muted)
+                                        Text("Nederbördsrisk \(hour.precipitationChance)%").font(.system(size:12,weight:.semibold)).foregroundStyle(RTheme.cyan)
+                                        Text(String(format:"Vind %.1f • By %.1f m/s",hour.wind,hour.gust)).font(.system(size:12)).foregroundStyle(RTheme.muted)
                                     }
                                     Spacer()
-                                    Text(String(format:"%.1f mm",hour.precipitation)).font(.system(size:9,weight:.medium)).foregroundStyle(.white)
+                                    Text(String(format:"%.1f mm",hour.precipitation)).font(.system(size:12,weight:.medium)).foregroundStyle(.white)
                                 }.padding(.vertical,8)
                                 if hour.id != hours.prefix(24).last?.id { Divider().overlay(RTheme.line) }
                             }
@@ -946,9 +946,9 @@ private struct TodayWeatherDetails: View {
     private var temperatureChart: some View {
         VStack(alignment:.leading,spacing:8) {
             HStack {
-                Label("Temperatur",systemImage:"thermometer").font(.system(size:11,weight:.semibold)).foregroundStyle(RTheme.muted)
+                Label("Temperatur",systemImage:"thermometer").font(.system(size:12,weight:.semibold)).foregroundStyle(RTheme.muted)
                 Spacer()
-                Text("Nästa 24 timmar • °C").font(.system(size:9,weight:.medium)).foregroundStyle(RTheme.muted)
+                Text("Nästa 24 timmar • °C").font(.system(size:12,weight:.medium)).foregroundStyle(RTheme.muted)
             }
             let values = Array(hours.prefix(24)).map { Double($0.temperature) }
             let low = floor((values.min() ?? 0) / 2) * 2
@@ -957,7 +957,7 @@ private struct TodayWeatherDetails: View {
                 VStack {
                     ForEach((0...2).reversed(),id:\.self) { step in
                         Text(String(format:"%.0f°",low + (high-low)*Double(step)/2))
-                            .font(.system(size:8,weight:.medium,design:.rounded)).foregroundStyle(RTheme.muted)
+                            .font(.system(size:12,weight:.medium,design:.rounded)).foregroundStyle(RTheme.muted)
                         if step > 0 { Spacer(minLength:0) }
                     }
                 }.frame(width:27)
@@ -995,15 +995,15 @@ private struct TodayWeatherDetails: View {
                 Text("+18 h")
                 Spacer()
                 Text("+24 h")
-            }.font(.system(size:8,weight:.medium)).foregroundStyle(RTheme.muted).padding(.leading,34)
+            }.font(.system(size:12,weight:.medium)).foregroundStyle(RTheme.muted).padding(.leading,34)
         }.referencePanel()
     }
 
     private func summaryTile(title:String,value:String,subtitle:String,symbol:String,tint:Color) -> some View {
         VStack(alignment:.leading,spacing:8) {
-            Label(title,systemImage:symbol).font(.system(size:9,weight:.heavy)).tracking(0.7).foregroundStyle(RTheme.muted)
+            Label(title,systemImage:symbol).font(.system(size:12,weight:.heavy)).tracking(0.7).foregroundStyle(RTheme.muted)
             Text(value).font(.system(size:24,weight:.bold,design:.rounded)).foregroundStyle(tint).minimumScaleFactor(0.75)
-            Text(subtitle).font(.system(size:10,weight:.medium)).foregroundStyle(RTheme.muted)
+            Text(subtitle).font(.system(size:12,weight:.medium)).foregroundStyle(RTheme.muted)
             Spacer(minLength:0)
         }.frame(maxWidth:.infinity,minHeight:112,alignment:.leading).padding(13)
             .background(RTheme.panel,in:RoundedRectangle(cornerRadius:17))
@@ -1015,7 +1015,7 @@ private struct TodayWeatherDetails: View {
             Image(systemName:symbol).font(.system(size:17,weight:.semibold)).foregroundStyle(RTheme.cyan).frame(width:24)
             VStack(alignment:.leading,spacing:2) {
                 Text(value).font(.system(size:17,weight:.bold,design:.rounded)).foregroundStyle(.white)
-                Text(title).font(.system(size:10,weight:.medium)).foregroundStyle(RTheme.muted)
+                Text(title).font(.system(size:12,weight:.medium)).foregroundStyle(RTheme.muted)
             }
             Spacer(minLength:0)
         }.frame(maxWidth:.infinity,minHeight:58,alignment:.leading).padding(.horizontal,11).padding(.vertical,7)
@@ -1056,7 +1056,7 @@ private struct ForecastDayDetails: View {
                                 .foregroundStyle(Color(red:0.88,green:0.91,blue:1),RTheme.cyan).font(.system(size:58))
                             VStack(alignment:.leading,spacing:3) {
                                 Text("\(day.high)°").font(.system(size:48,weight:.bold,design:.rounded)).foregroundStyle(.white)
-                                Text("HÖGSTA TEMPERATUR").font(.system(size:10,weight:.heavy)).tracking(1).foregroundStyle(RTheme.cyan)
+                                Text("HÖGSTA TEMPERATUR").font(.system(size:12,weight:.heavy)).tracking(1).foregroundStyle(RTheme.cyan)
                                 Text("Lägsta \(day.low)°").font(.system(size:14,weight:.medium)).foregroundStyle(RTheme.muted)
                             }
                             Spacer()
@@ -1064,7 +1064,7 @@ private struct ForecastDayDetails: View {
                             .background(LinearGradient(colors:[Color(red:0.13,green:0.19,blue:0.29),RTheme.panel],startPoint:.topLeading,endPoint:.bottomTrailing),in:RoundedRectangle(cornerRadius:22))
                             .overlay(RoundedRectangle(cornerRadius:22).stroke(RTheme.line,lineWidth:1))
 
-                        Text("DAGENS PROGNOS").font(.system(size:9,weight:.heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
+                        Text("DAGENS PROGNOS").font(.system(size:12,weight:.heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
                         LazyVGrid(columns:[GridItem(.flexible()),GridItem(.flexible())],spacing:9) {
                             dayMetric("Nederbördsrisk","\(day.precipitationChance)%","drop.fill")
                             dayMetric("Nederbörd",String(format:"%.1f mm",day.precipitation),"cloud.rain.fill")
@@ -1074,26 +1074,26 @@ private struct ForecastDayDetails: View {
                         }
 
                         if !dayHours.isEmpty {
-                            Text("TIMME FÖR TIMME").font(.system(size:9,weight:.heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
+                            Text("TIMME FÖR TIMME").font(.system(size:12,weight:.heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
                             VStack(spacing:0) {
                                 ForEach(dayHours) { hour in
                                     HStack(spacing:9) {
-                                        Text(hour.time).font(.system(size:11,weight:.bold)).foregroundStyle(.white).frame(width:38,alignment:.leading)
+                                        Text(hour.time).font(.system(size:12,weight:.bold)).foregroundStyle(.white).frame(width:38,alignment:.leading)
                                         Image(systemName:hour.symbol).font(.system(size:19)).foregroundStyle(RTheme.cyan).frame(width:26)
                                         Text("\(hour.temperature)°").font(.system(size:14,weight:.bold,design:.rounded)).foregroundStyle(.white).frame(width:36)
                                         VStack(alignment:.leading,spacing:2) {
-                                            Text("Nederbördsrisk \(hour.precipitationChance)%").font(.system(size:9,weight:.semibold)).foregroundStyle(RTheme.cyan)
-                                            Text(String(format:"Vind %.1f • By %.1f m/s",hour.wind,hour.gust)).font(.system(size:8)).foregroundStyle(RTheme.muted)
+                                            Text("Nederbördsrisk \(hour.precipitationChance)%").font(.system(size:12,weight:.semibold)).foregroundStyle(RTheme.cyan)
+                                            Text(String(format:"Vind %.1f • By %.1f m/s",hour.wind,hour.gust)).font(.system(size:12)).foregroundStyle(RTheme.muted)
                                         }
                                         Spacer(minLength:2)
-                                        Text(String(format:"%.1f mm",hour.precipitation)).font(.system(size:9,weight:.medium)).foregroundStyle(.white)
+                                        Text(String(format:"%.1f mm",hour.precipitation)).font(.system(size:12,weight:.medium)).foregroundStyle(.white)
                                     }.padding(.vertical,8)
                                     if hour.id != dayHours.last?.id { Divider().overlay(RTheme.line) }
                                 }
                             }.padding(.horizontal,12).referencePanel()
                         } else {
                             Text("Timprognosen för den här dagen är inte tillgänglig ännu. Dygnsprognosen ovan bygger på väderdata för hela dagen.")
-                                .font(.system(size:11,weight:.medium)).foregroundStyle(RTheme.muted)
+                                .font(.system(size:12,weight:.medium)).foregroundStyle(RTheme.muted)
                                 .referencePanel()
                         }
                     }.padding(16)
@@ -1115,7 +1115,7 @@ private struct ForecastDayDetails: View {
             Image(systemName:symbol).font(.system(size:17,weight:.semibold)).foregroundStyle(RTheme.cyan).frame(width:23)
             VStack(alignment:.leading,spacing:2) {
                 Text(value).font(.system(size:17,weight:.bold,design:.rounded)).foregroundStyle(.white)
-                Text(title).font(.system(size:10,weight:.medium)).foregroundStyle(RTheme.muted)
+                Text(title).font(.system(size:12,weight:.medium)).foregroundStyle(RTheme.muted)
             }
             Spacer(minLength:0)
         }.frame(maxWidth:.infinity,minHeight:58,alignment:.leading).padding(.horizontal,11).padding(.vertical,7)
@@ -1143,7 +1143,7 @@ private struct HourlyForecastDetail: View {
                             Text(place).font(.system(size: 13, weight: .semibold)).foregroundStyle(RTheme.cyan)
                             Text("Timprognos").font(.system(size: 24, weight: .bold, design: .rounded)).foregroundStyle(.white)
                             Text("48 timmar framåt • Prognos per timme")
-                                .font(.system(size: 11, weight: .medium)).foregroundStyle(RTheme.muted)
+                                .font(.system(size: 12, weight: .medium)).foregroundStyle(RTheme.muted)
                         }
                         ActiveWatchSummary(weather: weather, days: days, hours: hours)
                         if hours.isEmpty {
@@ -1160,12 +1160,12 @@ private struct HourlyForecastDetail: View {
                             metricChart
 
                             Text("PROGNOS TIMME FÖR TIMME")
-                                .font(.system(size: 9, weight: .heavy)).tracking(1).foregroundStyle(RTheme.cyan)
+                                .font(.system(size: 12, weight: .heavy)).tracking(1).foregroundStyle(RTheme.cyan)
 
                             VStack(spacing: 0) {
                                 ForEach(Array(hours.prefix(48))) { hour in
                                     HStack(spacing: 9) {
-                                        Text(hour.time).font(.system(size: 11, weight: .bold))
+                                        Text(hour.time).font(.system(size: 12, weight: .bold))
                                             .foregroundStyle(.white).frame(width: 38, alignment: .leading)
                                         Image(systemName: hour.symbol).font(.system(size: 19))
                                             .symbolRenderingMode(.palette)
@@ -1173,9 +1173,9 @@ private struct HourlyForecastDetail: View {
                                             .frame(width: 27)
                                         VStack(alignment: .leading, spacing: 3) {
                                             Text("\(hour.temperature)°  •  Regnrisk \(hour.precipitationChance)%")
-                                                .font(.system(size: 10, weight: .semibold)).foregroundStyle(.white)
+                                                .font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
                                             Text(String(format: "%.1f mm nederbörd  •  Vind %.1f / by %.1f m/s", hour.precipitation, hour.wind, hour.gust))
-                                                .font(.system(size: 8, weight: .medium)).foregroundStyle(RTheme.muted)
+                                                .font(.system(size: 12, weight: .medium)).foregroundStyle(RTheme.muted)
                                         }
                                         Spacer(minLength: 0)
                                     }
@@ -1209,13 +1209,13 @@ private struct HourlyForecastDetail: View {
         let ticks = (0...4).map { maximum - (maximum - minimum) * Double($0) / 4 }
         return VStack(alignment: .leading, spacing: 9) {
             Text(selectedMetric.uppercased())
-                .font(.system(size: 9, weight: .heavy)).tracking(1).foregroundStyle(RTheme.muted)
+                .font(.system(size: 12, weight: .heavy)).tracking(1).foregroundStyle(RTheme.muted)
             GeometryReader { proxy in
                 HStack(spacing: 7) {
                     VStack(alignment: .trailing, spacing: 0) {
                         ForEach(Array(ticks.enumerated()), id: \.offset) { _, tick in
                             Text(String(format: selectedMetric == "Temperatur" ? "%.0f°" : "%.1f", tick))
-                                .font(.system(size: 8, weight: .medium, design: .rounded))
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
                                 .foregroundStyle(RTheme.muted)
                             if tick != ticks.last { Spacer(minLength: 0) }
                         }
@@ -1250,9 +1250,9 @@ private struct HourlyForecastDetail: View {
             }.frame(height: 132)
             HStack {
                 Text("Nu"); Spacer(); Text("+6 h"); Spacer(); Text("+12 h"); Spacer(); Text("+18 h"); Spacer(); Text("+24 h")
-            }.font(.system(size: 8, weight: .medium)).foregroundStyle(RTheme.muted)
+            }.font(.system(size: 12, weight: .medium)).foregroundStyle(RTheme.muted)
             Text("Referenslinjer visar jämn fördelning mellan prognosens lägsta och högsta värde.")
-                .font(.system(size: 8, weight: .medium)).foregroundStyle(RTheme.muted.opacity(0.8))
+                .font(.system(size: 12, weight: .medium)).foregroundStyle(RTheme.muted.opacity(0.8))
         }.referencePanel()
     }
 }
@@ -1303,7 +1303,7 @@ private struct PlaceSearchSheet: View {
                     }
                     if !model.placeSearchStatus.isEmpty {
                         Text(model.placeSearchStatus)
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(RTheme.muted)
                     }
                     ScrollView {
@@ -1317,7 +1317,7 @@ private struct PlaceSearchSheet: View {
                                         Image(systemName: "mappin.and.ellipse").foregroundStyle(RTheme.cyan)
                                         Text(place.name).foregroundStyle(.white).font(.system(size: 14, weight: .semibold))
                                         Spacer()
-                                        Image(systemName: "chevron.right").font(.system(size: 11, weight: .bold)).foregroundStyle(RTheme.muted)
+                                        Image(systemName: "chevron.right").font(.system(size: 12, weight: .bold)).foregroundStyle(RTheme.muted)
                                     }
                                     .padding(12)
                                     .background(RTheme.panel, in: RoundedRectangle(cornerRadius: 12))
@@ -1360,7 +1360,7 @@ private struct SevenDayForecastDetail: View {
                                 .font(.system(size: 23, weight: .bold, design: .rounded))
                                 .foregroundStyle(.white)
                             Text("Svep i sidled för att se hela veckans prognos.")
-                                .font(.system(size: 10, weight: .medium))
+                                .font(.system(size: 12, weight: .medium))
                                 .foregroundStyle(RTheme.muted)
                         }
 
@@ -1385,7 +1385,7 @@ private struct SevenDayForecastDetail: View {
                                                     .font(.system(size: 14, weight: .bold, design: .rounded))
                                                     .foregroundStyle(.white)
                                                 Text(day.condition)
-                                                    .font(.system(size: 11, weight: .medium))
+                                                    .font(.system(size: 12, weight: .medium))
                                                     .foregroundStyle(RTheme.muted)
                                             }
                                             Spacer()
@@ -1433,16 +1433,16 @@ private struct SevenDayForecastDetail: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 4) {
                 Image(systemName: icon)
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(RTheme.cyan)
                 Text(label)
-                    .font(.system(size: 8, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(RTheme.muted)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
             Text(value)
-                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .font(.system(size: 12, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -1510,7 +1510,7 @@ private struct RTabBar:View {
                     VStack(spacing:5) {
                         Image(systemName:tab.symbol).font(.system(size:20,weight:.semibold))
                         Text(tab == .watch ? "Vädervakter" : tab == .more ? "Inställningar" : tab.rawValue)
-                            .font(.system(size:9,weight:.semibold)).lineLimit(1).minimumScaleFactor(0.7)
+                            .font(.system(size:12,weight:.semibold)).lineLimit(1).minimumScaleFactor(0.7)
                     }
                     .foregroundStyle(selection == tab ? RTheme.cyan:.white.opacity(0.68))
                     .frame(maxWidth:.infinity).frame(height:58)
