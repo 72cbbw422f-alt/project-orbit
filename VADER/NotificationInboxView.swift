@@ -186,6 +186,7 @@ struct NotificationInboxView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var warnings: [SMHIWarning] = []
     @State private var delivered: [UNNotification] = []
+    @State private var pending: [UNNotificationRequest] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
     private let cyan = Color(red: 0.04, green: 0.78, blue: 0.98)
@@ -214,10 +215,45 @@ struct NotificationInboxView: View {
                             if !warning.start.isEmpty { Text("Start: \(warning.start)").font(.system(size: 9)).foregroundStyle(.white.opacity(0.55)) }
                         }.padding(13).background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 15)).overlay(RoundedRectangle(cornerRadius: 15).stroke(warning.color.opacity(0.5), lineWidth: 1))
                     }
-                    Text("SENASTE AVISERINGAR").font(.system(size: 10, weight: .heavy)).tracking(1).foregroundStyle(cyan).padding(.top, 4)
+                    Text("SCHEMALAGDA AVISERINGAR").font(.system(size: 10, weight: .heavy)).tracking(1).foregroundStyle(cyan).padding(.top, 4)
+                    Text("Det här är notiser som iPhone faktiskt har i sin väntande kö.").font(.system(size: 10)).foregroundStyle(.white.opacity(0.55))
+                    if pending.isEmpty { emptyCard("Inga kommande vädernotiser är schemalagda just nu.", icon: "calendar.badge.clock") }
+                    ForEach(pending, id: \.identifier) { item in
+                        let watch = (item.content.userInfo["watch"] as? String) ?? watchName(from: item.identifier)
+                        let fireDate = (item.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate()
+                            ?? (item.trigger as? UNTimeIntervalNotificationTrigger).map { Date().addingTimeInterval($0.timeInterval) }
+                        VStack(alignment: .leading, spacing: 5) {
+                            HStack {
+                                Text(watchName(from: watch)).font(.system(size: 10, weight: .heavy)).foregroundStyle(cyan)
+                                Spacer()
+                                if let fireDate { Text(fireDate.formatted(date: .abbreviated, time: .shortened)).font(.system(size: 10, weight: .bold)).foregroundStyle(.white.opacity(0.8)) }
+                            }
+                            Text(item.content.title).font(.system(size: 13, weight: .bold)).foregroundStyle(.white)
+                            Text(item.content.body).font(.system(size: 11)).foregroundStyle(.white.opacity(0.7))
+                            Text(item.identifier).font(.system(size: 8, design: .monospaced)).foregroundStyle(.white.opacity(0.35))
+                        }.padding(11).frame(maxWidth: .infinity, alignment: .leading).background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 12))
+                    }
+                    HStack {
+                        Text("SENASTE AVISERINGAR").font(.system(size: 10, weight: .heavy)).tracking(1).foregroundStyle(cyan)
+                        Spacer()
+                        if !delivered.isEmpty {
+                            Button("Rensa alla") { clearDelivered() }
+                                .font(.system(size: 10, weight: .bold)).foregroundStyle(.orange)
+                        }
+                    }.padding(.top, 4)
                     if delivered.isEmpty { emptyCard("Inga levererade aviseringar ännu.", icon: "bell") }
                     ForEach(delivered, id: \.request.identifier) { item in
-                        VStack(alignment: .leading, spacing: 4) { Text(item.request.content.title).font(.system(size: 13, weight: .bold)).foregroundStyle(.white); Text(item.request.content.body).font(.system(size: 11)).foregroundStyle(.white.opacity(0.7)); Text(item.date, style: .date).font(.system(size: 9)).foregroundStyle(.white.opacity(0.45)) }.padding(11).frame(maxWidth: .infinity, alignment: .leading).background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 12))
+                        HStack(spacing: 8) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(item.request.content.title).font(.system(size: 13, weight: .bold)).foregroundStyle(.white)
+                                Text(item.request.content.body).font(.system(size: 11)).foregroundStyle(.white.opacity(0.7))
+                                Text(item.date.formatted(date: .abbreviated, time: .shortened)).font(.system(size: 9)).foregroundStyle(.white.opacity(0.45))
+                            }
+                            Spacer(minLength: 4)
+                            Button { removeDelivered(item) } label: {
+                                Image(systemName: "trash").font(.system(size: 12, weight: .semibold)).foregroundStyle(.orange).padding(8)
+                            }.buttonStyle(.plain)
+                        }.padding(11).frame(maxWidth: .infinity, alignment: .leading).background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 12))
                     }
                     Text("Varningsdata från SMHI:s öppna API. SMHI:s varningstext återges utan ändring.").font(.system(size: 9)).foregroundStyle(.white.opacity(0.5)).padding(.top, 5)
                 }.padding(16)
@@ -225,6 +261,36 @@ struct NotificationInboxView: View {
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Klar") { dismiss() }.foregroundStyle(cyan) } }
             .task { await load() }
         }.preferredColorScheme(.dark)
+    }
+
+    private func watchName(from raw: String) -> String {
+        switch raw.lowercased() {
+        case "rain": return "REGNVAKTEN"
+        case "snow": return "SNÖVAKTEN"
+        case "wind": return "VINDVAKTEN"
+        case "thunder": return "ÅSKVAKTEN"
+        case "frost", "ice": return "FROSTVAKTEN"
+        case "smhi": return "SMHI"
+        default: return raw.uppercased()
+        }
+    }
+
+    private func watchName(from identifier: String) -> String {
+        let parts = identifier.split(separator: ".")
+        guard parts.count > 2 else { return "VÄDERVAKT" }
+        return watchName(from: String(parts[2]))
+    }
+
+    private func removeDelivered(_ item: UNNotification) {
+        let id = item.request.identifier
+        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [id])
+        delivered.removeAll { $0.request.identifier == id }
+    }
+
+    private func clearDelivered() {
+        let ids = delivered.map { $0.request.identifier }
+        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: ids)
+        delivered.removeAll()
     }
 
     private func emptyCard(_ text: String, icon: String) -> some View {
@@ -237,7 +303,15 @@ struct NotificationInboxView: View {
             do { warnings = try await SMHIWarningService.warnings(at: coordinate) }
             catch { errorMessage = "Kunde inte hämta SMHI-varningar. Kontrollera anslutningen och försök igen." }
         } else { errorMessage = "Väntar på en giltig position från vädertjänsten." }
-        delivered = await UNUserNotificationCenter.current().deliveredNotifications().sorted { $0.date > $1.date }
+        let center = UNUserNotificationCenter.current()
+        delivered = await center.deliveredNotifications().sorted { $0.date > $1.date }
+        pending = await center.pendingNotificationRequests()
+            .filter { $0.identifier.hasPrefix("regnvakt.weather.") || $0.identifier.hasPrefix("smhi.") }
+            .sorted {
+                let a = ($0.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() ?? .distantFuture
+                let b = ($1.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() ?? .distantFuture
+                return a < b
+            }
         isLoading = false
     }
 }
