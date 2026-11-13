@@ -483,13 +483,13 @@ private struct ReferenceWeatherHome: View {
     }
 
     private var compactMetrics: some View {
-        HStack(spacing:7) {
+        HStack(spacing: 7) {
             circularMetric(title:"Luftfuktighet",symbol:"humidity.fill",value:"\(weather.humidity)%",progress:Double(weather.humidity)/100,tint:RTheme.cyan)
             circularMetric(title:"Tryck",symbol:"gauge",value:"1012",progress:0.62,tint:Color(red:0.42,green:0.72,blue:0.94),suffix:"hPa")
             circularMetric(title:"UV-index",symbol:"sun.max.fill",value:"\(weather.uvIndex)",progress:0.03,tint:.green,suffix:"Låg")
-            moonMetric
+            moonMetric.frame(width: 132)
         }
-        .frame(height:111)
+        .frame(height: 116)
     }
 
     private func circularMetric(title:String,symbol:String,value:String,progress:Double,tint:Color,suffix:String?=nil)->some View {
@@ -511,27 +511,78 @@ private struct ReferenceWeatherHome: View {
             .overlay(RoundedRectangle(cornerRadius:17).stroke(RTheme.line.opacity(0.7),lineWidth:1))
     }
 
+    private var moonPhaseInfo: (symbol: String, name: String, illumination: Int) {
+        let reference = Date(timeIntervalSince1970: 947182440) // 2000-01-06 18:14 UTC
+        let cycle = 29.530588853
+        let days = Date().timeIntervalSince(reference) / 86400
+        let phase = (days.truncatingRemainder(dividingBy: cycle) + cycle).truncatingRemainder(dividingBy: cycle) / cycle
+        let illumination = Int(((1 - cos(phase * 2 * .pi)) / 2 * 100).rounded())
+        let phases: [(Double, String, String)] = [
+            (0.0625, "moonphase.new.moon", "Nymåne"),
+            (0.1875, "moonphase.waxing.crescent", "Tilltagande skära"),
+            (0.3125, "moonphase.first.quarter", "Första kvarteret"),
+            (0.4375, "moonphase.waxing.gibbous", "Tilltagande måne"),
+            (0.5625, "moonphase.full.moon", "Fullmåne"),
+            (0.6875, "moonphase.waning.gibbous", "Avtagande måne"),
+            (0.8125, "moonphase.last.quarter", "Sista kvarteret"),
+            (0.9375, "moonphase.waning.crescent", "Avtagande skära"),
+            (1.0, "moonphase.new.moon", "Nymåne")
+        ]
+        let phaseInfo = phases.first { phase < $0.0 } ?? phases[0]
+        return (phaseInfo.1, phaseInfo.2, illumination)
+    }
+
     private var moonMetric: some View {
-        VStack(spacing:5) {
+        VStack(alignment:.leading,spacing:5) {
             Label("Sol & måne",systemImage:"moon.stars.fill")
                 .font(.system(size:8,weight:.semibold)).foregroundStyle(.white).lineLimit(1)
-            Image(systemName:"moon.fill").font(.system(size:29)).foregroundStyle(Color(red:0.77,green:0.83,blue:0.94))
-            Text("Månfas").font(.system(size:8,weight:.medium)).foregroundStyle(RTheme.muted)
-            Text("—").font(.system(size:11,weight:.bold)).foregroundStyle(.white)
-        }.frame(maxWidth:.infinity,maxHeight:.infinity).padding(6)
+            HStack(spacing:7) {
+                VStack(spacing:2) {
+                    Image(systemName:"sunrise.fill").font(.system(size:13)).foregroundStyle(.orange)
+                    Text(weather.sunriseTime).font(.system(size:10,weight:.bold,design:.rounded)).foregroundStyle(.white)
+                    Image(systemName:"sunset.fill").font(.system(size:13)).foregroundStyle(.orange)
+                    Text(weather.sunsetTime).font(.system(size:10,weight:.bold,design:.rounded)).foregroundStyle(.white)
+                }
+                Spacer(minLength:0)
+                VStack(spacing:3) {
+                    Image(systemName:moonPhaseInfo.symbol)
+                        .font(.system(size:34))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(Color(red:0.82,green:0.87,blue:0.98))
+                        .shadow(color:.white.opacity(0.22),radius:5)
+                    Text("\(moonPhaseInfo.illumination)%")
+                        .font(.system(size:10,weight:.bold,design:.rounded)).foregroundStyle(.white)
+                    Text(moonPhaseInfo.name)
+                        .font(.system(size:6,weight:.medium)).foregroundStyle(RTheme.muted)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                }
+            }
+        }.frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading).padding(7)
             .background(RTheme.panel,in:RoundedRectangle(cornerRadius:17))
             .overlay(RoundedRectangle(cornerRadius:17).stroke(RTheme.line.opacity(0.7),lineWidth:1))
     }
 
     private var daylightStrip: some View {
-        HStack(spacing:7) {
+        HStack(spacing:8) {
             Image(systemName:"sun.max.fill").font(.system(size:17)).foregroundStyle(.yellow)
-            Text("Dagslängd").font(.system(size:11,weight:.semibold)).foregroundStyle(.white)
-            Text("— h — min").font(.system(size:11,weight:.bold)).foregroundStyle(.white)
-            Spacer()
-            Text("Soluppgång  —:—  •  Solnedgång  —:—")
-                .font(.system(size:8,weight:.medium)).foregroundStyle(RTheme.muted)
-        }.padding(.horizontal,12).padding(.vertical,11)
+            VStack(alignment:.leading,spacing:2) {
+                Text("Dagslängd").font(.system(size:8,weight:.semibold)).foregroundStyle(RTheme.muted)
+                Text(weather.daylightMinutes > 0 ? String(format:"%d h %02d min",weather.daylightMinutes/60,weather.daylightMinutes%60) : "Beräknas")
+                    .font(.system(size:12,weight:.bold,design:.rounded)).foregroundStyle(.white)
+            }
+            Spacer(minLength:3)
+            if weather.daylightChangeMinutes != 0 {
+                Image(systemName:weather.daylightChangeMinutes > 0 ? "arrow.up.right" : "arrow.down.right")
+                    .font(.system(size:12,weight:.heavy))
+                    .foregroundStyle(weather.daylightChangeMinutes > 0 ? .green : .red)
+                Text("\(abs(weather.daylightChangeMinutes)) min \(weather.daylightChangeMinutes > 0 ? "längre" : "kortare") än igår")
+                    .font(.system(size:8,weight:.semibold)).foregroundStyle(.white)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+            } else {
+                Text("Jämfört med igår")
+                    .font(.system(size:8,weight:.medium)).foregroundStyle(RTheme.muted)
+            }
+        }.padding(.horizontal,12).padding(.vertical,9)
             .background(RTheme.panel,in:Capsule())
             .overlay(Capsule().stroke(RTheme.line.opacity(0.7),lineWidth:1))
     }
