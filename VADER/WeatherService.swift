@@ -253,7 +253,7 @@ private enum OpenMeteoService {
         let currentHour = Calendar.current.date(bySetting: .minute, value: 0, of: now) ?? now
         let startIndex = hourlyTimes.firstIndex { (hourFormatter.date(from: $0) ?? .distantPast) >= currentHour } ?? 0
         let hours: [HourForecast] = hourlyTimes.indices
-            .filter { $0 >= startIndex && $0 < startIndex + 48 }
+            .filter { $0 >= startIndex && $0 < startIndex + 168 }
             .compactMap { i in
                 guard i < hourlyTemps.count, i < hourlyCodes.count else { return nil }
                 let code = hourlyCodes[i].intValue
