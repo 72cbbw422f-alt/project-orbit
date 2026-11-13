@@ -37,6 +37,7 @@ struct ContentView: View {
                         days: weatherModel.days,
                         hours: weatherModel.hours,
                         status: weatherModel.status,
+                        lastUpdated: weatherModel.lastUpdated,
                         isLive: weatherModel.snapshot != nil,
                         refresh: { weatherModel.refresh() },
                         showSevenDayForecast: { showingSevenDayForecast = true },
@@ -124,6 +125,7 @@ private struct ReferenceWeatherHome: View {
     let days: [DayForecast]
     let hours: [HourForecast]
     let status: String
+    let lastUpdated: Date?
     let isLive: Bool
     let refresh: () -> Void
     let showSevenDayForecast: () -> Void
@@ -265,9 +267,9 @@ private struct ReferenceWeatherHome: View {
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 5) {
-                Text("SENAST UPPDATERAD")
-                    .font(.system(size: 7, weight: .bold)).tracking(0.7)
-                    .foregroundStyle(RTheme.muted)
+                Text(lastUpdated.map { "UPPDATERAD \($0.formatted(date: .omitted, time: .shortened))" } ?? "INVÄNTAR DATA")
+                    .font(.system(size: 8, weight: .bold)).tracking(0.5)
+                    .foregroundStyle(lastUpdated == nil ? RTheme.muted : RTheme.cyan)
                 HStack(spacing: 13) {
                     Button(action: showPlaceSearch) {
                         Image(systemName: "magnifyingglass")
@@ -745,15 +747,52 @@ private struct ReferenceWeatherHome: View {
                 Text("Timprognosen visas när väderdata har hämtats.")
                     .font(.system(size: 9, weight: .medium)).foregroundStyle(RTheme.muted)
             } else {
+                let nextHours = Array(hours.prefix(8))
+                let temps = nextHours.map { Double($0.temperature) }
+                let low = floor((temps.min() ?? 0) / 2) * 2
+                let high = max(ceil((temps.max() ?? 2) / 2) * 2, low + 2)
+                HStack(alignment: .top, spacing: 5) {
+                    VStack {
+                        Text("\(Int(high))°")
+                        Spacer()
+                        Text("\(Int((high + low) / 2))°")
+                        Spacer()
+                        Text("\(Int(low))°")
+                    }.font(.system(size: 8, weight: .medium, design: .rounded))
+                     .foregroundStyle(RTheme.muted).frame(width: 25, height: 76)
+                    GeometryReader { proxy in
+                        ZStack {
+                            ForEach(0...2, id: \.self) { step in
+                                let y = proxy.size.height * CGFloat(step) / 2
+                                Path { path in
+                                    path.move(to: CGPoint(x: 0, y: y))
+                                    path.addLine(to: CGPoint(x: proxy.size.width, y: y))
+                                }.stroke(RTheme.line, style: StrokeStyle(lineWidth: 0.8, dash: [3, 3]))
+                            }
+                            Path { path in
+                                for (index, value) in temps.enumerated() {
+                                    let x = proxy.size.width * CGFloat(index) / CGFloat(max(temps.count - 1, 1))
+                                    let y = proxy.size.height - CGFloat((value - low) / (high - low)) * (proxy.size.height - 10) - 5
+                                    if index == 0 { path.move(to: CGPoint(x: x, y: y)) } else { path.addLine(to: CGPoint(x: x, y: y)) }
+                                }
+                            }.stroke(RTheme.cyan, style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                            ForEach(Array(temps.enumerated()), id: \.offset) { index, value in
+                                let x = proxy.size.width * CGFloat(index) / CGFloat(max(temps.count - 1, 1))
+                                let y = proxy.size.height - CGFloat((value - low) / (high - low)) * (proxy.size.height - 10) - 5
+                                Circle().fill(.white).frame(width: 5, height: 5).position(x: x, y: y)
+                            }
+                        }
+                    }.frame(height: 76)
+                }
                 HStack(spacing: 0) {
-                    ForEach(hours.prefix(8)) { hour in
-                        VStack(spacing: 7) {
-                            Text(hour.time).font(.system(size: 10, weight: .semibold)).foregroundStyle(.white)
+                    ForEach(nextHours) { hour in
+                        VStack(spacing: 5) {
+                            Text(hour.time).font(.system(size: 9, weight: .semibold)).foregroundStyle(.white)
                             Image(systemName: hour.symbol).symbolRenderingMode(.palette)
                                 .foregroundStyle(Color(red: 0.82, green: 0.90, blue: 1), RTheme.cyan)
-                                .font(.system(size: 22)).frame(height: 27)
-                            Text("\(hour.precipitationChance)%").font(.system(size: 9, weight: .bold)).foregroundStyle(RTheme.cyan)
-                            Text("\(hour.temperature)°").font(.system(size: 14, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                                .font(.system(size: 18)).frame(height: 22)
+                            Text("\(hour.precipitationChance)%").font(.system(size: 8, weight: .bold)).foregroundStyle(RTheme.cyan)
+                            Text("\(hour.temperature)°").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundStyle(.white)
                         }.frame(maxWidth: .infinity)
                     }
                 }
