@@ -382,14 +382,22 @@ private struct ReferenceWeatherHome: View {
                 .font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.88))
                 .lineLimit(3).fixedSize(horizontal:false,vertical:true)
             Spacer(minLength: 0)
-            HStack {
+            HStack(spacing: 5) {
                 Label(event.level, systemImage: "eye.fill")
-                    .font(.system(size: 12, weight: .heavy))
+                    .font(.system(size: 10, weight: .heavy))
+                    .tracking(0.2)
                     .foregroundStyle(event.tint)
-                Spacer()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                    .layoutPriority(1)
+                Spacer(minLength: 4)
                 Text("KOMMANDE TIMMAR")
-                    .font(.system(size: 12, weight: .bold)).tracking(0.5)
+                    .font(.system(size: 10, weight: .bold))
+                    .tracking(0.2)
                     .foregroundStyle(RTheme.muted)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(11)
