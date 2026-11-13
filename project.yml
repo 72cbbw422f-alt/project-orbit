@@ -10,6 +10,7 @@ settings:
     IPHONEOS_DEPLOYMENT_TARGET: "17.0"
     GENERATE_INFOPLIST_FILE: YES
     INFOPLIST_KEY_CFBundleDisplayName: Regnvakt
+    INFOPLIST_KEY_UILaunchStoryboardName: LaunchScreen
     INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.weather
     INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: VÄDER använder din position för att visa lokalt väder.
 targets:
