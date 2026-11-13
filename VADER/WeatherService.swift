@@ -184,6 +184,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
     }
 
     private func loadWeather(latitude: Double, longitude: Double, placeName: String) {
+        currentCoordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
         status = "Hämtar prognos för \(placeName)…"
         Task {
             do {
