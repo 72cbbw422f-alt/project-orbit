@@ -510,6 +510,25 @@ private struct RegnvaktMapView: UIViewRepresentable {
             }
         }
 
+        func mapView(_ mapView: MLNMapView, viewFor annotation: MLNAnnotation) -> MLNAnnotationView? {
+            guard annotation is MLNPointAnnotation else { return nil }
+            let reuseIdentifier = "regnvakt-location-dot"
+            let view = mapView.dequeueReusableAnnotationView(withIdentifier: reuseIdentifier)
+                ?? MLNAnnotationView(reuseIdentifier: reuseIdentifier)
+            view.frame = CGRect(x: 0, y: 0, width: 20, height: 20)
+            view.backgroundColor = UIColor(red: 0.18, green: 0.86, blue: 0.91, alpha: 1)
+            view.layer.cornerRadius = 10
+            view.layer.borderWidth = 3
+            view.layer.borderColor = UIColor.white.cgColor
+            view.layer.shadowColor = UIColor(red: 0.18, green: 0.86, blue: 0.91, alpha: 1).cgColor
+            view.layer.shadowOpacity = 0.55
+            view.layer.shadowRadius = 8
+            view.layer.shadowOffset = .zero
+            view.isEnabled = false
+            view.centerOffset = .zero
+            return view
+        }
+
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             self.mapView = mapView
             styleReady = true
