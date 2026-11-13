@@ -36,7 +36,7 @@ struct WeatherSnapshot {
     )
 }
 
-struct HourForecast: Identifiable {
+struct HourForecast: Identifiable, Codable {
     let id: String
     let time: String
     let symbol: String
