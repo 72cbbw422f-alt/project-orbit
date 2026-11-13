@@ -146,7 +146,8 @@ private struct WatchDetailSheet: View {
 
     private var relevantHours: [HourForecast] {
         if watch.id == "frost" { return hours.filter { $0.temperature <= 1 } }
-        if watch.id == "wind" { return hours.filter { $0.gust >= 14 } }
+        if watch.id == "precipitation" { return hours.filter { let c = $0.condition.lowercased(); return c.contains("regn") || c.contains("snö") || c.contains("dugg") || c.contains("skur") } }
+        if watch.id == "wind" { return hours.filter { $0.gust >= 17 || $0.wind >= 11 } }
         if watch.id == "thunder" { return hours.filter { $0.condition.localizedCaseInsensitiveContains("åska") } }
         return hours.filter {
             let c = $0.condition.lowercased()
@@ -224,6 +225,9 @@ private struct WatchDetailSheet: View {
             if watch.id == "frost" {
                 return request.identifier.hasPrefix("regnvakt.weather.frost.") || request.identifier.hasPrefix("regnvakt.weather.ice.")
             }
+            if watch.id == "precipitation" {
+                return request.identifier.hasPrefix("regnvakt.weather.rain.") || request.identifier.hasPrefix("regnvakt.weather.snow.")
+            }
             return request.identifier.hasPrefix("regnvakt.weather.\(watch.id).")
         }
         notificationStatus = matching.isEmpty ? "Inga väntande aviseringar för den här vakten just nu." : "\(matching.count) väntande avisering(ar) i iOS."
@@ -256,7 +260,7 @@ struct ActiveWatchSummary: View {
         else if text.contains("regn") || text.contains("skur") || text.contains("duggregn") { result.append(("REGNVAKTEN", "cloud.rain.fill")) }
         if text.contains("åska") { result.append(("ÅSKVAKTEN", "cloud.bolt.rain.fill")) }
         let gust = max(weather.windGust, hours.map(\.gust).max() ?? days.first?.gust ?? 0)
-        if gust >= 14 { result.append(("VINDVAKTEN", "wind")) }
+        if gust >= 17 || max(weather.wind, hours.map(\.wind).max() ?? 0) >= 11 { result.append(("VINDVAKTEN", "wind")) }
         return result
     }
 
