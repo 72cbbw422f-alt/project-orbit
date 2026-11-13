@@ -98,9 +98,13 @@ enum SMHIWarningService {
             let current = try await warnings(at: coordinate)
             defaults.set(!current.isEmpty, forKey: "Regnvakt.smhi.active")
             let summary = current.prefix(3).map { warning in "\(warning.title) – \(warning.area)" }.joined(separator: " • ")
-            defaults.set(current.isEmpty ? "Inga aktiva SMHI-varningar för vald position" : summary, forKey: "Regnvakt.smhi.summary")
+            defaults.set(current.isEmpty ? "Inga aktiva SMHI-varningar nära din plats" : summary, forKey: "Regnvakt.smhi.summary")
             defaults.set(current.first?.level.uppercased() ?? "", forKey: "Regnvakt.smhi.level")
-            defaults.set(ISO8601DateFormatter().string(from: Date()), forKey: "Regnvakt.smhi.updated")
+            let updateFormatter = DateFormatter()
+            updateFormatter.locale = Locale(identifier: "sv_SE")
+            updateFormatter.timeZone = .current
+            updateFormatter.dateFormat = "HH:mm"
+            defaults.set(updateFormatter.string(from: Date()), forKey: "Regnvakt.smhi.updated")
             let national = try await nationwideWarnings()
             let signatures = Set(current.map { $0.id + "|" + $0.level + "|" + $0.title })
             let nationalSignatures = Set(national.map { $0.id + "|" + $0.level + "|" + $0.title })
