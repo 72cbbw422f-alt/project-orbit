@@ -189,6 +189,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                 snapshot = result.current.replacingPlace(placeName)
                 days = result.days
                 hours = result.hours
+                WeatherNotificationScheduler.refresh(place: placeName, hours: result.hours)
                 status = "Liveprognos • Open-Meteo"
             } catch {
                 status = "Kunde inte hämta väderdata. Försök igen."
