@@ -220,7 +220,7 @@ private struct ReferenceWeatherHome: View {
     }
 
     private func mainCards(width: CGFloat) -> some View {
-        let windWidth = max(112, width * 0.30)
+        let windWidth = max(128, width * 0.34)
         return HStack(alignment: .top, spacing: 9) {
             rainAlertCard
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -230,35 +230,66 @@ private struct ReferenceWeatherHome: View {
         .frame(height: 190)
     }
 
+    private var watchEvent: (title: String, detail: String, symbol: String, level: String, tint: Color) {
+        guard !hours.isEmpty else {
+            return ("Inväntar prognos", "Vädervakten analyserar kommande timmar när prognosen har hämtats.", "hourglass", "AVVAKTAR", RTheme.muted)
+        }
+        let precipitation = hours.first { $0.precipitationChance >= 40 || $0.precipitation >= 0.2 }
+        let maxGust = max(weather.windGust, hours.map(\.gust).max() ?? 0)
+        let coldest = hours.min { $0.temperature < $1.temperature }
+        if let precipitation {
+            let snow = precipitation.condition.localizedCaseInsensitiveContains("snö")
+            let kind = snow ? "Snöfall" : "Regn"
+            return ("\(kind) kan komma", "\(precipitation.condition) omkring kl. \(precipitation.time). Nederbördsrisk \(precipitation.precipitationChance)% enligt timprognosen.", snow ? "cloud.snow.fill" : "cloud.rain.fill", "HÅLL KOLL", Color.orange)
+        }
+        if maxGust >= 14 {
+            return ("Kraftiga vindbyar", String(format: "Byvindar kan nå %.1f m/s under prognosperioden.", maxGust), "wind", "VINDRISK", Color.orange)
+        }
+        if let coldest, coldest.temperature <= 0 {
+            return ("Risk för frost", "Temperaturen väntas nå \(coldest.temperature)° omkring kl. \(coldest.time).", "thermometer.snowflake", "FROSTRISK", Color.cyan)
+        }
+        return ("Inget särskilt väntas", "Ingen tydlig nederbörds- eller vindrisk identifierad de kommande timmarna.", "checkmark.shield.fill", "LUGNT JUST NU", Color.green)
+    }
+
     private var rainAlertCard: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        let event = watchEvent
+        return VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 5) {
-                Label(watchTitle, systemImage: "umbrella.fill")
+                Label("VÄDERVAKTEN", systemImage: "shield.lefthalf.filled")
                     .font(.system(size: 9, weight: .heavy))
                     .padding(.horizontal, 8).padding(.vertical, 5)
                     .background(LinearGradient(colors:[RTheme.blue,RTheme.cyan.opacity(0.72)],startPoint:.leading,endPoint:.trailing),in:Capsule())
                     .foregroundStyle(.white)
                 Spacer(minLength: 1)
                 HStack(spacing: 3) {
-                    Circle().fill(.green).frame(width:6,height:6)
+                    Circle().fill(isLive ? .green : .orange).frame(width:6,height:6)
                     Text(isLive ? "LIVE" : "DEMO").font(.system(size:7,weight:.heavy))
-                }.foregroundStyle(.green)
+                }.foregroundStyle(isLive ? .green : .orange)
             }
-            Text(isLive ? "Aktuellt väder" : "Regn närmar sig")
-                .font(.system(size: 17, weight: .bold, design: .rounded))
+            Text("Nästa väderhändelse")
+                .font(.system(size: 16, weight: .bold, design: .rounded))
                 .foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.75)
-            Text(isLive ? weather.condition : "Om 18 min")
-                .font(.system(size: 29, weight: .bold, design: .rounded))
-                .tracking(-1.2).foregroundStyle(RTheme.cyan)
-                .lineLimit(1).minimumScaleFactor(0.7)
-            Text(isLive ? "Just nu \(String(format: "%.1f", weather.precipitationToday)) mm nederbörd registrerad i aktuell tidsperiod." : "Måttlig nederbörd väntas pågå i ca 45 min.")
+            HStack(spacing: 7) {
+                Image(systemName: event.symbol)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(event.tint)
+                Text(event.title)
+                    .font(.system(size: 23, weight: .bold, design: .rounded))
+                    .tracking(-0.8).foregroundStyle(RTheme.cyan)
+                    .lineLimit(2).minimumScaleFactor(0.68)
+            }
+            Text(event.detail)
                 .font(.system(size: 9, weight: .medium)).foregroundStyle(.white.opacity(0.88))
-                .lineLimit(2).fixedSize(horizontal:false,vertical:true)
+                .lineLimit(3).fixedSize(horizontal:false,vertical:true)
             Spacer(minLength: 0)
-            HStack(spacing: 4) {
-                miniRainStat(icon:"thermometer",title:"Temperatur",value:"\(weather.temperature)°")
-                miniRainStat(icon:"wind",title:"Vind",value:String(format:"%.1f m/s",weather.wind))
-                miniRainStat(icon:"drop.fill",title:"Nederbörd",value:String(format:"%.1f mm",weather.precipitationToday))
+            HStack {
+                Label(event.level, systemImage: "eye.fill")
+                    .font(.system(size: 8, weight: .heavy))
+                    .foregroundStyle(event.tint)
+                Spacer()
+                Text("KOMMANDE TIMMAR")
+                    .font(.system(size: 7, weight: .bold)).tracking(0.5)
+                    .foregroundStyle(RTheme.muted)
             }
         }
         .padding(11)
@@ -267,10 +298,10 @@ private struct ReferenceWeatherHome: View {
                 .fill(LinearGradient(colors:[Color(red:0.015,green:0.16,blue:0.27).opacity(0.98),Color(red:0.015,green:0.065,blue:0.13).opacity(0.96)],startPoint:.topLeading,endPoint:.bottomTrailing))
         }
         .overlay(alignment:.trailing) {
-            Image(systemName:watchSymbol)
+            Image(systemName: event.symbol)
                 .font(.system(size:54))
-                .symbolRenderingMode(.palette)
-                .foregroundStyle(.white.opacity(0.12),RTheme.cyan.opacity(0.23))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(event.tint.opacity(0.10))
                 .offset(x:2,y:-34)
                 .allowsHitTesting(false)
         }
@@ -296,23 +327,28 @@ private struct ReferenceWeatherHome: View {
                 ForEach(0..<36,id:\.self) { i in
                     Capsule().fill(.white.opacity(i.isMultiple(of:3) ? 0.85 : 0.28))
                         .frame(width:1,height:i.isMultiple(of:3) ? 7:4)
-                        .offset(y:-48).rotationEffect(.degrees(Double(i)*10))
+                        .offset(y:-43).rotationEffect(.degrees(Double(i)*10))
                 }
                 VStack { Text("N"); Spacer(); Text("S") }
                     .font(.system(size:9,weight:.heavy)).foregroundStyle(.white).padding(.vertical,5)
                 HStack { Text("V"); Spacer(); Text("Ö") }
                     .font(.system(size:9,weight:.heavy)).foregroundStyle(.white).padding(.horizontal,5)
-                Image(systemName:"location.north.fill")
-                    .font(.system(size:22,weight:.bold)).foregroundStyle(RTheme.cyan)
+                Image(systemName:"arrow.up")
+                    .font(.system(size:24,weight:.black))
+                    .foregroundStyle(RTheme.cyan)
+                    .offset(y:-17)
                     .rotationEffect(.degrees(weather.windDirectionDegrees))
-                    .shadow(color:RTheme.cyan.opacity(0.7),radius:8)
+                    .shadow(color:RTheme.cyan.opacity(0.65),radius:7)
+                Circle().fill(.white).frame(width:6,height:6)
                 VStack(spacing:0) {
                     Text(String(format:"%.1f",weather.wind))
-                        .font(.system(size:19,weight:.bold,design:.rounded))
+                        .font(.system(size:18,weight:.bold,design:.rounded))
                     Text("m/s").font(.system(size:8,weight:.bold))
+                    Text(weather.windDirectionText)
+                        .font(.system(size:8,weight:.heavy)).foregroundStyle(RTheme.cyan)
                 }.foregroundStyle(.white)
             }
-            .frame(width:126,height:126)
+            .frame(width:112,height:112)
             .frame(maxWidth:.infinity)
             Text(String(format:"Byvind %.1f m/s",weather.windGust))
                 .font(.system(size:8,weight:.semibold)).foregroundStyle(RTheme.muted)
