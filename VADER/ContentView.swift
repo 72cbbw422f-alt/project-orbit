@@ -16,6 +16,7 @@ struct ContentView: View {
     @State private var selectedForecastDay: DayForecast? = nil
     @State private var showingHourlyForecast = false
     @State private var showingPlaceSearch = false
+    @State private var showingNotifications = false
     @StateObject private var weatherModel = WeatherViewModel()
 
     var body: some View {
@@ -37,6 +38,7 @@ struct ContentView: View {
                         refresh: { weatherModel.refresh() },
                         showSevenDayForecast: { showingSevenDayForecast = true },
                         showWeatherDetails: { showingWeatherDetails = true },
+                        showNotifications: { showingNotifications = true },
                         showHourlyForecast: { showingHourlyForecast = true },
                         showPlaceSearch: { showingPlaceSearch = true },
                         selectForecastDay: { selectedForecastDay = $0 }
@@ -108,6 +110,7 @@ private struct ReferenceWeatherHome: View {
     let refresh: () -> Void
     let showSevenDayForecast: () -> Void
     let showWeatherDetails: () -> Void
+    let showNotifications: () -> Void
     let showHourlyForecast: () -> Void
     let showPlaceSearch: () -> Void
     let selectForecastDay: (DayForecast) -> Void
@@ -185,11 +188,16 @@ private struct ReferenceWeatherHome: View {
                     .fixedSize(horizontal: true, vertical: false)
             }
             Spacer(minLength: 2)
-            HStack(spacing: 5) {
-                CircleIconButton(icon: "gearshape")
-                CircleIconButton(icon: "bell.badge")
-                CircleIconButton(icon: "ellipsis")
+            Button(action: showNotifications) {
+                Image(systemName: "bell.badge")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 34, height: 34)
+                    .background(.white.opacity(0.08), in: Circle())
+                    .overlay(Circle().stroke(.white.opacity(0.18), lineWidth: 1))
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Aviseringar och SMHI-varningar")
         }
         .padding(.horizontal, 2)
         .padding(.top, 8)
