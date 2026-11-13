@@ -33,25 +33,31 @@ private struct RadarMapRepresentable: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
+    private var safeCoordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: coordinate.latitude.isFinite ? min(85, max(-85, coordinate.latitude)) : 61.7274,
+                               longitude: coordinate.longitude.isFinite ? min(180, max(-180, coordinate.longitude)) : 17.1058)
+    }
+
     func makeUIView(context: Context) -> MKMapView {
-        let map = MKMapView(frame: .zero)
+        let map = MKMapView(frame: CGRect(x: 0, y: 0, width: 360, height: 430))
         map.delegate = context.coordinator
         map.mapType = .mutedStandard
         map.overrideUserInterfaceStyle = .dark
         map.showsCompass = true
         map.showsScale = true
         map.pointOfInterestFilter = .excludingAll
-        map.setRegion(MKCoordinateRegion(center: coordinate, latitudinalMeters: 150000, longitudinalMeters: 150000), animated: false)
+        map.setRegion(MKCoordinateRegion(center: safeCoordinate, latitudinalMeters: 150000, longitudinalMeters: 150000), animated: false)
         return map
     }
 
     func updateUIView(_ map: MKMapView, context: Context) {
-        if context.coordinator.lastCoordinate.latitude != coordinate.latitude ||
-            context.coordinator.lastCoordinate.longitude != coordinate.longitude {
-            context.coordinator.lastCoordinate = coordinate
-            map.setRegion(MKCoordinateRegion(center: coordinate, latitudinalMeters: 150000, longitudinalMeters: 150000), animated: true)
+        let target = safeCoordinate
+        if context.coordinator.lastCoordinate.latitude != target.latitude ||
+            context.coordinator.lastCoordinate.longitude != target.longitude {
+            context.coordinator.lastCoordinate = target
+            map.setRegion(MKCoordinateRegion(center: target, latitudinalMeters: 150000, longitudinalMeters: 150000), animated: true)
         }
-        guard context.coordinator.lastFrameID != frame?.id, let frame else { return }
+        guard !host.isEmpty, context.coordinator.lastFrameID != frame?.id, let frame else { return }
         context.coordinator.lastFrameID = frame.id
         map.overlays.filter { $0 is MKTileOverlay }.forEach { map.removeOverlay($0) }
         let template = "\(host)\(frame.path)/256/{z}/{x}/{y}/2/1_1.png"
@@ -113,6 +119,8 @@ struct RadarMapView: View {
 
                 ZStack {
                     RadarMapRepresentable(coordinate: mapCoordinate, host: host, frame: selectedFrame)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 430)
                     if isLoading {
                         ProgressView("Hämtar radar…").tint(.cyan).padding(14).background(.black.opacity(0.72), in: RoundedRectangle(cornerRadius: 14))
                     } else if let errorMessage {
