@@ -117,9 +117,9 @@ private struct ReferenceWeatherHome: View {
                     currentConditions
                     mainCards(width: geo.size.width - 28)
                     precipitationCard
-                    compactMetrics
-                    daylightStrip
                     todayDetailsButton
+                    moonMetric
+                    daylightStrip
                     hourlyCard
                     sevenDayForecast
                     Text(isLive ? "VÄDERDATA: OPEN-METEO  •  PLATS: GPS" : "VÄNTAR PÅ GPS OCH LIVEVÄDER")
@@ -497,7 +497,7 @@ private struct ReferenceWeatherHome: View {
         HStack(spacing: 7) {
             circularMetric(title:"Luftfuktighet",symbol:"humidity.fill",value:"\(weather.humidity)%",progress:Double(weather.humidity)/100,tint:RTheme.cyan)
             circularMetric(title:"Tryck",symbol:"gauge",value:weather.pressure > 0 ? String(format:"%.0f",weather.pressure) : "—",progress:0.62,tint:Color(red:0.42,green:0.72,blue:0.94),suffix:"hPa")
-            moonMetric.frame(width: 166)
+            moonMetric.frame(maxWidth: .infinity)
         }
         .frame(height: 142)
     }
@@ -543,43 +543,47 @@ private struct ReferenceWeatherHome: View {
     }
 
     private var moonMetric: some View {
-        VStack(alignment:.leading,spacing:7) {
-            Label("Sol & måne",systemImage:"sun.horizon.fill")
-                .font(.system(size:10,weight:.bold)).foregroundStyle(.white)
-            HStack(alignment:.center,spacing:8) {
-                VStack(alignment:.leading,spacing:5) {
-                    HStack(spacing:5) {
-                        Image(systemName:"sunrise.fill").font(.system(size:15)).foregroundStyle(.orange)
-                        VStack(alignment:.leading,spacing:0) {
-                            Text("UPPGÅNG").font(.system(size:6,weight:.heavy)).foregroundStyle(RTheme.muted)
-                            Text(weather.sunriseTime).font(.system(size:13,weight:.bold,design:.rounded)).foregroundStyle(.white)
-                        }
-                    }
-                    HStack(spacing:5) {
-                        Image(systemName:"sunset.fill").font(.system(size:15)).foregroundStyle(.orange)
-                        VStack(alignment:.leading,spacing:0) {
-                            Text("NEDGÅNG").font(.system(size:6,weight:.heavy)).foregroundStyle(RTheme.muted)
-                            Text(weather.sunsetTime).font(.system(size:13,weight:.bold,design:.rounded)).foregroundStyle(.white)
-                        }
+        HStack(alignment: .center, spacing: 0) {
+            VStack(alignment: .leading, spacing: 10) {
+                Label("SOLEN", systemImage: "sun.max.fill")
+                    .font(.system(size: 11, weight: .heavy))
+                    .foregroundStyle(.orange)
+                HStack(spacing: 8) {
+                    Image(systemName: "sunrise.fill").font(.system(size: 22)).foregroundStyle(.orange)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("SOLUPPGÅNG").font(.system(size: 8, weight: .heavy)).foregroundStyle(RTheme.muted)
+                        Text(weather.sunriseTime).font(.system(size: 20, weight: .bold, design: .rounded)).foregroundStyle(.white)
                     }
                 }
-                Rectangle().fill(RTheme.line).frame(width:1,height:66)
-                VStack(spacing:3) {
-                    Image(systemName:moonPhaseInfo.symbol)
-                        .font(.system(size:43))
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(Color(red:0.86,green:0.90,blue:1))
-                        .shadow(color:.white.opacity(0.28),radius:7)
-                    Text("\(moonPhaseInfo.illumination)%")
-                        .font(.system(size:12,weight:.bold,design:.rounded)).foregroundStyle(.white)
-                    Text(moonPhaseInfo.name)
-                        .font(.system(size:7,weight:.medium)).foregroundStyle(RTheme.muted)
-                        .lineLimit(1).minimumScaleFactor(0.7)
-                }.frame(maxWidth:.infinity)
+                HStack(spacing: 8) {
+                    Image(systemName: "sunset.fill").font(.system(size: 22)).foregroundStyle(.orange)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("SOLNEDGÅNG").font(.system(size: 8, weight: .heavy)).foregroundStyle(RTheme.muted)
+                        Text(weather.sunsetTime).font(.system(size: 20, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                    }
+                }
             }
-        }.frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading).padding(9)
-            .background(RTheme.panel,in:RoundedRectangle(cornerRadius:17))
-            .overlay(RoundedRectangle(cornerRadius:17).stroke(RTheme.line.opacity(0.7),lineWidth:1))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Rectangle().fill(RTheme.line).frame(width: 1, height: 112)
+            VStack(spacing: 5) {
+                Label("MÅNEN", systemImage: "moon.fill")
+                    .font(.system(size: 11, weight: .heavy)).foregroundStyle(RTheme.cyan)
+                Image(systemName: moonPhaseInfo.symbol)
+                    .font(.system(size: 58)).symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(Color(red: 0.86, green: 0.90, blue: 1))
+                    .shadow(color: .white.opacity(0.28), radius: 7)
+                Text("\(moonPhaseInfo.illumination)% belyst")
+                    .font(.system(size: 16, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                Text(moonPhaseInfo.name)
+                    .font(.system(size: 10, weight: .medium)).foregroundStyle(RTheme.muted)
+                    .lineLimit(1).minimumScaleFactor(0.75)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: 166)
+        .background(RTheme.panel, in: RoundedRectangle(cornerRadius: 19))
+        .overlay(RoundedRectangle(cornerRadius: 19).stroke(RTheme.line.opacity(0.8), lineWidth: 1))
     }
 
     private var daylightStrip: some View {
@@ -596,7 +600,7 @@ private struct ReferenceWeatherHome: View {
                     .font(.system(size:12,weight:.heavy))
                     .foregroundStyle(weather.daylightChangeMinutes > 0 ? .green : .red)
                 Text("\(abs(weather.daylightChangeMinutes)) min \(weather.daylightChangeMinutes > 0 ? "längre" : "kortare") än igår")
-                    .font(.system(size:10,weight:.semibold)).foregroundStyle(.white)
+                    .font(.system(size:14,weight:.bold)).foregroundStyle(.white)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else {
                 Text("Jämfört med igår")
@@ -610,14 +614,12 @@ private struct ReferenceWeatherHome: View {
     private var todayDetailsButton: some View {
         Button(action: showWeatherDetails) {
             HStack(spacing:10) {
-                Image(systemName:"chart.bar.doc.horizontal.fill")
+                Image(systemName:"cloud.sun.rain.fill")
                     .font(.system(size:17,weight:.semibold)).foregroundStyle(RTheme.cyan)
                 VStack(alignment:.leading,spacing:2) {
-                    Text("Dagens väder i detalj")
+                    Text("Dagens väderfakta")
                         .font(.system(size:12,weight:.bold)).foregroundStyle(.white)
-                    Text("UV, lufttryck, fuktighet, vind och mer")
-                        .font(.system(size:9,weight:.medium)).foregroundStyle(RTheme.muted)
-                }
+                                    }
                 Spacer()
                 Image(systemName:"chevron.right").font(.system(size:11,weight:.bold)).foregroundStyle(RTheme.cyan)
             }
