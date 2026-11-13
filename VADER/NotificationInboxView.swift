@@ -245,8 +245,21 @@ struct NotificationInboxView: View {
                             Text(item.content.title).font(.system(size: 16, weight: .bold)).foregroundStyle(.white)
                             Text(item.content.body).font(.system(size: 15)).foregroundStyle(.white.opacity(0.78))
                             if let fireDate {
-                                Label("Förvarning skickas: " + fireDate.formatted(date: .abbreviated, time: .shortened), systemImage: "bell")
-                                    .font(.system(size: 16, weight: .semibold)).foregroundStyle(.white.opacity(0.85))
+                                Label {
+                                    Text("Förvarning: " + fireDate.formatted(
+                                        .dateTime.day().month(.abbreviated).hour().minute()
+                                            .locale(Locale(identifier: "sv_SE"))
+                                    ))
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.78)
+                                    .allowsTightening(true)
+                                } icon: {
+                                    Image(systemName: "bell")
+                                        .font(.system(size: 14, weight: .semibold))
+                                }
+                                .foregroundStyle(.white.opacity(0.85))
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
                             if let eventStamp = item.content.userInfo["forecastEventDate"] as? TimeInterval {
                                 let eventDate = Date(timeIntervalSince1970: eventStamp)
