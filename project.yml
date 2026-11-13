@@ -23,6 +23,9 @@ targets:
     platform: iOS
     sources:
       - path: VADER
+    dependencies:
+      - package: MapLibre
+        product: MapLibre
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.walnut8211.vadra
