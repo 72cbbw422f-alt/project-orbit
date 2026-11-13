@@ -158,8 +158,8 @@ enum WeatherNotificationScheduler {
                 if hour.temperature <= frostThreshold {
                     active.append(Event(
                         type: "frost",
-                        title: overnight ? "Frostnatt väntas" : "Frostrisk",
-                        body: "Temperaturen väntas nå \(hour.temperature)° omkring kl. \(hour.time).",
+                        title: overnight ? "Frostrisk i natt" : "Frostrisk",
+                        body: "Temperaturen väntas nå \(hour.temperature)° omkring kl. \(hour.time). Frost kan bildas även utan nederbörd.",
                         date: date,
                         safetyCritical: true
                     ))
