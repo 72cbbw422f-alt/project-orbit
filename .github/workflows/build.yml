@@ -25,6 +25,12 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Normalize app icon to Apple 1024px size
+        run: |
+          sips -z 1024 1024 VADER/Assets.xcassets/AppIcon.appiconset/AppIcon.png --out /tmp/Regnvakt-AppIcon.png
+          cp /tmp/Regnvakt-AppIcon.png VADER/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+          sips -g pixelWidth -g pixelHeight VADER/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+
       - name: Generate Xcode project
         run: xcodegen generate
 

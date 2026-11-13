@@ -43,9 +43,15 @@ struct ContentView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(RTheme.bg.ignoresSafeArea())
+        .ignoresSafeArea(.container, edges: .all)
         .statusBarHidden(true)
         .persistentSystemOverlays(.hidden)
-        .safeAreaInset(edge: .bottom, spacing: 0) { RTabBar(selection: $selectedTab) }
+        .overlay(alignment: .bottom) {
+            RTabBar(selection: $selectedTab)
+                .padding(.bottom, 10)
+                .background(LinearGradient(colors: [RTheme.bg.opacity(0), RTheme.bg.opacity(0.96)], startPoint: .top, endPoint: .bottom))
+                .ignoresSafeArea(.container, edges: .bottom)
+        }
         .sheet(isPresented: $showingSevenDayForecast) {
             SevenDayForecastDetail(days: weatherModel.days, place: weatherModel.snapshot?.place ?? "Din plats")
                 .presentationDetents([.large])
