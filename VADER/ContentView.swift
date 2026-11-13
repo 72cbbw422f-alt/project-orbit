@@ -928,7 +928,7 @@ private struct ForecastDayDetails: View {
     let day: DayForecast
     let hours: [HourForecast]
     let place: String
-    @Environment(\\.dismiss) private var dismiss
+    @Environment(\.dismiss) private var dismiss
 
     private var dayHours: [HourForecast] {
         let formatter = DateFormatter()
