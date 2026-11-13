@@ -13,6 +13,7 @@ struct NotificationSettingsView: View {
     @AppStorage("Regnvakt.notifications.quietHours") private var quietHours = "22–07"
     @State private var permissionStatus = "Kontrollerar behörighet…"
     @State private var requestingPermission = false
+    @State private var testNotificationMessage = ""
 
     private let cyan = Color(red: 0.04, green: 0.78, blue: 0.98)
     private let muted = Color(red: 0.69, green: 0.78, blue: 0.88)
@@ -95,6 +96,22 @@ struct NotificationSettingsView: View {
                         .padding(12).background(cyan.opacity(0.10), in: RoundedRectangle(cornerRadius: 12))
                     }
                     .disabled(requestingPermission)
+
+                    Button {
+                        sendTestNotification()
+                    } label: {
+                        Label("Skicka testavisering", systemImage: "paperplane.fill")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(12)
+                            .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
+                    }
+                    if !testNotificationMessage.isEmpty {
+                        Text(testNotificationMessage)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(muted)
+                    }
                 }
                 .padding(14).background(panel, in: RoundedRectangle(cornerRadius: 18))
                 .overlay(RoundedRectangle(cornerRadius: 18).stroke(line, lineWidth: 1))
@@ -140,6 +157,35 @@ struct NotificationSettingsView: View {
         case .denied: permissionStatus = "Aviseringar är blockerade. Ändra behörigheten i iPhone-inställningarna."
         case .notDetermined: permissionStatus = "iPhone har ännu inte fått frågan om aviseringar."
         @unknown default: permissionStatus = "Kunde inte läsa aviseringsbehörigheten."
+        }
+    }
+
+    private func sendTestNotification() {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            guard settings.authorizationStatus == .authorized ||
+                  settings.authorizationStatus == .provisional ||
+                  settings.authorizationStatus == .ephemeral else {
+                Task { @MainActor in
+                    testNotificationMessage = "Testet kunde inte skickas: aviseringar är inte tillåtna i iPhone."
+                }
+                return
+            }
+            let content = UNMutableNotificationContent()
+            content.title = "Regnvakt fungerar"
+            content.body = "Det här är en testavisering. Om du ser den fungerar iPhones lokala notiskanal."
+            content.sound = .default
+            let request = UNNotificationRequest(
+                identifier: "regnvakt.test.\(UUID().uuidString)",
+                content: content,
+                trigger: UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
+            )
+            UNUserNotificationCenter.current().add(request) { error in
+                Task { @MainActor in
+                    testNotificationMessage = error == nil
+                        ? "Testavisering schemalagd. Den ska visas inom cirka 5 sekunder."
+                        : "Kunde inte schemalägga testaviseringen: \(error!.localizedDescription)"
+                }
+            }
         }
     }
 
