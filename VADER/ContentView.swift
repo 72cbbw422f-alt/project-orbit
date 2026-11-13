@@ -317,47 +317,90 @@ private struct ReferenceWeatherHome: View {
     }
 
     private var windCard: some View {
-        VStack(alignment:.leading,spacing:5) {
-            Label("Vind",systemImage:"wind")
-                .font(.system(size:13,weight:.bold)).foregroundStyle(.white)
+        VStack(alignment: .leading, spacing: 6) {
+            Label("Vind", systemImage: "wind")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.white)
+
             ZStack {
                 Circle().fill(.white.opacity(0.025))
-                Circle().stroke(.white.opacity(0.20),lineWidth:1)
-                ForEach(0..<36,id:\.self) { i in
-                    Capsule().fill(.white.opacity(i.isMultiple(of:3) ? 0.85 : 0.28))
-                        .frame(width:1,height:i.isMultiple(of:3) ? 7:4)
-                        .offset(y:-43).rotationEffect(.degrees(Double(i)*10))
+                Circle().stroke(.white.opacity(0.20), lineWidth: 1)
+                ForEach(0..<24, id: \.self) { i in
+                    Capsule()
+                        .fill(.white.opacity(i.isMultiple(of: 2) ? 0.65 : 0.22))
+                        .frame(width: 1, height: i.isMultiple(of: 2) ? 5 : 3)
+                        .offset(y: -32)
+                        .rotationEffect(.degrees(Double(i) * 15))
                 }
-                VStack { Text("N"); Spacer(); Text("S") }
-                    .font(.system(size:9,weight:.heavy)).foregroundStyle(.white).padding(.vertical,5)
-                HStack { Text("V"); Spacer(); Text("Ö") }
-                    .font(.system(size:9,weight:.heavy)).foregroundStyle(.white).padding(.horizontal,5)
-                Image(systemName:"arrow.up")
-                    .font(.system(size:24,weight:.black))
+                VStack {
+                    Text("N")
+                    Spacer()
+                    Text("S")
+                }
+                .font(.system(size: 8, weight: .heavy))
+                .foregroundStyle(.white)
+                .padding(.vertical, 4)
+                HStack {
+                    Text("V")
+                    Spacer()
+                    Text("Ö")
+                }
+                .font(.system(size: 8, weight: .heavy))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 4)
+
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 23, weight: .black))
                     .foregroundStyle(RTheme.cyan)
-                    .offset(y:-17)
+                    .offset(y: -13)
                     .rotationEffect(.degrees(weather.windDirectionDegrees))
-                    .shadow(color:RTheme.cyan.opacity(0.65),radius:7)
-                Circle().fill(.white).frame(width:6,height:6)
-                VStack(spacing:0) {
-                    Text(String(format:"%.1f",weather.wind))
-                        .font(.system(size:18,weight:.bold,design:.rounded))
-                    Text("m/s").font(.system(size:8,weight:.bold))
+                    .shadow(color: RTheme.cyan.opacity(0.65), radius: 7)
+                VStack(spacing: 1) {
                     Text(weather.windDirectionText)
-                        .font(.system(size:8,weight:.heavy)).foregroundStyle(RTheme.cyan)
-                }.foregroundStyle(.white)
+                        .font(.system(size: 17, weight: .black, design: .rounded))
+                        .foregroundStyle(.white)
+                    Text("VINDRIKTNING")
+                        .font(.system(size: 6, weight: .heavy))
+                        .tracking(0.4)
+                        .foregroundStyle(RTheme.muted)
+                }
             }
-            .frame(width:112,height:112)
-            .frame(maxWidth:.infinity)
-            Text(String(format:"Byvind %.1f m/s",weather.windGust))
-                .font(.system(size:8,weight:.semibold)).foregroundStyle(RTheme.muted)
-                .lineLimit(1).minimumScaleFactor(0.7)
+            .frame(width: 76, height: 76)
+            .frame(maxWidth: .infinity)
+
+            windMeterRow(title: "Vind", value: weather.wind, maximum: 20, tint: RTheme.cyan)
+            windMeterRow(title: "Byvind", value: weather.windGust, maximum: 25, tint: Color.orange)
         }
         .padding(8)
-        .frame(maxHeight:.infinity,alignment:.top)
-        .background(RTheme.panel,in:RoundedRectangle(cornerRadius:19))
-        .overlay(RoundedRectangle(cornerRadius:19).stroke(RTheme.line,lineWidth:1))
-        .shadow(color:.black.opacity(0.25),radius:12,y:6)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .background(RTheme.panel, in: RoundedRectangle(cornerRadius: 19))
+        .overlay(RoundedRectangle(cornerRadius: 19).stroke(RTheme.line, lineWidth: 1))
+        .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
+    }
+
+    private func windMeterRow(title: String, value: Double, maximum: Double, tint: Color) -> some View {
+        VStack(spacing: 3) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(RTheme.muted)
+                Spacer(minLength: 2)
+                Text(String(format: "%.1f m/s", value))
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(.white.opacity(0.10))
+                    Capsule()
+                        .fill(LinearGradient(colors: [tint.opacity(0.65), tint], startPoint: .leading, endPoint: .trailing))
+                        .frame(width: proxy.size.width * CGFloat(min(max(value / maximum, 0), 1)))
+                }
+            }
+            .frame(height: 5)
+        }
     }
 
     private var precipitationCard: some View {
