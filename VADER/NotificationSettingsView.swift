@@ -99,7 +99,7 @@ struct NotificationSettingsView: View {
                 .padding(14).background(panel, in: RoundedRectangle(cornerRadius: 18))
                 .overlay(RoundedRectangle(cornerRadius: 18).stroke(line, lineWidth: 1))
 
-                Text("Inställningarna sparas på den här enheten. För att skicka automatiska aviseringar när appen är stängd krävs även en serverbaserad bevakningstjänst. Den kopplingen byggs separat – den här sidan aktiverar inte ännu någon sådan tjänst.")
+                Text("Inställningarna sparas på den här enheten. När en ny prognos hämtas kan Regnvakt schemalägga lokala aviseringar som visas även om appen sedan stängs. Prognosen uppdateras inte kontinuerligt i bakgrunden. SMHI-varningar kräver fortfarande att den officiella varningskällan kopplas in.")
                     .font(.system(size: 9, weight: .medium)).foregroundStyle(muted.opacity(0.85))
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 3)
