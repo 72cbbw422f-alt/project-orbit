@@ -85,8 +85,9 @@ enum WeatherNotificationScheduler {
             let left = ($0.content.userInfo["safetyCritical"] as? Bool) ?? false
             let right = ($1.content.userInfo["safetyCritical"] as? Bool) ?? false
             if left != right { return left && !right }
-            return ($0.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() ?? .distantFuture <
-                   (($1.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() ?? .distantFuture)
+            let leftDate = ($0.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() ?? .distantFuture
+            let rightDate = ($1.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() ?? .distantFuture
+            return leftDate < rightDate
         }
         let selected = Array(requests.prefix(48))
 
