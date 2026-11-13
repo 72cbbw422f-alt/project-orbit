@@ -18,6 +18,8 @@ struct ContentView: View {
     @State private var showingPlaceSearch = false
     @State private var showingNotifications = false
     @State private var showingNationalWarnings = false
+    @AppStorage("Regnvakt.notifications.hasUnread") private var hasUnreadNotifications = false
+    @AppStorage("Regnvakt.smhi.hasNewNationalWarnings") private var hasNewNationalWarnings = false
     @StateObject private var weatherModel = WeatherViewModel()
 
     var body: some View {
@@ -39,8 +41,8 @@ struct ContentView: View {
                         refresh: { weatherModel.refresh() },
                         showSevenDayForecast: { showingSevenDayForecast = true },
                         showWeatherDetails: { showingWeatherDetails = true },
-                        showNotifications: { showingNotifications = true },
-                        showNationalWarnings: { showingNationalWarnings = true },
+                        showNotifications: { hasUnreadNotifications = false; showingNotifications = true },
+                        showNationalWarnings: { hasNewNationalWarnings = false; showingNationalWarnings = true },
                         showHourlyForecast: { showingHourlyForecast = true },
                         showPlaceSearch: { showingPlaceSearch = true },
                         selectForecastDay: { selectedForecastDay = $0 }
@@ -131,6 +133,8 @@ private struct ReferenceWeatherHome: View {
     let showHourlyForecast: () -> Void
     let showPlaceSearch: () -> Void
     let selectForecastDay: (DayForecast) -> Void
+    @AppStorage("Regnvakt.notifications.hasUnread") private var hasUnreadNotifications = false
+    @AppStorage("Regnvakt.smhi.hasNewNationalWarnings") private var hasNewNationalWarnings = false
     private let bars: [CGFloat] = [0.08,0.12,0.16,0.22,0.30,0.38,0.48,0.58,0.70,0.83,0.96,1.0,0.86,0.72,0.64,0.57,0.48,0.36,0.26,0.19,0.16,0.14,0.12,0.10]
     private var watchTitle: String {
         let condition = weather.condition.lowercased()
@@ -212,9 +216,16 @@ private struct ReferenceWeatherHome: View {
                     .frame(width: 34, height: 34)
                     .background(Color.orange.opacity(0.12), in: Circle())
                     .overlay(Circle().stroke(Color.orange.opacity(0.45), lineWidth: 1))
+                    .overlay(alignment: .topTrailing) {
+                        if hasNewNationalWarnings {
+                            Circle().fill(Color.orange).frame(width: 9, height: 9)
+                                .overlay(Circle().stroke(RTheme.bg, lineWidth: 1.5))
+                                .offset(x: 1, y: -1)
+                        }
+                    }
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Sveriges SMHI-varningar")
+            .accessibilityLabel(hasNewNationalWarnings ? "Nya SMHI-varningar i Sverige" : "Sveriges SMHI-varningar")
             Button(action: showNotifications) {
                 Image(systemName: "bell.badge")
                     .font(.system(size: 15, weight: .semibold))
@@ -222,9 +233,16 @@ private struct ReferenceWeatherHome: View {
                     .frame(width: 34, height: 34)
                     .background(.white.opacity(0.08), in: Circle())
                     .overlay(Circle().stroke(.white.opacity(0.18), lineWidth: 1))
+                    .overlay(alignment: .topTrailing) {
+                        if hasUnreadNotifications {
+                            Circle().fill(RTheme.cyan).frame(width: 9, height: 9)
+                                .overlay(Circle().stroke(RTheme.bg, lineWidth: 1.5))
+                                .offset(x: 1, y: -1)
+                        }
+                    }
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Aviseringshistorik")
+            .accessibilityLabel(hasUnreadNotifications ? "Olästa aviseringar" : "Aviseringshistorik")
         }
         .padding(.horizontal, 2)
         .padding(.top, 8)
