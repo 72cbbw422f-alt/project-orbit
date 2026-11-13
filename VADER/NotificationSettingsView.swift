@@ -133,7 +133,10 @@ struct NotificationSettingsView: View {
         .onChange(of: windEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
         .onChange(of: thunderEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
         .onChange(of: frostEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
-        .onChange(of: smhiEnabled) { _, enabled in if !enabled { SMHIWarningService.clearPendingNotifications() } }
+        .onChange(of: smhiEnabled) { _, enabled in
+            if !enabled { SMHIWarningService.clearPendingNotifications() }
+            else { WeatherNotificationScheduler.refreshFromStoredForecast() }
+        }
         .onChange(of: leadMinutes) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
         .onChange(of: quietHours) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
     }
