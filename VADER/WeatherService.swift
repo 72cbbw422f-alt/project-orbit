@@ -192,6 +192,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                 days = result.days
                 hours = result.hours
                 WeatherNotificationScheduler.refresh(place: placeName, hours: result.hours)
+                Task { await SMHIWarningService.checkAndNotify(at: CLLocationCoordinate2D(latitude: latitude, longitude: longitude)) }
                 status = "Liveprognos • Open-Meteo"
             } catch {
                 status = "Kunde inte hämta väderdata. Försök igen."
