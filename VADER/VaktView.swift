@@ -31,9 +31,34 @@ struct VaktDashboard: View {
         let thunder = conditions.contains { $0.contains("åska") }
         let maxGust = max(weather.windGust, upcoming.map(\.gust).max() ?? days.first?.gust ?? 0)
         let wind = maxGust >= 14
-        let frostHour = upcoming.first { $0.temperature <= 1 }
-        let frost = frostHour != nil
-        let wetNearFreeze = upcoming.first { $0.temperature <= 1 && ($0.precipitation >= 0.2 || $0.precipitationChance >= 50) }
+        let dateFormatter = DateFormatter()
+        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+        dateFormatter.timeZone = .current
+        dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
+
+        let frostHour = upcoming.first { hour in
+            guard let date = dateFormatter.date(from: hour.id) else { return false }
+            let localHour = Calendar.current.component(.hour, from: date)
+            let overnight = localHour >= 18 || localHour < 9
+            return hour.temperature <= (overnight ? 1 : 0)
+        }
+        let wetNearFreeze = upcoming.enumerated().first { index, hour in
+            guard hour.temperature <= 1 else { return false }
+            let condition = hour.condition.lowercased()
+            let isWetCondition = condition.contains("regn") || condition.contains("dugg") ||
+                condition.contains("skur") || condition.contains("snö") || condition.contains("underkylt")
+            let wetNow = hour.precipitation >= 0.2 || (hour.precipitationChance >= 50 && isWetCondition)
+            let recentWet = upcoming[..<index].suffix(3).contains { previous in
+                let previousCondition = previous.condition.lowercased()
+                let previousWetCondition = previousCondition.contains("regn") || previousCondition.contains("dugg") ||
+                    previousCondition.contains("skur") || previousCondition.contains("snö") ||
+                    previousCondition.contains("underkylt")
+                return previous.precipitation >= 0.2 ||
+                    (previous.precipitationChance >= 50 && previousWetCondition)
+            }
+            return wetNow || recentWet || condition.contains("underkylt")
+        }?.element
+        let frost = frostHour != nil || wetNearFreeze != nil
         let precipitationTitle = snow ? "SNÖVAKTEN" : "REGNVAKTEN"
         let firstPrecipitation = upcoming.first { $0.condition.localizedCaseInsensitiveContains("regn") || $0.condition.localizedCaseInsensitiveContains("snö") || $0.condition.localizedCaseInsensitiveContains("skur") }
         let precipitationDetail = firstPrecipitation.map { "\($0.condition) väntas kl. \($0.time)" } ?? (snow && rain ? "Snö och regn finns i timprognosen" : snow ? "Snöfall finns i timprognosen" : rain ? "Regn finns i timprognosen" : "Ingen nederbörd identifierad kommande timmar")
