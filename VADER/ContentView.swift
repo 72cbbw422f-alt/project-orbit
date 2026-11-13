@@ -43,14 +43,13 @@ struct ContentView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(RTheme.bg.ignoresSafeArea())
-        .ignoresSafeArea(.container, edges: .all)
-        .statusBarHidden(true)
-        .persistentSystemOverlays(.hidden)
-        .overlay(alignment: .bottom) {
+        // Keep interactive content inside the iPhone safe area. Only the
+        // background paints edge-to-edge; system status and home areas stay usable.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             RTabBar(selection: $selectedTab)
-                .padding(.bottom, 10)
+                .padding(.top, 8)
+                .padding(.bottom, 8)
                 .background(LinearGradient(colors: [RTheme.bg.opacity(0), RTheme.bg.opacity(0.96)], startPoint: .top, endPoint: .bottom))
-                .ignoresSafeArea(.container, edges: .bottom)
         }
         .sheet(isPresented: $showingSevenDayForecast) {
             SevenDayForecastDetail(days: weatherModel.days, place: weatherModel.snapshot?.place ?? "Din plats")
