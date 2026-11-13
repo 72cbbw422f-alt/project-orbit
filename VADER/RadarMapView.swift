@@ -172,7 +172,6 @@ struct RadarMapView: View {
             if selectedIndex >= frames.count - 1 { selectedIndex = 0 }
             else { selectedIndex += 1 }
         }
-        .onChange(of: coordinate?.latitude) { _, _ in }
     }
 
     @MainActor
