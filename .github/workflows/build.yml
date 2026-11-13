@@ -1,0 +1,87 @@
+name: Build Regnvakt iOS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build unsigned Regnvakt app
+    runs-on: macos-15-intel
+    timeout-minutes: 45
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          xcodebuild -version
+          xcode-select -p
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Assemble Regnvakt icon with verified spelling
+        run: |
+          python3 -m venv /tmp/icon-venv
+          /tmp/icon-venv/bin/pip install --quiet pillow
+          cat VADER/Assets.xcassets/AppIcon.appiconset/icon-parts/*.txt | base64 -D > /tmp/Regnvakt-source.jpg
+          sips -s format png /tmp/Regnvakt-source.jpg --out /tmp/Regnvakt-source.png
+          /tmp/icon-venv/bin/python - <<'PY'
+          from PIL import Image, ImageDraw, ImageFont
+          image = Image.open("/tmp/Regnvakt-source.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
+          draw = ImageDraw.Draw(image)
+          # Cover the previously misspelled embedded word, then typeset the exact app name.
+          draw.rectangle((155, 638, 890, 784), fill=(3, 13, 30))
+          font_path = "/System/Library/Fonts/Supplemental/Arial Bold Italic.ttf"
+          font = ImageFont.truetype(font_path, 130)
+          text = "Regnvakt"
+          bounds = draw.textbbox((0, 0), text, font=font)
+          x = (1024 - (bounds[2] - bounds[0])) // 2
+          draw.text((x, 642), text, font=font, fill=(250, 250, 255))
+          image.save("VADER/Assets.xcassets/AppIcon.appiconset/AppIcon.png")
+          assert image.size == (1024, 1024)
+          print("Created 1024x1024 AppIcon with exact text: Regnvakt")
+          PY
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build for iOS device
+        run: |
+          xcodebuild \
+            -project VADER.xcodeproj \
+            -scheme VADER \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package unsigned IPA
+        run: |
+          APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/Regnvakt.app"
+          if [ ! -d "$APP_PATH" ]; then
+            APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/VÄDRA.app"
+          fi
+          if [ ! -d "$APP_PATH" ]; then
+            APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/VADER.app"
+          fi
+          test -d "$APP_PATH"
+          mkdir -p build/ipa/Payload
+          cp -R "$APP_PATH" build/ipa/Payload/
+          cd build/ipa
+          /usr/bin/zip -qry VADER-unsigned.ipa Payload
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Regnvakt-unsigned-IPA
+          path: build/ipa/VADER-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 14
