@@ -458,12 +458,10 @@ private struct ReferenceWeatherHome: View {
                     .shadow(color: RTheme.cyan.opacity(0.65), radius: 7)
                 VStack(spacing: 1) {
                     Text(weather.windDirectionText)
-                        .font(.system(size: 17, weight: .black, design: .rounded))
+                        .font(.system(size: 15, weight: .black, design: .rounded))
                         .foregroundStyle(.white)
-                    Text("VINDRIKTNING")
-                        .font(.system(size: 12, weight: .heavy))
-                        .tracking(0.4)
-                        .foregroundStyle(RTheme.muted)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                 }
             }
             .frame(width: 76, height: 76)
