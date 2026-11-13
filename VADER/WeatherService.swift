@@ -206,7 +206,8 @@ private enum OpenMeteoService {
             URLQueryItem(name: "current", value: "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m"),
             URLQueryItem(name: "hourly", value: "temperature_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m"),
             URLQueryItem(name: "forecast_hours", value: "48"),
-            URLQueryItem(name: "daily", value: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,uv_index_max"),
+            URLQueryItem(name: "daily", value: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,uv_index_max,sunrise,sunset"),
+            URLQueryItem(name: "past_days", value: "1"),
             URLQueryItem(name: "forecast_days", value: "7"),
             URLQueryItem(name: "timezone", value: "auto"),
             URLQueryItem(name: "wind_speed_unit", value: "ms")
@@ -231,6 +232,8 @@ private enum OpenMeteoService {
         let winds = daily["wind_speed_10m_max"] as? [NSNumber] ?? []
         let gusts = daily["wind_gusts_10m_max"] as? [NSNumber] ?? []
         let uv = daily["uv_index_max"] as? [NSNumber] ?? []
+        let sunrises = daily["sunrise"] as? [String] ?? []
+        let sunsets = daily["sunset"] as? [String] ?? []
         let hourlyTemps = hourly["temperature_2m"] as? [NSNumber] ?? []
         let hourlyChances = hourly["precipitation_probability"] as? [NSNumber] ?? []
         let hourlyAmounts = hourly["precipitation"] as? [NSNumber] ?? []
@@ -265,6 +268,24 @@ private enum OpenMeteoService {
                     gust: i < hourlyGusts.count ? hourlyGusts[i].doubleValue : 0)
             }
         let direction = number(current, "wind_direction_10m")
+        let localDateFormatter = DateFormatter()
+        localDateFormatter.locale = Locale(identifier: "en_US_POSIX")
+        localDateFormatter.timeZone = TimeZone.current
+        localDateFormatter.dateFormat = "yyyy-MM-dd"
+        let todayKey = localDateFormatter.string(from: Date())
+        let todayIndex = dates.firstIndex(of: todayKey) ?? min(1, dates.count - 1)
+        func clockTime(_ values: [String], _ index: Int) -> String {
+            guard values.indices.contains(index) else { return "—:—" }
+            return String(values[index].suffix(5))
+        }
+        func daylight(_ index: Int) -> Int {
+            guard sunrises.indices.contains(index), sunsets.indices.contains(index),
+                  let rise = hourFormatter.date(from: sunrises[index]),
+                  let set = hourFormatter.date(from: sunsets[index]) else { return 0 }
+            return max(0, Int(set.timeIntervalSince(rise) / 60))
+        }
+        let todayDaylight = daylight(todayIndex)
+        let yesterdayDaylight = daylight(max(0, todayIndex - 1))
         let snapshot = WeatherSnapshot(
             place: "Din position", condition: conditionText(Int(number(current, "weather_code"))),
             temperature: Int(number(current, "temperature_2m").rounded()),
@@ -273,13 +294,17 @@ private enum OpenMeteoService {
             windDirectionDegrees: direction, windDirectionText: compassDirection(direction),
             humidity: Int(number(current, "relative_humidity_2m")),
             uvIndex: Int(uv.first?.doubleValue ?? 0),
-            precipitationToday: number(current, "precipitation"))
+            precipitationToday: number(current, "precipitation"),
+            sunriseTime: clockTime(sunrises, todayIndex),
+            sunsetTime: clockTime(sunsets, todayIndex),
+            daylightMinutes: todayDaylight,
+            daylightChangeMinutes: todayDaylight - yesterdayDaylight)
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
         let weekday = DateFormatter()
         weekday.locale = Locale(identifier: "sv_SE")
         weekday.dateFormat = "EEEE"
-        let days = dates.indices.map { i -> DayForecast in
+        let days = dates.indices.filter { dates[$0] >= todayKey }.map { i -> DayForecast in
             let date = dateFormatter.date(from: dates[i]) ?? Date()
             let code = i < codes.count ? codes[i].intValue : 0
             return DayForecast(date: date, day: i == 0 ? "Idag" : weekday.string(from: date).capitalized,
@@ -336,6 +361,8 @@ private extension WeatherSnapshot {
         WeatherSnapshot(place: name, condition: condition, temperature: temperature, feelsLike: feelsLike,
             wind: wind, windGust: windGust, windDirectionDegrees: windDirectionDegrees,
             windDirectionText: windDirectionText, humidity: humidity, uvIndex: uvIndex,
-            precipitationToday: precipitationToday)
+            precipitationToday: precipitationToday, sunriseTime: sunriseTime,
+            sunsetTime: sunsetTime, daylightMinutes: daylightMinutes,
+            daylightChangeMinutes: daylightChangeMinutes)
     }
 }
