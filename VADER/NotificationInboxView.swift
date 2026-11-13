@@ -196,72 +196,72 @@ struct NotificationInboxView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 15) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("AVISERINGAR").font(.system(size: 24, weight: .black, design: .rounded)).foregroundStyle(.white)
-                        Text("Väderhändelser och officiella SMHI-varningar för \(place). Källan anges alltid.").font(.system(size: 11)).foregroundStyle(.white.opacity(0.65))
+                        Text("AVISERINGAR").font(.system(size: 29, weight: .black, design: .rounded)).foregroundStyle(.white)
+                        Text("Väderhändelser och officiella SMHI-varningar för \(place). Källan anges alltid.").font(.system(size: 15)).foregroundStyle(.white.opacity(0.65))
                     }
-                    HStack { Text("SMHI-VARNINGAR").font(.system(size: 10, weight: .heavy)).tracking(1).foregroundStyle(cyan); Spacer(); Button("Uppdatera") { Task { await load() } }.font(.system(size: 11, weight: .bold)).foregroundStyle(cyan) }
+                    HStack { Text("SMHI-VARNINGAR").font(.system(size: 16, weight: .heavy)).tracking(1).foregroundStyle(cyan); Spacer(); Button("Uppdatera") { Task { await load() } }.font(.system(size: 15, weight: .bold)).foregroundStyle(cyan) }
                     if isLoading { ProgressView().tint(cyan).frame(maxWidth: .infinity).padding() }
-                    if let errorMessage { Text(errorMessage).font(.system(size: 12)).foregroundStyle(.orange) }
+                    if let errorMessage { Text(errorMessage).font(.system(size: 15)).foregroundStyle(.orange) }
                     if !isLoading && warnings.isEmpty && errorMessage == nil {
                         emptyCard("Inga aktiva SMHI-varningar för den här positionen.", icon: "checkmark.shield.fill")
                     }
                     ForEach(warnings) { warning in
                         VStack(alignment: .leading, spacing: 9) {
-                            HStack { Text(warning.level.uppercased()).font(.system(size: 9, weight: .black)).tracking(0.8).foregroundStyle(warning.color); Spacer(); Text("SMHI").font(.system(size: 9, weight: .bold)).foregroundStyle(.white.opacity(0.6)) }
-                            Text(warning.title).font(.system(size: 16, weight: .bold)).foregroundStyle(.white)
-                            Label(warning.area, systemImage: "mappin.and.ellipse").font(.system(size: 11, weight: .semibold)).foregroundStyle(cyan)
-                            if !warning.description.isEmpty { Text(warning.description).font(.system(size: 11)).foregroundStyle(.white.opacity(0.85)) }
-                            if !warning.advice.isEmpty { Divider().overlay(.white.opacity(0.15)); Text("ATT TÄNKA PÅ").font(.system(size: 9, weight: .heavy)).foregroundStyle(cyan); Text(warning.advice).font(.system(size: 11)).foregroundStyle(.white.opacity(0.8)) }
-                            if !warning.start.isEmpty { Text("Start: \(warning.start)").font(.system(size: 9)).foregroundStyle(.white.opacity(0.55)) }
+                            HStack { Text(warning.level.uppercased()).font(.system(size: 15, weight: .black)).tracking(0.8).foregroundStyle(warning.color); Spacer(); Text("SMHI").font(.system(size: 15, weight: .bold)).foregroundStyle(.white.opacity(0.6)) }
+                            Text(warning.title).font(.system(size: 19, weight: .bold)).foregroundStyle(.white)
+                            Label(warning.area, systemImage: "mappin.and.ellipse").font(.system(size: 15, weight: .semibold)).foregroundStyle(cyan)
+                            if !warning.description.isEmpty { Text(warning.description).font(.system(size: 15)).foregroundStyle(.white.opacity(0.85)) }
+                            if !warning.advice.isEmpty { Divider().overlay(.white.opacity(0.15)); Text("ATT TÄNKA PÅ").font(.system(size: 15, weight: .heavy)).foregroundStyle(cyan); Text(warning.advice).font(.system(size: 15)).foregroundStyle(.white.opacity(0.8)) }
+                            if !warning.start.isEmpty { Text("Start: \(warning.start)").font(.system(size: 15)).foregroundStyle(.white.opacity(0.55)) }
                         }.padding(13).background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 15)).overlay(RoundedRectangle(cornerRadius: 15).stroke(warning.color.opacity(0.5), lineWidth: 1))
                     }
-                    Text("SCHEMALAGDA AVISERINGAR").font(.system(size: 10, weight: .heavy)).tracking(1).foregroundStyle(cyan).padding(.top, 4)
-                    Text("Här visas förvarningar som iPhone har schemalagt. Tiden för förvarningen är inte samma sak som tiden då väderhändelsen eventuellt kan inträffa. Prognoser är osäkra och beskriver möjliga förhållanden.").font(.system(size: 10)).foregroundStyle(.white.opacity(0.65)).fixedSize(horizontal: false, vertical: true)
+                    Text("SCHEMALAGDA AVISERINGAR").font(.system(size: 16, weight: .heavy)).tracking(1).foregroundStyle(cyan).padding(.top, 4)
+                    Text("Här visas förvarningar som iPhone har schemalagt. Tiden för förvarningen är inte samma sak som tiden då väderhändelsen eventuellt kan inträffa. Prognoser är osäkra och beskriver möjliga förhållanden.").font(.system(size: 16)).foregroundStyle(.white.opacity(0.65)).fixedSize(horizontal: false, vertical: true)
                     if pending.isEmpty { emptyCard("Inga kommande vädernotiser är schemalagda just nu.", icon: "calendar.badge.clock") }
                     ForEach(pending, id: \.identifier) { item in
                         let watch = (item.content.userInfo["watch"] as? String) ?? watchNameFromIdentifier(item.identifier)
                         let fireDate = (item.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate()
                             ?? (item.trigger as? UNTimeIntervalNotificationTrigger).map { Date().addingTimeInterval($0.timeInterval) }
                         VStack(alignment: .leading, spacing: 6) {
-                            Text(watchName(from: watch)).font(.system(size: 10, weight: .heavy)).foregroundStyle(cyan)
-                            Text(item.content.title).font(.system(size: 13, weight: .bold)).foregroundStyle(.white)
-                            Text(item.content.body).font(.system(size: 11)).foregroundStyle(.white.opacity(0.78))
+                            Text(watchName(from: watch)).font(.system(size: 16, weight: .heavy)).foregroundStyle(cyan)
+                            Text(item.content.title).font(.system(size: 16, weight: .bold)).foregroundStyle(.white)
+                            Text(item.content.body).font(.system(size: 15)).foregroundStyle(.white.opacity(0.78))
                             if let fireDate {
                                 Label("Förvarning skickas: " + fireDate.formatted(date: .abbreviated, time: .shortened), systemImage: "bell")
-                                    .font(.system(size: 10, weight: .semibold)).foregroundStyle(.white.opacity(0.85))
+                                    .font(.system(size: 16, weight: .semibold)).foregroundStyle(.white.opacity(0.85))
                             }
                             if let eventStamp = item.content.userInfo["forecastEventDate"] as? TimeInterval {
                                 let eventDate = Date(timeIntervalSince1970: eventStamp)
                                 Label("Möjlig väderhändelse: omkring " + eventDate.formatted(date: .omitted, time: .shortened), systemImage: "cloud.sun")
-                                    .font(.system(size: 10, weight: .medium)).foregroundStyle(.white.opacity(0.65))
+                                    .font(.system(size: 16, weight: .medium)).foregroundStyle(.white.opacity(0.65))
                             } else if item.identifier.hasPrefix("smhi.") {
-                                Text("Officiell SMHI-varning").font(.system(size: 10, weight: .medium)).foregroundStyle(.white.opacity(0.65))
+                                Text("Officiell SMHI-varning").font(.system(size: 16, weight: .medium)).foregroundStyle(.white.opacity(0.65))
                             }
                         }.padding(11).frame(maxWidth: .infinity, alignment: .leading).background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 12))
                     }
                     HStack {
-                        Text("SENASTE AVISERINGAR").font(.system(size: 10, weight: .heavy)).tracking(1).foregroundStyle(cyan)
+                        Text("SENASTE AVISERINGAR").font(.system(size: 16, weight: .heavy)).tracking(1).foregroundStyle(cyan)
                         Spacer()
                         if !delivered.isEmpty {
                             Button("Rensa alla") { clearDelivered() }
-                                .font(.system(size: 10, weight: .bold)).foregroundStyle(.orange)
+                                .font(.system(size: 16, weight: .bold)).foregroundStyle(.orange)
                         }
                     }.padding(.top, 4)
                     if delivered.isEmpty { emptyCard("Inga levererade aviseringar ännu.", icon: "bell") }
                     ForEach(delivered, id: \.request.identifier) { item in
                         HStack(spacing: 8) {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(item.request.content.title).font(.system(size: 13, weight: .bold)).foregroundStyle(.white)
-                                Text(item.request.content.body).font(.system(size: 11)).foregroundStyle(.white.opacity(0.7))
-                                Text(item.date.formatted(date: .abbreviated, time: .shortened)).font(.system(size: 9)).foregroundStyle(.white.opacity(0.45))
+                                Text(item.request.content.title).font(.system(size: 16, weight: .bold)).foregroundStyle(.white)
+                                Text(item.request.content.body).font(.system(size: 15)).foregroundStyle(.white.opacity(0.7))
+                                Text(item.date.formatted(date: .abbreviated, time: .shortened)).font(.system(size: 15)).foregroundStyle(.white.opacity(0.45))
                             }
                             Spacer(minLength: 4)
                             Button { removeDelivered(item) } label: {
-                                Image(systemName: "trash").font(.system(size: 12, weight: .semibold)).foregroundStyle(.orange).padding(8)
+                                Image(systemName: "trash").font(.system(size: 15, weight: .semibold)).foregroundStyle(.orange).padding(8)
                             }.buttonStyle(.plain)
                         }.padding(11).frame(maxWidth: .infinity, alignment: .leading).background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 12))
                     }
-                    Text("Varningsdata från SMHI:s öppna API. SMHI:s varningstext återges utan ändring.").font(.system(size: 9)).foregroundStyle(.white.opacity(0.5)).padding(.top, 5)
+                    Text("Varningsdata från SMHI:s öppna API. SMHI:s varningstext återges utan ändring.").font(.system(size: 15)).foregroundStyle(.white.opacity(0.5)).padding(.top, 5)
                 }.padding(16)
             }.background(Color(red: 0.008, green: 0.025, blue: 0.055))
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Klar") { dismiss() }.foregroundStyle(cyan) } }
@@ -301,7 +301,7 @@ struct NotificationInboxView: View {
     }
 
     private func emptyCard(_ text: String, icon: String) -> some View {
-        Label(text, systemImage: icon).font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.7)).frame(maxWidth: .infinity, alignment: .leading).padding(13).background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 13))
+        Label(text, systemImage: icon).font(.system(size: 15, weight: .medium)).foregroundStyle(.white.opacity(0.7)).frame(maxWidth: .infinity, alignment: .leading).padding(13).background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 13))
     }
 
     @MainActor private func load() async {
@@ -340,9 +340,9 @@ struct NationalWarningsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     VStack(alignment: .leading, spacing: 5) {
-                        Text("SVERIGE JUST NU").font(.system(size: 10, weight: .heavy)).tracking(1.4).foregroundStyle(cyan)
+                        Text("SVERIGE JUST NU").font(.system(size: 16, weight: .heavy)).tracking(1.4).foregroundStyle(cyan)
                         Text("SMHI-varningar").font(.system(size: 27, weight: .black, design: .rounded)).foregroundStyle(.white)
-                        Text("Aktiva vädervarningar i hela Sverige").font(.system(size: 12)).foregroundStyle(.white.opacity(0.65))
+                        Text("Aktiva vädervarningar i hela Sverige").font(.system(size: 15)).foregroundStyle(.white.opacity(0.65))
                     }
                     HStack(spacing: 8) {
                         levelCount("Gula", count: yellowCount, color: .yellow)
@@ -350,19 +350,19 @@ struct NationalWarningsView: View {
                         levelCount("Röda", count: redCount, color: .red)
                     }
                     HStack {
-                        Text("AKTIVA VARNINGAR").font(.system(size: 10, weight: .heavy)).tracking(1).foregroundStyle(cyan)
+                        Text("AKTIVA VARNINGAR").font(.system(size: 16, weight: .heavy)).tracking(1).foregroundStyle(cyan)
                         Spacer()
                         Button { Task { await load() } } label: {
-                            Label("Uppdatera", systemImage: "arrow.clockwise").font(.system(size: 11, weight: .bold))
+                            Label("Uppdatera", systemImage: "arrow.clockwise").font(.system(size: 15, weight: .bold))
                         }.foregroundStyle(cyan)
                     }
                     if isLoading { ProgressView().tint(cyan).frame(maxWidth: .infinity).padding() }
                     if let errorMessage {
-                        Label(errorMessage, systemImage: "wifi.exclamationmark").font(.system(size: 12)).foregroundStyle(.orange)
+                        Label(errorMessage, systemImage: "wifi.exclamationmark").font(.system(size: 15)).foregroundStyle(.orange)
                     }
                     if !isLoading && warnings.isEmpty && errorMessage == nil {
                         Label("Inga aktiva SMHI-varningar i Sverige just nu.", systemImage: "checkmark.shield.fill")
-                            .font(.system(size: 13, weight: .medium)).foregroundStyle(.green)
+                            .font(.system(size: 16, weight: .medium)).foregroundStyle(.green)
                             .frame(maxWidth: .infinity, alignment: .leading).padding(15)
                             .background(Color.green.opacity(0.09), in: RoundedRectangle(cornerRadius: 15))
                     }
@@ -371,10 +371,10 @@ struct NationalWarningsView: View {
                     }
                     if let lastUpdated {
                         Text("Senast hämtad " + lastUpdated.formatted(date: .omitted, time: .shortened))
-                            .font(.system(size: 10)).foregroundStyle(.white.opacity(0.45))
+                            .font(.system(size: 16)).foregroundStyle(.white.opacity(0.45))
                     }
                     Text("Källa: SMHI:s öppna varnings-API. Översikten visar aktiva varningar nationellt och uppdateras när du hämtar information.")
-                        .font(.system(size: 10)).foregroundStyle(.white.opacity(0.48))
+                        .font(.system(size: 16)).foregroundStyle(.white.opacity(0.48))
                 }.padding(16)
             }
             .background(Color(red: 0.008, green: 0.025, blue: 0.055))
@@ -386,7 +386,7 @@ struct NationalWarningsView: View {
     private func levelCount(_ title: String, count: Int, color: Color) -> some View {
         VStack(spacing: 3) {
             Text("\(count)").font(.system(size: 23, weight: .black, design: .rounded)).foregroundStyle(color)
-            Text(title).font(.system(size: 10, weight: .bold)).foregroundStyle(.white.opacity(0.75))
+            Text(title).font(.system(size: 16, weight: .bold)).foregroundStyle(.white.opacity(0.75))
         }.frame(maxWidth: .infinity).padding(.vertical, 12)
             .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 13))
             .overlay(RoundedRectangle(cornerRadius: 13).stroke(color.opacity(0.3), lineWidth: 1))
@@ -402,20 +402,20 @@ struct NationalWarningsView: View {
         return VStack(alignment: .leading, spacing: 9) {
             HStack(spacing: 8) {
                 Image(systemName: symbol).font(.system(size: 20, weight: .semibold)).foregroundStyle(warning.color)
-                Text(warning.level.uppercased()).font(.system(size: 9, weight: .black)).tracking(0.9).foregroundStyle(warning.color)
+                Text(warning.level.uppercased()).font(.system(size: 15, weight: .black)).tracking(0.9).foregroundStyle(warning.color)
                 Spacer()
-                Text("SMHI").font(.system(size: 9, weight: .bold)).foregroundStyle(.white.opacity(0.5))
+                Text("SMHI").font(.system(size: 15, weight: .bold)).foregroundStyle(.white.opacity(0.5))
             }
             Text(warning.title).font(.system(size: 17, weight: .bold, design: .rounded)).foregroundStyle(.white)
-            Label(warning.area, systemImage: "mappin.and.ellipse").font(.system(size: 11, weight: .semibold)).foregroundStyle(cyan)
-            if !warning.description.isEmpty { Text(warning.description).font(.system(size: 11)).foregroundStyle(.white.opacity(0.83)) }
+            Label(warning.area, systemImage: "mappin.and.ellipse").font(.system(size: 15, weight: .semibold)).foregroundStyle(cyan)
+            if !warning.description.isEmpty { Text(warning.description).font(.system(size: 15)).foregroundStyle(.white.opacity(0.83)) }
             if !warning.advice.isEmpty {
                 Divider().overlay(.white.opacity(0.14))
-                Text("ATT TÄNKA PÅ").font(.system(size: 9, weight: .heavy)).foregroundStyle(cyan)
-                Text(warning.advice).font(.system(size: 11)).foregroundStyle(.white.opacity(0.78))
+                Text("ATT TÄNKA PÅ").font(.system(size: 15, weight: .heavy)).foregroundStyle(cyan)
+                Text(warning.advice).font(.system(size: 15)).foregroundStyle(.white.opacity(0.78))
             }
             if !warning.start.isEmpty {
-                Text("Start: " + warning.start).font(.system(size: 9)).foregroundStyle(.white.opacity(0.5))
+                Text("Start: " + warning.start).font(.system(size: 15)).foregroundStyle(.white.opacity(0.5))
             }
         }.padding(14).background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 16))
             .overlay(RoundedRectangle(cornerRadius: 16).stroke(warning.color.opacity(0.5), lineWidth: 1))
