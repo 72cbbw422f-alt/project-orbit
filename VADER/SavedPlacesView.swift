@@ -24,10 +24,10 @@ struct SavedPlacesView: View {
                         .font(.system(size: 38, weight: .medium))
                         .foregroundStyle(PlacesPalette.cyan)
                     Text("Platser")
-                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                     Text("Dina sparade väderplatser")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(PlacesPalette.cyan)
                 }
                 Spacer()
@@ -52,10 +52,10 @@ struct SavedPlacesView: View {
                         .foregroundStyle(PlacesPalette.cyan)
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Min nuvarande position")
-                            .font(.system(size: 14, weight: .bold))
+                            .font(.system(size: 17, weight: .bold))
                             .foregroundStyle(.white)
                         Text("Använd GPS för lokalt väder")
-                            .font(.system(size: 11))
+                            .font(.system(size: 14))
                             .foregroundStyle(PlacesPalette.muted)
                     }
                     Spacer()
@@ -71,7 +71,7 @@ struct SavedPlacesView: View {
             if let favorite {
                 VStack(alignment: .leading, spacing: 9) {
                     Text("FAVORIT")
-                        .font(.system(size: 10, weight: .heavy))
+                        .font(.system(size: 13, weight: .heavy))
                         .tracking(1.2)
                         .foregroundStyle(PlacesPalette.muted)
                     placeRow(favorite, prominent: true)
@@ -80,12 +80,12 @@ struct SavedPlacesView: View {
 
             HStack {
                 Text("SPARADE PLATSER")
-                    .font(.system(size: 10, weight: .heavy))
+                    .font(.system(size: 13, weight: .heavy))
                     .tracking(1.2)
                     .foregroundStyle(PlacesPalette.muted)
                 Spacer()
                 Text("\(model.savedPlaces.count)")
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(PlacesPalette.muted)
             }
 
@@ -95,10 +95,10 @@ struct SavedPlacesView: View {
                         .font(.system(size: 38))
                         .foregroundStyle(PlacesPalette.cyan.opacity(0.8))
                     Text("Inga sparade platser ännu")
-                        .font(.system(size: 15, weight: .bold))
+                        .font(.system(size: 18, weight: .bold))
                         .foregroundStyle(.white)
                     Text("Sök efter en ort och välj den. Då sparas den här så att du enkelt kan återvända.")
-                        .font(.system(size: 12))
+                        .font(.system(size: 18))
                         .foregroundStyle(PlacesPalette.muted)
                         .multilineTextAlignment(.center)
                     Button("Lägg till en plats", action: onAddPlace)
@@ -136,21 +136,21 @@ struct SavedPlacesView: View {
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: prominent ? "star.fill" : "mappin")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(PlacesPalette.cyan)
                     VStack(alignment: .leading, spacing: 3) {
                         Text(place.name)
-                            .font(.system(size: 14, weight: .bold))
+                            .font(.system(size: 17, weight: .bold))
                             .foregroundStyle(.white)
                         if prominent {
                             Text("Din favoritplats")
-                                .font(.system(size: 10))
+                                .font(.system(size: 13))
                                 .foregroundStyle(PlacesPalette.muted)
                         }
                     }
                     Spacer(minLength: 0)
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(PlacesPalette.muted)
                 }
                 .contentShape(Rectangle())
@@ -171,7 +171,7 @@ struct SavedPlacesView: View {
                 }
             } label: {
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 15, weight: .bold))
+                    .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(PlacesPalette.muted)
                     .frame(width: 32, height: 38)
                     .contentShape(Rectangle())
