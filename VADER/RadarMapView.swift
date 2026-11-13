@@ -90,6 +90,54 @@ private enum RadarService {
         return (manifest.host, Array(frames.suffix(25)))
     }
 
+    static func hasPrecipitation(host: String, frame: RadarFrame, coordinate: CLLocationCoordinate2D) async throws -> Bool {
+        let zoom = 7.0
+        let tileCount = pow(2.0, zoom)
+        let latitude = min(85.0511, max(-85.0511, coordinate.latitude))
+        let xPosition = (coordinate.longitude + 180.0) / 360.0 * tileCount
+        let latitudeRadians = latitude * .pi / 180.0
+        let yPosition = (1.0 - log(tan(latitudeRadians) + 1.0 / cos(latitudeRadians)) / .pi) / 2.0 * tileCount
+        let tileX = Int(floor(xPosition))
+        let tileY = Int(floor(yPosition))
+        let pixelX = min(511, max(0, Int((xPosition - Double(tileX)) * 512)))
+        let pixelY = min(511, max(0, Int((yPosition - Double(tileY)) * 512)))
+        let urlString = "\(host)\(frame.path)/512/\(tileX)/\(tileY)/2/1_1.png"
+        guard let url = URL(string: urlString) else { throw URLError(.badURL) }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 200,
+              let image = UIImage(data: data),
+              let cgImage = image.cgImage else { throw URLError(.cannotDecodeContentData) }
+
+        let width = cgImage.width
+        let height = cgImage.height
+        let bytesPerPixel = 4
+        var pixels = [UInt8](repeating: 0, count: width * height * bytesPerPixel)
+        guard let context = CGContext(
+            data: &pixels,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * bytesPerPixel,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { throw URLError(.cannotDecodeContentData) }
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        var opaqueSamples = 0
+        for dy in -2...2 {
+            for dx in -2...2 {
+                let px = min(width - 1, max(0, pixelX + dx))
+                let py = min(height - 1, max(0, pixelY + dy))
+                let alpha = pixels[(py * width + px) * bytesPerPixel + 3]
+                if alpha > 24 { opaqueSamples += 1 }
+            }
+        }
+        return opaqueSamples >= 2
+    }
+
     static func loadImage(for frame: RadarFrame) async throws -> UIImage {
         guard frame.provider == .smhi, let url = URL(string: frame.path) else {
             throw URLError(.badURL)
@@ -167,6 +215,7 @@ struct RadarMapView: View {
     @State private var showRadar = true
     @State private var precipitationType = "Hämtar nederbördstyp…"
     @State private var typeDetail = "Modellbedömning vid vald plats"
+    @State private var radarAtPlace = "Kontrollerar radar över vald plats…"
     @State private var showTypeInfo = false
 
     private let playback = Timer.publish(every: 0.75, on: .main, in: .common).autoconnect()
@@ -262,6 +311,7 @@ struct RadarMapView: View {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(precipitationType).font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
                             Text(typeDetail).font(.system(size: 10, weight: .medium)).foregroundStyle(.white.opacity(0.68))
+                            Text(radarAtPlace).font(.system(size: 10, weight: .semibold)).foregroundStyle(Color(red: 0.35, green: 0.88, blue: 0.83))
                         }
                         Spacer()
                         Button { showTypeInfo = true } label: {
@@ -345,7 +395,12 @@ struct RadarMapView: View {
             await refreshRadar()
             await refreshPrecipitationType()
         }
-        .onChange(of: selectedIndex) { _, _ in Task { await loadSelectedImage() } }
+        .onChange(of: selectedIndex) { _, _ in
+            Task {
+                await loadSelectedImage()
+                await refreshRadarAtPlace()
+            }
+        }
         .onReceive(playback) { _ in
             guard isPlaying, !frames.isEmpty else { return }
             selectedIndex = selectedIndex >= frames.count - 1 ? 0 : selectedIndex + 1
@@ -378,6 +433,7 @@ struct RadarMapView: View {
             frames = result.2
             selectedIndex = frames.count - 1
             await loadSelectedImage()
+            await refreshRadarAtPlace()
             lastUpdated = Date()
         } catch {
             frames = []
@@ -404,9 +460,28 @@ struct RadarMapView: View {
                 frames = fallback
                 selectedIndex = max(0, frames.count - 1)
                 errorMessage = nil
+                await refreshRadarAtPlace()
             } catch {
                 errorMessage = "SMHI-bilden kunde inte hämtas och reservradarn är inte tillgänglig."
             }
+        }
+    }
+
+    @MainActor
+    private func refreshRadarAtPlace() async {
+        guard showRadar, let frame = selectedFrame, frame.provider == .rainViewer else {
+            radarAtPlace = "Platsavläsning inte tillgänglig för denna radarkälla"
+            return
+        }
+        do {
+            let hit = try await RadarService.hasPrecipitation(
+                host: radarHost,
+                frame: frame,
+                coordinate: mapCoordinate
+            )
+            radarAtPlace = hit ? "Radarträff vid vald plats" : "Ingen tydlig radarträff vid vald plats"
+        } catch {
+            radarAtPlace = "Kunde inte läsa av radar över vald plats"
         }
     }
 
@@ -465,7 +540,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
         map.allowsTilting = false
         map.minimumZoomLevel = 3
         map.maximumZoomLevel = 12
-        map.setCenter(coordinate, zoomLevel: 7.0, animated: false)
+        map.setCenter(coordinate, zoomLevel: 8.0, animated: false)
         context.coordinator.latestImage = radarImage
         context.coordinator.latestTileURL = radarTileURL
         context.coordinator.updateLocationMarker(on: map, coordinate: coordinate, title: locationTitle)
@@ -481,7 +556,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
         if previous == nil || abs(previous!.latitude - coordinate.latitude) > 0.001 ||
             abs(previous!.longitude - coordinate.longitude) > 0.001 {
             context.coordinator.lastCoordinate = coordinate
-            map.setCenter(coordinate, zoomLevel: min(max(map.zoomLevel, 7.0), 12), animated: true)
+            map.setCenter(coordinate, zoomLevel: min(max(map.zoomLevel, 8.0), 12), animated: true)
         }
     }
 
@@ -551,7 +626,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
                     image: image
                 )
                 let layer = MLNRasterStyleLayer(identifier: "regnvakt-radar-layer", source: source)
-                layer.rasterOpacity = NSExpression(forConstantValue: 0.76)
+                layer.rasterOpacity = NSExpression(forConstantValue: 0.86)
                 style.addSource(source)
                 style.addLayer(layer)
             } else if let template = latestTileURL {
