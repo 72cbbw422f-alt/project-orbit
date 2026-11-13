@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 private enum WatchPalette {
     static let cyan = Color(red: 0.04, green: 0.78, blue: 0.98)
@@ -19,6 +20,7 @@ private struct WatchItem: Identifiable {
 }
 
 struct VaktDashboard: View {
+    @State private var selectedWatch: WatchItem?
     let weather: WeatherSnapshot
     let days: [DayForecast]
     let hours: [HourForecast]
@@ -102,6 +104,13 @@ struct VaktDashboard: View {
             }
             .padding(.horizontal, 14).padding(.top, 22)
         }
+        .sheet(item: $selectedWatch) { watch in
+            WatchDetailSheet(watch: watch, hours: hours)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(Color(red: 0.008, green: 0.025, blue: 0.055))
+                .preferredColorScheme(.dark)
+        }
     }
 
     @ViewBuilder private func watchCard(_ watch: WatchItem) -> some View {
@@ -121,6 +130,117 @@ struct VaktDashboard: View {
         .padding(10).background(WatchPalette.panel, in: RoundedRectangle(cornerRadius: 19))
         .overlay(RoundedRectangle(cornerRadius: 19).stroke(watch.active ? watch.tint.opacity(0.9) : WatchPalette.line, lineWidth: watch.active ? 1.6 : 1))
         .shadow(color: watch.active ? watch.tint.opacity(0.20) : .black.opacity(0.2), radius: watch.active ? 13 : 10, y: 5)
+        .contentShape(RoundedRectangle(cornerRadius: 19))
+        .onTapGesture { selectedWatch = watch }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+    }
+}
+
+private struct WatchDetailSheet: View {
+    let watch: WatchItem
+    let hours: [HourForecast]
+    @Environment(\.dismiss) private var dismiss
+    @State private var notificationStatus = "Kontrollerar schemalagda aviseringar…"
+    @State private var testStatus = ""
+
+    private var relevantHours: [HourForecast] {
+        if watch.id == "frost" { return hours.filter { $0.temperature <= 1 } }
+        if watch.id == "wind" { return hours.filter { $0.gust >= 14 } }
+        if watch.id == "thunder" { return hours.filter { $0.condition.localizedCaseInsensitiveContains("åska") } }
+        return hours.filter {
+            let c = $0.condition.lowercased()
+            return c.contains("regn") || c.contains("snö") || c.contains("dugg") || c.contains("skur")
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(spacing: 12) {
+                        Image(systemName: watch.symbol).font(.system(size: 30, weight: .medium))
+                            .foregroundStyle(watch.tint).frame(width: 62, height: 62)
+                            .background(watch.tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(watch.title).font(.system(size: 19, weight: .heavy)).foregroundStyle(.white)
+                            Text(watch.level).font(.system(size: 10, weight: .heavy)).tracking(1).foregroundStyle(watch.tint)
+                        }
+                        Spacer()
+                    }
+                    Text(watch.detail).font(.system(size: 14, weight: .medium)).foregroundStyle(.white)
+                        .padding(14).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(WatchPalette.panel, in: RoundedRectangle(cornerRadius: 15))
+                    VStack(alignment: .leading, spacing: 9) {
+                        Text("KOMMANDE PROGNOSPUNKTER").font(.system(size: 10, weight: .heavy)).tracking(1).foregroundStyle(WatchPalette.cyan)
+                        if relevantHours.isEmpty {
+                            Text("Inga relevanta händelser hittades i den hämtade timprognosen.").font(.system(size: 12)).foregroundStyle(WatchPalette.muted)
+                        } else {
+                            ForEach(relevantHours.prefix(12)) { hour in
+                                HStack {
+                                    Text(hour.time).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+                                    Spacer()
+                                    Text("\(hour.temperature)°").font(.system(size: 13, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                                    Text(hour.condition).font(.system(size: 11)).foregroundStyle(WatchPalette.muted)
+                                    if watch.id == "frost" {
+                                        Text(String(format: "%.1f mm", hour.precipitation)).font(.system(size: 10, weight: .medium)).foregroundStyle(WatchPalette.muted)
+                                    }
+                                }
+                                .padding(.vertical, 5)
+                                Divider().overlay(WatchPalette.line)
+                            }
+                        }
+                    }
+                    .padding(13).background(WatchPalette.panel, in: RoundedRectangle(cornerRadius: 15))
+                    VStack(alignment: .leading, spacing: 7) {
+                        Text("LOKALA AVISERINGAR").font(.system(size: 10, weight: .heavy)).tracking(1).foregroundStyle(WatchPalette.cyan)
+                        Text(notificationStatus).font(.system(size: 12, weight: .medium)).foregroundStyle(WatchPalette.muted)
+                        Button(action: sendTestNotification) {
+                            Label("Skicka testavisering om 5 sekunder", systemImage: "bell.badge")
+                                .font(.system(size: 12, weight: .bold)).frame(maxWidth: .infinity).padding(12)
+                                .background(WatchPalette.cyan.opacity(0.16), in: RoundedRectangle(cornerRadius: 12))
+                                .foregroundStyle(WatchPalette.cyan)
+                        }.buttonStyle(.plain)
+                        if !testStatus.isEmpty { Text(testStatus).font(.system(size: 11)).foregroundStyle(WatchPalette.muted) }
+                        Text("Antalet visar väntande notiser i iOS, inte en garanti för att de visas vid exakt tid. Fokus och iOS-inställningar kan påverka leveransen.")
+                            .font(.system(size: 10)).foregroundStyle(WatchPalette.muted.opacity(0.85))
+                    }
+                    .padding(13).background(WatchPalette.panel, in: RoundedRectangle(cornerRadius: 15))
+                }.padding(16)
+            }
+            .navigationTitle("Bevakningsdetaljer").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Stäng") { dismiss() }.foregroundStyle(WatchPalette.cyan) } }
+            .task { await loadPendingNotifications() }
+        }
+    }
+
+    @MainActor private func loadPendingNotifications() async {
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        let allowed = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional || settings.authorizationStatus == .ephemeral
+        guard allowed else { notificationStatus = "Notisbehörighet saknas eller är avstängd i iPhone."; return }
+        let pending = await center.pendingNotificationRequests()
+        let matching = pending.filter { request in
+            if watch.id == "frost" {
+                return request.identifier.hasPrefix("regnvakt.weather.frost.") || request.identifier.hasPrefix("regnvakt.weather.ice.")
+            }
+            return request.identifier.hasPrefix("regnvakt.weather.\(watch.id).")
+        }
+        notificationStatus = matching.isEmpty ? "Inga väntande aviseringar för den här vakten just nu." : "\(matching.count) väntande avisering(ar) i iOS."
+    }
+
+    private func sendTestNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = "Regnvakt – test av \(watch.title.lowercased())"
+        content.body = "Testavisering. iPhones lokala notiskanal fungerar."
+        content.sound = .default
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
+        let request = UNNotificationRequest(identifier: "regnvakt.test.\(watch.id).\(UUID().uuidString)", content: content, trigger: trigger)
+        UNUserNotificationCenter.current().add(request) { error in
+            DispatchQueue.main.async {
+                testStatus = error == nil ? "Testavisering schemalagd. Den ska visas om cirka 5 sekunder." : "Kunde inte schemalägga testaviseringen: \(error!.localizedDescription)"
+            }
+        }
     }
 }
 
