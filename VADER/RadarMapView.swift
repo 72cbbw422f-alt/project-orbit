@@ -142,7 +142,7 @@ struct RadarMapView: View {
 
     var body: some View {
         ZStack {
-            Color(red: 0.008, green: 0.025, blue: 0.055).ignoresSafeArea()
+            Color(red: 0.025, green: 0.045, blue: 0.075).ignoresSafeArea()
             VStack(spacing: 0) {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
@@ -269,7 +269,7 @@ struct RadarMapView: View {
                     .foregroundStyle(.white.opacity(0.6))
                 }
                 .padding(13)
-                .background(Color(red: 0.015, green: 0.075, blue: 0.13).opacity(0.95), in: RoundedRectangle(cornerRadius: 18))
+                .background(Color(red: 0.035, green: 0.095, blue: 0.145).opacity(0.94), in: RoundedRectangle(cornerRadius: 18))
                 .padding(10)
             }
         }
@@ -364,7 +364,7 @@ struct RadarMapView: View {
 private struct RegnvaktMapView: UIViewRepresentable {
     let coordinate: CLLocationCoordinate2D
     let radarImage: UIImage?
-    private let styleURL = URL(string: "https://tiles.openfreemap.org/styles/dark")!
+    private let styleURL = URL(string: "https://tiles.openfreemap.org/styles/bright")!
 
     func makeUIView(context: Context) -> MLNMapView {
         let map = MLNMapView(frame: .zero, styleURL: styleURL)
