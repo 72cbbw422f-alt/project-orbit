@@ -231,7 +231,8 @@ struct RadarMapView: View {
                     RegnvaktMapView(
                         coordinate: mapCoordinate,
                         radarImage: showRadar && provider == .smhi ? selectedImage : nil,
-                        radarTileURL: radarTileURL
+                        radarTileURL: radarTileURL,
+                        locationTitle: place
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     HStack(spacing: 7) {
@@ -450,6 +451,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
     let coordinate: CLLocationCoordinate2D
     let radarImage: UIImage?
     let radarTileURL: String?
+    let locationTitle: String
     private let styleURL = URL(string: "https://tiles.openfreemap.org/styles/fiord")!
 
     func makeUIView(context: Context) -> MLNMapView {
@@ -466,12 +468,14 @@ private struct RegnvaktMapView: UIViewRepresentable {
         map.setCenter(coordinate, zoomLevel: 7.0, animated: false)
         context.coordinator.latestImage = radarImage
         context.coordinator.latestTileURL = radarTileURL
+        context.coordinator.updateLocationMarker(on: map, coordinate: coordinate, title: locationTitle)
         return map
     }
 
     func updateUIView(_ map: MLNMapView, context: Context) {
         context.coordinator.latestImage = radarImage
         context.coordinator.latestTileURL = radarTileURL
+        context.coordinator.updateLocationMarker(on: map, coordinate: coordinate, title: locationTitle)
         context.coordinator.applyRadarIfReady()
         let previous = context.coordinator.lastCoordinate
         if previous == nil || abs(previous!.latitude - coordinate.latitude) > 0.001 ||
@@ -490,6 +494,21 @@ private struct RegnvaktMapView: UIViewRepresentable {
         var lastCoordinate: CLLocationCoordinate2D?
         private var styleReady = false
         private var appliedIdentity: String?
+        private var locationMarker: MLNPointAnnotation?
+
+        func updateLocationMarker(on map: MLNMapView, coordinate: CLLocationCoordinate2D, title: String) {
+            if let marker = locationMarker {
+                marker.coordinate = coordinate
+                marker.title = title
+            } else {
+                let marker = MLNPointAnnotation()
+                marker.coordinate = coordinate
+                marker.title = title
+                marker.subtitle = "Vald plats"
+                locationMarker = marker
+                map.addAnnotation(marker)
+            }
+        }
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             self.mapView = mapView
