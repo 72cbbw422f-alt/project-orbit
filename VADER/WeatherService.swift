@@ -240,9 +240,10 @@ private enum OpenMeteoService {
         let hourlyCodes = hourly["weather_code"] as? [NSNumber] ?? []
         let hourlyWinds = hourly["wind_speed_10m"] as? [NSNumber] ?? []
         let hourlyGusts = hourly["wind_gusts_10m"] as? [NSNumber] ?? []
+        let apiTimeZone = TimeZone(identifier: root["timezone"] as? String ?? "") ?? .current
         let hourFormatter = DateFormatter()
         hourFormatter.locale = Locale(identifier: "en_US_POSIX")
-        hourFormatter.timeZone = TimeZone.current
+        hourFormatter.timeZone = apiTimeZone
         hourFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
         let displayHour = DateFormatter()
         displayHour.locale = Locale(identifier: "sv_SE")
@@ -270,10 +271,10 @@ private enum OpenMeteoService {
         let direction = number(current, "wind_direction_10m")
         let localDateFormatter = DateFormatter()
         localDateFormatter.locale = Locale(identifier: "en_US_POSIX")
-        localDateFormatter.timeZone = TimeZone.current
+        localDateFormatter.timeZone = apiTimeZone
         localDateFormatter.dateFormat = "yyyy-MM-dd"
         let todayKey = localDateFormatter.string(from: Date())
-        let todayIndex = dates.firstIndex(of: todayKey) ?? min(1, dates.count - 1)
+        guard let todayIndex = dates.firstIndex(of: todayKey) else { throw URLError(.cannotParseResponse) }
         func clockTime(_ values: [String], _ index: Int) -> String {
             guard values.indices.contains(index) else { return "—:—" }
             return String(values[index].suffix(5))
@@ -293,7 +294,7 @@ private enum OpenMeteoService {
             wind: number(current, "wind_speed_10m"), windGust: number(current, "wind_gusts_10m"),
             windDirectionDegrees: direction, windDirectionText: compassDirection(direction),
             humidity: Int(number(current, "relative_humidity_2m")),
-            uvIndex: Int(uv.first?.doubleValue ?? 0),
+            uvIndex: Int(todayIndex < uv.count ? uv[todayIndex].doubleValue : 0),
             precipitationToday: number(current, "precipitation"),
             pressure: number(current, "pressure_msl"),
             cloudCover: Int(number(current, "cloud_cover")),
@@ -305,13 +306,14 @@ private enum OpenMeteoService {
             daylightChangeMinutes: todayDaylight - yesterdayDaylight)
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
+        dateFormatter.timeZone = apiTimeZone
         let weekday = DateFormatter()
         weekday.locale = Locale(identifier: "sv_SE")
         weekday.dateFormat = "EEEE"
         let days = dates.indices.filter { dates[$0] >= todayKey }.map { i -> DayForecast in
             let date = dateFormatter.date(from: dates[i]) ?? Date()
             let code = i < codes.count ? codes[i].intValue : 0
-            return DayForecast(date: date, day: i == 0 ? "Idag" : weekday.string(from: date).capitalized,
+            return DayForecast(date: date, day: i == todayIndex ? "Idag" : weekday.string(from: date).capitalized,
                 symbol: weatherSymbol(code), condition: conditionText(code),
                 precipitationChance: i < chances.count ? chances[i].intValue : 0,
                 precipitation: i < amounts.count ? amounts[i].doubleValue : 0,
@@ -365,8 +367,9 @@ private extension WeatherSnapshot {
         WeatherSnapshot(place: name, condition: condition, temperature: temperature, feelsLike: feelsLike,
             wind: wind, windGust: windGust, windDirectionDegrees: windDirectionDegrees,
             windDirectionText: windDirectionText, humidity: humidity, uvIndex: uvIndex,
-            precipitationToday: precipitationToday, sunriseTime: sunriseTime,
-            sunsetTime: sunsetTime, daylightMinutes: daylightMinutes,
-            daylightChangeMinutes: daylightChangeMinutes)
+            precipitationToday: precipitationToday, pressure: pressure,
+            cloudCover: cloudCover, dewPoint: dewPoint, visibilityKm: visibilityKm,
+            sunriseTime: sunriseTime, sunsetTime: sunsetTime,
+            daylightMinutes: daylightMinutes, daylightChangeMinutes: daylightChangeMinutes)
     }
 }
