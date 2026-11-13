@@ -15,6 +15,13 @@ private struct RadarFrame: Identifiable, Equatable {
     var id: TimeInterval { time.timeIntervalSince1970 }
 }
 
+private struct NowcastPoint: Identifiable {
+    let time: Date
+    let precipitationRate: Double?
+    let amountNextHour: Double?
+    var id: TimeInterval { time.timeIntervalSince1970 }
+}
+
 private enum RadarService {
     private struct RainViewerManifest: Decodable {
         struct Radar: Decodable {
@@ -222,6 +229,9 @@ struct RadarMapView: View {
     @State private var typeDetail = "Modellbedömning vid vald plats"
     @State private var radarAtPlace = "Kontrollerar radar över vald plats…"
     @State private var showTypeInfo = false
+    @State private var nowcastPoints: [NowcastPoint] = []
+    @State private var nowcastStatus = "Hämtar närprognos…"
+    @State private var nowcastUpdated: Date?
 
     private let playback = Timer.publish(every: 0.75, on: .main, in: .common).autoconnect()
 
@@ -377,6 +387,39 @@ struct RadarMapView: View {
                             .font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.7))
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    VStack(alignment: .leading, spacing: 9) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("NÄRPROGNOS")
+                                    .font(.system(size: 12, weight: .heavy)).tracking(1).foregroundStyle(Color.cyan)
+                                Text("MET Norway • upp till 2 timmar")
+                                    .font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.62))
+                            }
+                            Spacer()
+                            Text(nowcastUpdated?.formatted(date: .omitted, time: .shortened) ?? "—")
+                                .font(.system(size: 11, weight: .semibold).monospacedDigit()).foregroundStyle(.white.opacity(0.55))
+                        }
+                        Text(nowcastStatus)
+                            .font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.78))
+                        if !nowcastPoints.isEmpty {
+                            HStack(alignment: .bottom, spacing: 5) {
+                                ForEach(nowcastPoints.prefix(8)) { point in
+                                    VStack(spacing: 4) {
+                                        RoundedRectangle(cornerRadius: 3)
+                                            .fill(Color.cyan.opacity(0.85))
+                                            .frame(height: max(4, min(28, CGFloat(point.precipitationRate ?? 0) * 12)))
+                                        Text(point.time.formatted(date: .omitted, time: .shortened))
+                                            .font(.system(size: 9, weight: .medium).monospacedDigit())
+                                            .foregroundStyle(.white.opacity(0.65))
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                }
+                            }
+                        }
+                    }
+                    .padding(12)
+                    .background(Color(red: 0.12, green: 0.16, blue: 0.21), in: RoundedRectangle(cornerRadius: 15))
+
                     HStack {
                         Text(provider == .smhi ? "Radar: SMHI • 5 min" : "Reservradar: RainViewer")
                         Spacer()
@@ -399,6 +442,7 @@ struct RadarMapView: View {
         .task {
             await refreshRadar()
             await refreshPrecipitationType()
+            await refreshNowcast()
         }
         .onChange(of: selectedIndex) { _, _ in
             Task {
@@ -512,6 +556,67 @@ struct RadarMapView: View {
         } catch {
             precipitationType = "Nederbördstyp saknas"
             typeDetail = "Kunde inte hämta modellbedömning"
+        }
+    }
+
+    @MainActor
+    private func refreshNowcast() async {
+        var components = URLComponents(string: "https://api.met.no/weatherapi/nowcast/2.0/complete")!
+        components.queryItems = [
+            URLQueryItem(name: "lat", value: String(mapCoordinate.latitude)),
+            URLQueryItem(name: "lon", value: String(mapCoordinate.longitude))
+        ]
+        guard let url = components.url else { return }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.setValue("Regnvakt/1.0 (iOS weather app)", forHTTPHeaderField: "User-Agent")
+        request.setValue("application/geo+json, application/json", forHTTPHeaderField: "Accept")
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard (response as? HTTPURLResponse)?.statusCode == 200,
+                  let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let properties = root["properties"] as? [String: Any],
+                  let timeseries = properties["timeseries"] as? [[String: Any]] else {
+                nowcastPoints = []
+                nowcastStatus = "Närprognosen är inte tillgänglig just nu."
+                return
+            }
+
+            let meta = properties["meta"] as? [String: Any]
+            let coverage = (meta?["radar_coverage"] as? String ?? "").lowercased()
+            let formatter = ISO8601DateFormatter()
+            let parsed = timeseries.compactMap { item -> NowcastPoint? in
+                guard let stamp = item["time"] as? String,
+                      let date = formatter.date(from: stamp),
+                      let data = item["data"] as? [String: Any] else { return nil }
+                let instant = data["instant"] as? [String: Any]
+                let details = instant?["details"] as? [String: Any]
+                let rate = (details?["precipitation_rate"] as? NSNumber)?.doubleValue
+                let nextHour = data["next_1_hours"] as? [String: Any]
+                let nextDetails = nextHour?["details"] as? [String: Any]
+                let amount = (nextDetails?["precipitation_amount"] as? NSNumber)?.doubleValue
+                return NowcastPoint(time: date, precipitationRate: rate, amountNextHour: amount)
+            }
+            nowcastPoints = Array(parsed.prefix(8))
+            nowcastUpdated = Date()
+
+            if coverage == "ok" {
+                nowcastStatus = "Radarbaserad korttidsprognos. Staplarna visar nederbördsintensitet (mm/h)."
+            } else if coverage == "temporarily unavailable" {
+                nowcastStatus = "MET Norways radartäckning är tillfälligt ur funktion här."
+                nowcastPoints = []
+            } else if coverage == "no coverage" {
+                nowcastStatus = "Ingen radarbaserad närprognos för den här platsen."
+                nowcastPoints = []
+            } else {
+                nowcastStatus = parsed.isEmpty
+                    ? "Närprognos saknas för vald plats."
+                    : "Modellprognos tillgänglig; radarbaserad nederbördsintensitet saknas."
+            }
+        } catch {
+            nowcastPoints = []
+            nowcastStatus = "Kunde inte hämta MET Norways närprognos."
         }
     }
 
