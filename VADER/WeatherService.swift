@@ -19,6 +19,7 @@ struct SavedWeatherPlace: Identifiable, Codable, Equatable {
 @MainActor
 final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var snapshot: WeatherSnapshot?
+    @Published var lastUpdated: Date?
     @Published var currentCoordinate: CLLocationCoordinate2D?
     @Published var days: [DayForecast] = []
     @Published var hours: [HourForecast] = []
@@ -190,6 +191,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
             do {
                 let result = try await OpenMeteoService.fetch(latitude: latitude, longitude: longitude)
                 snapshot = result.current.replacingPlace(placeName)
+                lastUpdated = Date()
                 days = result.days
                 hours = result.hours
                 WeatherNotificationScheduler.refresh(place: placeName, hours: result.hours)
