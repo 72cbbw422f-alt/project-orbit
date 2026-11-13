@@ -71,7 +71,7 @@ enum WeatherNotificationScheduler {
             content.title = event.title
             content.body = "\(event.body) • \(place)"
             content.sound = .default
-            content.userInfo = ["watch": event.type, "place": place, "safetyCritical": event.safetyCritical]
+            content.userInfo = ["watch": event.type, "place": place, "safetyCritical": event.safetyCritical, "forecastEventDate": event.date.timeIntervalSince1970, "leadMinutes": lead]
             let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
             let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
             let stamp = Int(event.date.timeIntervalSince1970)
@@ -166,8 +166,8 @@ enum WeatherNotificationScheduler {
                 if hour.temperature <= frostThreshold {
                     active.append(Event(
                         type: "frost",
-                        title: overnight ? "Frostrisk i natt" : "Frostrisk",
-                        body: "Temperaturen väntas nå \(hour.temperature)° omkring kl. \(hour.time). Frost kan bildas även utan nederbörd.",
+                        title: overnight ? "Möjlig frostrisk i natt" : "Möjlig frostrisk",
+                        body: "Prognosen visar att temperaturen kan sjunka till omkring \(hour.temperature)° runt kl. \(hour.time). Frost kan bildas även utan nederbörd. Detta är en riskprognos, inte en säker händelse.",
                         date: date,
                         safetyCritical: true
                     ))
@@ -179,8 +179,8 @@ enum WeatherNotificationScheduler {
                 if hour.temperature <= 1 && (wetWithinThreeHours || isFreezingPrecipitation) {
                     active.append(Event(
                         type: "ice",
-                        title: "Risk för halka",
-                        body: "Fukt eller nederbörd kan frysa när temperaturen ligger kring \(hour.temperature)°. Var extra försiktig på vägar och gångbanor.",
+                        title: "Möjlig halkrisk",
+                        body: "Fukt eller nederbörd kan frysa när temperaturen ligger kring \(hour.temperature)°. Det finns risk för halka – var extra försiktig på vägar och gångbanor.",
                         date: date,
                         safetyCritical: true
                     ))
