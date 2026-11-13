@@ -212,7 +212,10 @@ struct NotificationInboxView: View {
                             Label(warning.area, systemImage: "mappin.and.ellipse").font(.system(size: 15, weight: .semibold)).foregroundStyle(cyan)
                             if !warning.description.isEmpty { Text(warning.description).font(.system(size: 15)).foregroundStyle(.white.opacity(0.85)) }
                             if !warning.advice.isEmpty { Divider().overlay(.white.opacity(0.15)); Text("ATT TÄNKA PÅ").font(.system(size: 15, weight: .heavy)).foregroundStyle(cyan); Text(warning.advice).font(.system(size: 15)).foregroundStyle(.white.opacity(0.8)) }
-                            if !warning.start.isEmpty { Text("Start: \(warning.start)").font(.system(size: 15)).foregroundStyle(.white.opacity(0.55)) }
+                            if let startDate = ISO8601DateFormatter().date(from: warning.start) {
+                                Text("Start: " + startDate.formatted(date: .abbreviated, time: .shortened))
+                                    .font(.system(size: 13)).foregroundStyle(.white.opacity(0.65))
+                            }
                         }.padding(13).background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 15)).overlay(RoundedRectangle(cornerRadius: 15).stroke(warning.color.opacity(0.5), lineWidth: 1))
                     }
                     Text("SCHEMALAGDA AVISERINGAR").font(.system(size: 16, weight: .heavy)).tracking(1).foregroundStyle(cyan).padding(.top, 4)
@@ -415,7 +418,10 @@ struct NationalWarningsView: View {
                 Text(warning.advice).font(.system(size: 15)).foregroundStyle(.white.opacity(0.78))
             }
             if !warning.start.isEmpty {
-                Text("Start: " + warning.start).font(.system(size: 15)).foregroundStyle(.white.opacity(0.5))
+                            if let startDate = ISO8601DateFormatter().date(from: warning.start) {
+                                Text("Start: " + startDate.formatted(date: .abbreviated, time: .shortened))
+                                    .font(.system(size: 13)).foregroundStyle(.white.opacity(0.65))
+                            }
             }
         }.padding(14).background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 16))
             .overlay(RoundedRectangle(cornerRadius: 16).stroke(warning.color.opacity(0.5), lineWidth: 1))
