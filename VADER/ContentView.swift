@@ -89,6 +89,13 @@ struct ContentView: View {
                 .presentationBackground(RTheme.bg)
                 .preferredColorScheme(.dark)
         }
+        .sheet(isPresented: $showingNotifications) {
+            NotificationInboxView(coordinate: weatherModel.currentCoordinate, place: weatherModel.snapshot?.place ?? "Din plats")
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(RTheme.bg)
+                .preferredColorScheme(.dark)
+        }
         .sheet(isPresented: $showingPlaceSearch) {
             PlaceSearchSheet(model: weatherModel)
                 .presentationDetents([.medium, .large])
