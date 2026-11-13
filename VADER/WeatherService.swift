@@ -203,7 +203,7 @@ private enum OpenMeteoService {
         components.queryItems = [
             URLQueryItem(name: "latitude", value: String(latitude)),
             URLQueryItem(name: "longitude", value: String(longitude)),
-            URLQueryItem(name: "current", value: "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,pressure_msl"),
+            URLQueryItem(name: "current", value: "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,pressure_msl,cloud_cover,dew_point_2m,visibility"),
             URLQueryItem(name: "hourly", value: "temperature_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m"),
             URLQueryItem(name: "forecast_hours", value: "48"),
             URLQueryItem(name: "daily", value: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,uv_index_max,sunrise,sunset"),
@@ -296,6 +296,9 @@ private enum OpenMeteoService {
             uvIndex: Int(uv.first?.doubleValue ?? 0),
             precipitationToday: number(current, "precipitation"),
             pressure: number(current, "pressure_msl"),
+            cloudCover: Int(number(current, "cloud_cover")),
+            dewPoint: number(current, "dew_point_2m"),
+            visibilityKm: number(current, "visibility") / 1000,
             sunriseTime: clockTime(sunrises, todayIndex),
             sunsetTime: clockTime(sunsets, todayIndex),
             daylightMinutes: todayDaylight,
