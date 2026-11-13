@@ -65,8 +65,8 @@ enum SMHIWarningService {
                 let start = area["approximateStart"] as? String ?? ""
                 let end = area["approximateEnd"] as? String ?? ""
                 let published = area["published"] as? String ?? ""
-                let startDate = ISO8601DateFormatter().date(from: start) ?? .distantPast
-                if !end.isEmpty, let endDate = ISO8601DateFormatter().date(from: end), endDate < Date() { continue }
+                let startDate = parseSMHIDate(start) ?? .distantPast
+                if !end.isEmpty, let endDate = parseSMHIDate(end), endDate < Date() { continue }
                 if startDate > Date().addingTimeInterval(4 * 24 * 3600) { continue }
                 result.append(SMHIWarning(id: warningID + "-" + String(describing: area["id"] ?? "area"),
                     title: eventDescription.isEmpty ? eventName : eventDescription, level: level, area: areaName,
@@ -180,6 +180,21 @@ enum SMHIWarningService {
     }
 }
 
+private func parseSMHIDate(_ value: String) -> Date? {
+    let fractional = ISO8601DateFormatter()
+    fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    if let date = fractional.date(from: value) { return date }
+    let standard = ISO8601DateFormatter()
+    standard.formatOptions = [.withInternetDateTime]
+    if let date = standard.date(from: value) { return date }
+    // Some SMHI payloads omit the timezone suffix; interpret those in Swedish local time.
+    let local = DateFormatter()
+    local.locale = Locale(identifier: "sv_SE")
+    local.timeZone = TimeZone(identifier: "Europe/Stockholm")
+    local.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+    return local.date(from: value)
+}
+
 struct NotificationInboxView: View {
     let coordinate: CLLocationCoordinate2D?
     let place: String
@@ -212,7 +227,7 @@ struct NotificationInboxView: View {
                             Label(warning.area, systemImage: "mappin.and.ellipse").font(.system(size: 15, weight: .semibold)).foregroundStyle(cyan)
                             if !warning.description.isEmpty { Text(warning.description).font(.system(size: 15)).foregroundStyle(.white.opacity(0.85)) }
                             if !warning.advice.isEmpty { Divider().overlay(.white.opacity(0.15)); Text("ATT TÄNKA PÅ").font(.system(size: 15, weight: .heavy)).foregroundStyle(cyan); Text(warning.advice).font(.system(size: 15)).foregroundStyle(.white.opacity(0.8)) }
-                            if let startDate = ISO8601DateFormatter().date(from: warning.start) {
+                            if let startDate = parseSMHIDate(warning.start) {
                                 Text("Start: " + startDate.formatted(date: .abbreviated, time: .shortened))
                                     .font(.system(size: 13)).foregroundStyle(.white.opacity(0.65))
                             }
