@@ -44,6 +44,7 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(RTheme.bg.ignoresSafeArea())
         .statusBarHidden(true)
+        .persistentSystemOverlays(.hidden)
         .safeAreaInset(edge: .bottom, spacing: 0) { RTabBar(selection: $selectedTab) }
         .sheet(isPresented: $showingSevenDayForecast) {
             SevenDayForecastDetail(days: weatherModel.days, place: weatherModel.snapshot?.place ?? "Din plats")
@@ -339,83 +340,35 @@ private struct ReferenceWeatherHome: View {
     }
 
     private var sevenDayForecast: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Label("7-dygnsprognos", systemImage: "calendar")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white)
-                Spacer()
-                Button(action: showSevenDayForecast) {
-                    HStack(spacing: 4) {
-                        Text("VISA ALLA")
-                        Image(systemName: "arrow.up.right")
-                    }
-                    .font(.system(size: 9, weight: .heavy))
-                    .tracking(0.6)
+        Button(action: showSevenDayForecast) {
+            HStack(spacing: 12) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 19, weight: .semibold))
                     .foregroundStyle(RTheme.cyan)
+                    .frame(width: 30)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("7-dygnsprognos")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.white)
+                    Text(days.isEmpty
+                         ? "Tryck för att öppna veckoprognosen"
+                         : "Se temperatur, nederbörd, vind och UV för hela veckan")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(RTheme.muted)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
                 }
-                .buttonStyle(.plain)
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(RTheme.cyan)
             }
-
-            if days.isEmpty {
-                Text("Sjudagarsprognosen visas när väderdata har hämtats.")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(RTheme.muted)
-                    .padding(.vertical, 10)
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(alignment: .top, spacing: 0) {
-                        ForEach(days) { day in
-                            Button(action: showSevenDayForecast) {
-                                VStack(spacing: 7) {
-                                    Text(day.day)
-                                        .font(.system(size: 10, weight: .semibold))
-                                        .foregroundStyle(.white)
-                                        .lineLimit(1)
-                                        .minimumScaleFactor(0.75)
-                                    Image(systemName: day.symbol)
-                                        .symbolRenderingMode(.palette)
-                                        .foregroundStyle(Color(red: 0.82, green: 0.90, blue: 1), RTheme.cyan)
-                                        .font(.system(size: 22))
-                                        .frame(height: 28)
-                                    HStack(spacing: 2) {
-                                        Image(systemName: "drop.fill")
-                                            .font(.system(size: 7))
-                                        Text("\(day.precipitationChance)%")
-                                            .font(.system(size: 9, weight: .bold, design: .rounded))
-                                    }
-                                    .foregroundStyle(RTheme.cyan)
-                                    HStack(spacing: 3) {
-                                        Text("\(day.high)°")
-                                            .font(.system(size: 13, weight: .bold, design: .rounded))
-                                            .foregroundStyle(.white)
-                                        Text("\(day.low)°")
-                                            .font(.system(size: 10, weight: .medium, design: .rounded))
-                                            .foregroundStyle(RTheme.muted)
-                                    }
-                                }
-                                .frame(width: 62)
-                                .padding(.vertical, 5)
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-                .scrollClipDisabled()
-            }
-
-            Button(action: showSevenDayForecast) {
-                HStack {
-                    Text("Öppna detaljerad 7-dagarsprognos")
-                    Spacer()
-                    Image(systemName: "arrow.right")
-                }
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(RTheme.cyan)
-            }
-            .buttonStyle(.plain)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 15)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(RoundedRectangle(cornerRadius: 19))
         }
+        .buttonStyle(.plain)
         .referencePanel()
     }
 
