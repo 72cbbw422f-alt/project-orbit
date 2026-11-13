@@ -12,6 +12,7 @@ private enum RTheme {
 struct ContentView: View {
     @State private var selectedTab: WeatherTab = .weather
     @State private var showingSevenDayForecast = false
+    @State private var showingPlaceSearch = false
     @StateObject private var weatherModel = WeatherViewModel()
 
     var body: some View {
@@ -54,6 +55,13 @@ struct ContentView: View {
         .sheet(isPresented: $showingSevenDayForecast) {
             SevenDayForecastDetail(days: weatherModel.days, place: weatherModel.snapshot?.place ?? "Din plats")
                 .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(RTheme.bg)
+                .preferredColorScheme(.dark)
+        }
+        .sheet(isPresented: $showingPlaceSearch) {
+            PlaceSearchSheet(model: weatherModel)
+                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(RTheme.bg)
                 .preferredColorScheme(.dark)
@@ -168,14 +176,20 @@ private struct ReferenceWeatherHome: View {
                     .foregroundStyle(RTheme.muted)
             }
             Spacer()
-            VStack(alignment: .trailing, spacing: 3) {
+            VStack(alignment: .trailing, spacing: 5) {
                 Text("SENAST UPPDATERAD")
                     .font(.system(size: 7, weight: .bold)).tracking(0.7)
                     .foregroundStyle(RTheme.muted)
-                Button(action: refresh) {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 13, weight: .semibold)).foregroundStyle(RTheme.cyan)
-                }.buttonStyle(.plain)
+                HStack(spacing: 13) {
+                    Button { showingPlaceSearch = true } label: {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 14, weight: .semibold)).foregroundStyle(RTheme.cyan)
+                    }.buttonStyle(.plain)
+                    Button(action: refresh) {
+                        Image(systemName: "location.circle")
+                            .font(.system(size: 17, weight: .semibold)).foregroundStyle(RTheme.cyan)
+                    }.buttonStyle(.plain)
+                }
             }
         }
     }
@@ -468,6 +482,90 @@ private struct ReferenceWeatherHome: View {
                 }
             }
         }.referencePanel()
+    }
+}
+
+private struct PlaceSearchSheet: View {
+    @ObservedObject var model: WeatherViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                RTheme.bg.ignoresSafeArea()
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Välj var du vill se vädret")
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                    Text("Använd din position eller sök efter en ort eller stad.")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(RTheme.muted)
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass").foregroundStyle(RTheme.cyan)
+                        TextField("Sök ort eller stad", text: $query)
+                            .font(.system(size: 14))
+                            .foregroundStyle(.white)
+                            .submitLabel(.search)
+                            .onSubmit { model.searchPlaces(query) }
+                        Button("Sök") { model.searchPlaces(query) }
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(RTheme.cyan)
+                            .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                    .padding(12)
+                    .background(RTheme.panel, in: RoundedRectangle(cornerRadius: 13))
+                    .overlay(RoundedRectangle(cornerRadius: 13).stroke(RTheme.line, lineWidth: 1))
+                    Button {
+                        model.refresh()
+                        dismiss()
+                    } label: {
+                        Label("Använd min nuvarande position", systemImage: "location.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(RTheme.cyan)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(.vertical, 4)
+                    if model.isSearchingPlaces {
+                        ProgressView().tint(RTheme.cyan)
+                    }
+                    if !model.placeSearchStatus.isEmpty {
+                        Text(model.placeSearchStatus)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(RTheme.muted)
+                    }
+                    ScrollView {
+                        LazyVStack(spacing: 7) {
+                            ForEach(model.placeSearchResults) { place in
+                                Button {
+                                    model.selectPlace(place)
+                                    dismiss()
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "mappin.and.ellipse").foregroundStyle(RTheme.cyan)
+                                        Text(place.name).foregroundStyle(.white).font(.system(size: 14, weight: .semibold))
+                                        Spacer()
+                                        Image(systemName: "chevron.right").font(.system(size: 11, weight: .bold)).foregroundStyle(RTheme.muted)
+                                    }
+                                    .padding(12)
+                                    .background(RTheme.panel, in: RoundedRectangle(cornerRadius: 12))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(18)
+            }
+            .navigationTitle("Plats")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Stäng") { dismiss() }.foregroundStyle(RTheme.cyan)
+                }
+            }
+        }
     }
 }
 
