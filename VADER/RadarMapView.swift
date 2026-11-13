@@ -1,6 +1,7 @@
 import SwiftUI
 import MapKit
 import Combine
+import UIKit
 
 private struct RainViewerFrame: Identifiable, Decodable {
     let time: TimeInterval
@@ -25,6 +26,79 @@ private enum RainViewerService {
         let frames = manifest.radar.past.sorted { $0.time < $1.time }
         guard !frames.isEmpty else { throw URLError(.cannotParseResponse) }
         return (manifest.host, frames)
+    }
+}
+
+private final class RainViewerTileOverlay: MKTileOverlay {
+    private let radarHost: String
+    private let framePath: String
+    private let nativeZoom = 7
+
+    init(host: String, framePath: String) {
+        self.radarHost = host
+        self.framePath = framePath
+        super.init(urlTemplate: nil)
+        tileSize = CGSize(width: 256, height: 256)
+        minimumZ = 0
+        maximumZ = 12
+        canReplaceMapContent = false
+    }
+
+    override func loadTile(at path: MKTileOverlayPath, result: @escaping (Data?, Error?) -> Void) {
+        guard path.z > nativeZoom else {
+            let url = tileURL(z: path.z, x: path.x, y: path.y)
+            URLSession.shared.dataTask(with: url) { data, _, error in
+                result(data, error)
+            }.resume()
+            return
+        }
+
+        let extraZoom = path.z - nativeZoom
+        guard extraZoom < 16 else {
+            result(nil, URLError(.badURL))
+            return
+        }
+        let divisor = 1 << extraZoom
+        let parentX = path.x / divisor
+        let parentY = path.y / divisor
+        let cropX = path.x % divisor
+        let cropY = path.y % divisor
+        let url = tileURL(z: nativeZoom, x: parentX, y: parentY)
+
+        URLSession.shared.dataTask(with: url) { data, _, error in
+            guard let data, error == nil,
+                  let image = UIImage(data: data)?.cgImage else {
+                result(nil, error ?? URLError(.cannotDecodeContentData))
+                return
+            }
+
+            let sourceSize = CGFloat(image.width) / CGFloat(divisor)
+            let cropRect = CGRect(
+                x: CGFloat(cropX) * sourceSize,
+                y: CGFloat(cropY) * sourceSize,
+                width: sourceSize,
+                height: sourceSize
+            ).integral
+
+            guard let cropped = image.cropping(to: cropRect) else {
+                result(nil, URLError(.cannotDecodeContentData))
+                return
+            }
+
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1
+            let renderer = UIGraphicsImageRenderer(size: CGSize(width: 256, height: 256), format: format)
+            let tile = renderer.image { _ in
+                UIImage(cgImage: cropped).draw(in: CGRect(x: 0, y: 0, width: 256, height: 256))
+            }
+            result(tile.pngData(), nil)
+        }.resume()
+    }
+
+    private func tileURL(z: Int, x: Int, y: Int) -> URL {
+        let cleanHost = radarHost.hasSuffix("/") ? String(radarHost.dropLast()) : radarHost
+        let cleanPath = framePath.hasPrefix("/") ? framePath : "/" + framePath
+        return URL(string: "\(cleanHost)\(cleanPath)/256/\(z)/\(x)/\(y)/2/1_1.png")!
     }
 }
 
@@ -82,12 +156,7 @@ private struct RadarTileMap: UIViewRepresentable {
         let oldTiles = map.overlays.filter { $0 is MKTileOverlay }
         map.removeOverlays(oldTiles)
 
-        let template = "\(host)\(frame.path)/256/{z}/{x}/{y}/2/1_1.png"
-        let overlay = MKTileOverlay(urlTemplate: template)
-        overlay.canReplaceMapContent = false
-        overlay.minimumZ = 0
-        overlay.maximumZ = 7
-        overlay.tileSize = CGSize(width: 256, height: 256)
+        let overlay = RainViewerTileOverlay(host: host, framePath: frame.path)
         map.addOverlay(overlay, level: .aboveLabels)
     }
 
