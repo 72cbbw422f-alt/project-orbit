@@ -271,16 +271,16 @@ private struct ReferenceWeatherHome: View {
     }
 
     private var windCard: some View {
-        VStack(alignment:.leading,spacing:7) {
-            Label("Vind",systemImage:"wind").font(.system(size:14,weight:.bold)).foregroundStyle(.white)
-            Spacer(minLength:0)
+        VStack(alignment:.leading,spacing:5) {
+            Label("Vind",systemImage:"wind")
+                .font(.system(size:13,weight:.bold)).foregroundStyle(.white)
             ZStack {
                 Circle().fill(.white.opacity(0.025))
                 Circle().stroke(.white.opacity(0.20),lineWidth:1)
                 ForEach(0..<36,id:\.self) { i in
                     Capsule().fill(.white.opacity(i.isMultiple(of:3) ? 0.85 : 0.28))
                         .frame(width:1,height:i.isMultiple(of:3) ? 7:4)
-                        .offset(y:-35).rotationEffect(.degrees(Double(i)*10))
+                        .offset(y:-48).rotationEffect(.degrees(Double(i)*10))
                 }
                 VStack { Text("N"); Spacer(); Text("S") }
                     .font(.system(size:9,weight:.heavy)).foregroundStyle(.white).padding(.vertical,5)
@@ -295,12 +295,15 @@ private struct ReferenceWeatherHome: View {
                         .font(.system(size:19,weight:.bold,design:.rounded))
                     Text("m/s").font(.system(size:8,weight:.bold))
                 }.foregroundStyle(.white)
-            }.frame(maxWidth:.infinity).aspectRatio(1,contentMode:.fit)
+            }
+            .frame(width:126,height:126)
+            .frame(maxWidth:.infinity)
             Text(String(format:"Byvind %.1f m/s",weather.windGust))
                 .font(.system(size:8,weight:.semibold)).foregroundStyle(RTheme.muted)
                 .lineLimit(1).minimumScaleFactor(0.7)
         }
-        .padding(10)
+        .padding(8)
+        .frame(maxHeight:.infinity,alignment:.top)
         .background(RTheme.panel,in:RoundedRectangle(cornerRadius:19))
         .overlay(RoundedRectangle(cornerRadius:19).stroke(RTheme.line,lineWidth:1))
         .shadow(color:.black.opacity(0.25),radius:12,y:6)
@@ -498,55 +501,47 @@ private struct SevenDayForecastDetail: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .referencePanel()
                         } else {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 9) {
-                                    ForEach(days) { day in
-                                        VStack(alignment: .center, spacing: 9) {
-                                            Text(day.day)
-                                                .font(.system(size: 12, weight: .bold, design: .rounded))
-                                                .foregroundStyle(.white)
-                                                .lineLimit(1)
-                                                .minimumScaleFactor(0.75)
-
+                            LazyVStack(spacing: 10) {
+                                ForEach(days) { day in
+                                    VStack(alignment: .leading, spacing: 10) {
+                                        HStack(spacing: 12) {
                                             Image(systemName: day.symbol)
                                                 .symbolRenderingMode(.palette)
                                                 .foregroundStyle(.white, RTheme.cyan)
-                                                .font(.system(size: 29))
-                                                .frame(height: 34)
-
-                                            Text(day.condition)
-                                                .font(.system(size: 9, weight: .medium))
-                                                .foregroundStyle(RTheme.muted)
-                                                .lineLimit(1)
-                                                .minimumScaleFactor(0.7)
-
-                                            HStack(spacing: 7) {
-                                                Text("\(day.high)°")
-                                                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                                                .font(.system(size: 27))
+                                                .frame(width: 38, height: 38)
+                                            VStack(alignment: .leading, spacing: 3) {
+                                                Text(day.day)
+                                                    .font(.system(size: 14, weight: .bold, design: .rounded))
                                                     .foregroundStyle(.white)
-                                                Text("\(day.low)°")
-                                                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                                                Text(day.condition)
+                                                    .font(.system(size: 11, weight: .medium))
                                                     .foregroundStyle(RTheme.muted)
                                             }
-
-                                            Rectangle()
-                                                .fill(.white.opacity(0.09))
-                                                .frame(height: 1)
-
-                                            compactForecastMetric(icon: "drop.fill", value: "\(day.precipitationChance)%")
-                                            compactForecastMetric(icon: "cloud.rain.fill", value: String(format: "%.1f mm", day.precipitation))
-                                            compactForecastMetric(icon: "wind", value: String(format: "%.1f m/s", day.wind))
-                                            compactForecastMetric(icon: "sun.max.fill", value: String(format: "UV %.0f", day.uv))
+                                            Spacer()
+                                            HStack(alignment: .firstTextBaseline, spacing: 7) {
+                                                Text("\(day.high)°")
+                                                    .font(.system(size: 21, weight: .bold, design: .rounded))
+                                                    .foregroundStyle(.white)
+                                                Text("\(day.low)°")
+                                                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                                                    .foregroundStyle(RTheme.muted)
+                                            }
                                         }
-                                        .frame(width: 112)
-                                        .padding(.vertical, 12)
-                                        .padding(.horizontal, 8)
-                                        .background(RTheme.panel, in: RoundedRectangle(cornerRadius: 17))
-                                        .overlay(RoundedRectangle(cornerRadius: 17).stroke(RTheme.line.opacity(0.75), lineWidth: 1))
+                                        Rectangle().fill(.white.opacity(0.09)).frame(height: 1)
+                                        HStack(spacing: 5) {
+                                            forecastMetricColumn(icon: "drop.fill", label: "Regnrisk", value: "\(day.precipitationChance)%")
+                                            forecastMetricColumn(icon: "cloud.rain.fill", label: "Nederbörd", value: String(format: "%.1f mm", day.precipitation))
+                                            forecastMetricColumn(icon: "wind", label: "Vind", value: String(format: "%.1f m/s", day.wind))
+                                            forecastMetricColumn(icon: "sun.max.fill", label: "UV", value: String(format: "%.0f", day.uv))
+                                        }
                                     }
+                                    .padding(12)
+                                    .background(RTheme.panel, in: RoundedRectangle(cornerRadius: 17))
+                                    .overlay(RoundedRectangle(cornerRadius: 17).stroke(RTheme.line.opacity(0.75), lineWidth: 1))
                                 }
-                                .padding(.vertical, 2)
                             }
+                            .padding(.vertical, 2)
                         }
                     }
                     .padding(.horizontal, 14)
@@ -564,19 +559,25 @@ private struct SevenDayForecastDetail: View {
         }
     }
 
-    private func compactForecastMetric(icon: String, value: String) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: icon)
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(RTheme.cyan)
-                .frame(width: 12)
+    private func forecastMetricColumn(icon: String, label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(RTheme.cyan)
+                Text(label)
+                    .font(.system(size: 8, weight: .medium))
+                    .foregroundStyle(RTheme.muted)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
             Text(value)
-                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                .font(.system(size: 10, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
                 .lineLimit(1)
-                .minimumScaleFactor(0.75)
-            Spacer(minLength: 0)
+                .minimumScaleFactor(0.7)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
