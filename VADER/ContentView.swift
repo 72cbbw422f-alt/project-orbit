@@ -48,7 +48,7 @@ struct ContentView: View {
                         showPlaceSearch: { showingPlaceSearch = true },
                         selectForecastDay: { selectedForecastDay = $0 }
                     )
-                case .radar: RPlaceholder(title: "Radar", subtitle: "Nederbördsradar", icon: "dot.radiowaves.left.and.right")
+                case .radar: RadarMapView(coordinate: weatherModel.currentCoordinate, place: weatherModel.snapshot?.place ?? "Hudiksvall")
                 case .watch: VaktDashboard(weather: weatherModel.snapshot ?? .demo, days: weatherModel.days, hours: weatherModel.hours)
                 case .places: SavedPlacesView(model: weatherModel, onAddPlace: { showingPlaceSearch = true }, onSelectPlace: { selectedTab = .weather })
                 case .more: NotificationSettingsView()
@@ -88,7 +88,7 @@ struct ContentView: View {
                 .preferredColorScheme(.dark)
         }
         .sheet(isPresented: $showingHourlyForecast) {
-            HourlyForecastDetail(hours: weatherModel.hours, place: weatherModel.snapshot?.place ?? "Din plats")
+            HourlyForecastDetail(hours: weatherModel.hours, place: weatherModel.snapshot?.place ?? "Din plats", weather: weatherModel.snapshot ?? .demo, days: weatherModel.days)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(RTheme.bg)
@@ -1127,6 +1127,8 @@ private struct ForecastDayDetails: View {
 private struct HourlyForecastDetail: View {
     let hours: [HourForecast]
     let place: String
+    let weather: WeatherSnapshot
+    let days: [DayForecast]
     @State private var selectedMetric = "Temperatur"
 
     private let metrics = ["Temperatur", "Nederbörd", "Vind"]
@@ -1143,6 +1145,7 @@ private struct HourlyForecastDetail: View {
                             Text("48 timmar framåt • Prognos per timme")
                                 .font(.system(size: 11, weight: .medium)).foregroundStyle(RTheme.muted)
                         }
+                        ActiveWatchSummary(weather: weather, days: days, hours: hours)
                         if hours.isEmpty {
                             Text("Ingen timprognos tillgänglig just nu.")
                                 .font(.system(size: 12, weight: .medium)).foregroundStyle(RTheme.muted)
