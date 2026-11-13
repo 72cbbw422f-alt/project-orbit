@@ -545,7 +545,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
         map.allowsTilting = false
         map.minimumZoomLevel = 3
         map.maximumZoomLevel = 12
-        map.setCenter(coordinate, zoomLevel: 8.0, animated: false)
+        map.setCenter(coordinate, zoomLevel: 7.0, animated: false)
         context.coordinator.latestImage = radarImage
         context.coordinator.latestTileURL = radarTileURL
         context.coordinator.updateLocationMarker(on: map, coordinate: coordinate, title: locationTitle)
@@ -561,7 +561,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
         if previous == nil || abs(previous!.latitude - coordinate.latitude) > 0.001 ||
             abs(previous!.longitude - coordinate.longitude) > 0.001 {
             context.coordinator.lastCoordinate = coordinate
-            map.setCenter(coordinate, zoomLevel: min(max(map.zoomLevel, 8.0), 12), animated: true)
+            map.setCenter(coordinate, zoomLevel: min(max(map.zoomLevel, 7.0), 7.0), animated: true)
         }
     }
 
