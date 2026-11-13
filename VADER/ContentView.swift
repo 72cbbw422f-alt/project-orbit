@@ -63,7 +63,7 @@ struct ContentView: View {
                 .preferredColorScheme(.dark)
         }
         .sheet(isPresented: $showingWeatherDetails) {
-            TodayWeatherDetails(weather: weatherModel.snapshot ?? .demo, days: weatherModel.days)
+            TodayWeatherDetails(weather: weatherModel.snapshot ?? .demo, days: weatherModel.days, hours: weatherModel.hours)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(RTheme.bg)
@@ -659,6 +659,7 @@ private struct ReferenceWeatherHome: View {
 private struct TodayWeatherDetails: View {
     let weather: WeatherSnapshot
     let days: [DayForecast]
+    let hours: [HourForecast]
 
     var body: some View {
         NavigationStack {
@@ -684,8 +685,28 @@ private struct TodayWeatherDetails: View {
                             detailMetric("Luftfuktighet","\(weather.humidity)%","humidity.fill")
                             detailMetric("Lufttryck",weather.pressure > 0 ? String(format:"%.0f hPa",weather.pressure) : "—","gauge")
                             detailMetric("UV-index","\(weather.uvIndex)","sun.max.fill")
+                            detailMetric("Molnighet","\\(weather.cloudCover)%","cloud.fill")
+                            detailMetric("Daggpunkt",String(format:"%.1f°",weather.dewPoint),"thermometer.low")
+                            detailMetric("Sikt",String(format:"%.1f km",weather.visibilityKm),"eye")
                             detailMetric("Nederbörd nu",String(format:"%.1f mm",weather.precipitationToday),"drop.fill")
                         }
+                        Text("VÄDER TIMME FÖR TIMME").font(.system(size:9,weight:.heavy)).tracking(1).foregroundStyle(RTheme.cyan)
+                        VStack(spacing:0) {
+                            ForEach(hours.prefix(8)) { hour in
+                                HStack(spacing:9) {
+                                    Text(hour.time).font(.system(size:11,weight:.bold)).foregroundStyle(.white).frame(width:38,alignment:.leading)
+                                    Image(systemName:hour.symbol).font(.system(size:17)).foregroundStyle(RTheme.cyan).frame(width:24)
+                                    Text("\\(hour.temperature)°").font(.system(size:13,weight:.bold,design:.rounded)).foregroundStyle(.white).frame(width:34)
+                                    VStack(alignment:.leading,spacing:2) {
+                                        Text("Regnrisk \\(hour.precipitationChance)%").font(.system(size:9,weight:.semibold)).foregroundStyle(RTheme.cyan)
+                                        Text(String(format:"Vind %.1f • By %.1f m/s",hour.wind,hour.gust)).font(.system(size:8)).foregroundStyle(RTheme.muted)
+                                    }
+                                    Spacer()
+                                    Text(String(format:"%.1f mm",hour.precipitation)).font(.system(size:9,weight:.medium)).foregroundStyle(.white)
+                                }.padding(.vertical,8)
+                                if hour.id != hours.prefix(8).last?.id { Divider().overlay(RTheme.line) }
+                            }
+                        }.padding(.horizontal,12).referencePanel()
                         Text("VIND").font(.system(size:9,weight:.heavy)).tracking(1).foregroundStyle(RTheme.cyan)
                         LazyVGrid(columns:[GridItem(.flexible()),GridItem(.flexible())],spacing:9) {
                             detailMetric("Medelvind",String(format:"%.1f m/s",weather.wind),"wind")
