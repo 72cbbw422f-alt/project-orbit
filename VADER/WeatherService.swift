@@ -94,6 +94,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
     }
 
     func selectPlace(_ place: PlaceSearchResult) {
+        savePlace(place)
         lastFetch = nil
         status = "Hämtar prognos för \(place.name)…"
         loadWeather(latitude: place.coordinate.latitude, longitude: place.coordinate.longitude, placeName: place.name)
