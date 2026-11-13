@@ -101,6 +101,7 @@ enum SMHIWarningService {
                     content.sound = .default
                     let request = UNNotificationRequest(identifier: "smhi-\(warning.id)-\(warning.level)", content: content, trigger: UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false))
                     try? await UNUserNotificationCenter.current().add(request)
+                    UserDefaults.standard.set(true, forKey: "Regnvakt.notifications.hasUnread")
                 }
             }
             UserDefaults.standard.set(Array(signatures), forKey: key)
