@@ -17,6 +17,7 @@ struct ContentView: View {
     @State private var showingHourlyForecast = false
     @State private var showingPlaceSearch = false
     @State private var showingNotifications = false
+    @State private var showingNationalWarnings = false
     @StateObject private var weatherModel = WeatherViewModel()
 
     var body: some View {
@@ -39,6 +40,7 @@ struct ContentView: View {
                         showSevenDayForecast: { showingSevenDayForecast = true },
                         showWeatherDetails: { showingWeatherDetails = true },
                         showNotifications: { showingNotifications = true },
+                        showNationalWarnings: { showingNationalWarnings = true },
                         showHourlyForecast: { showingHourlyForecast = true },
                         showPlaceSearch: { showingPlaceSearch = true },
                         selectForecastDay: { selectedForecastDay = $0 }
@@ -96,6 +98,13 @@ struct ContentView: View {
                 .presentationBackground(RTheme.bg)
                 .preferredColorScheme(.dark)
         }
+        .sheet(isPresented: $showingNationalWarnings) {
+            NationalWarningsView()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(RTheme.bg)
+                .preferredColorScheme(.dark)
+        }
         .sheet(isPresented: $showingPlaceSearch) {
             PlaceSearchSheet(model: weatherModel)
                 .presentationDetents([.medium, .large])
@@ -118,6 +127,7 @@ private struct ReferenceWeatherHome: View {
     let showSevenDayForecast: () -> Void
     let showWeatherDetails: () -> Void
     let showNotifications: () -> Void
+    let showNationalWarnings: () -> Void
     let showHourlyForecast: () -> Void
     let showPlaceSearch: () -> Void
     let selectForecastDay: (DayForecast) -> Void
@@ -195,6 +205,16 @@ private struct ReferenceWeatherHome: View {
                     .fixedSize(horizontal: true, vertical: false)
             }
             Spacer(minLength: 2)
+            Button(action: showNationalWarnings) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.orange)
+                    .frame(width: 34, height: 34)
+                    .background(Color.orange.opacity(0.12), in: Circle())
+                    .overlay(Circle().stroke(Color.orange.opacity(0.45), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Sveriges SMHI-varningar")
             Button(action: showNotifications) {
                 Image(systemName: "bell.badge")
                     .font(.system(size: 15, weight: .semibold))
@@ -204,7 +224,7 @@ private struct ReferenceWeatherHome: View {
                     .overlay(Circle().stroke(.white.opacity(0.18), lineWidth: 1))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Aviseringar och SMHI-varningar")
+            .accessibilityLabel("Aviseringshistorik")
         }
         .padding(.horizontal, 2)
         .padding(.top, 8)
@@ -218,8 +238,11 @@ private struct ReferenceWeatherHome: View {
                 Label(weather.place, systemImage: "location.fill")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
+                Text(Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(Locale(identifier: "sv_SE"))).capitalized)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(RTheme.cyan)
                 Text(status)
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(RTheme.muted)
             }
             Spacer()
@@ -233,9 +256,11 @@ private struct ReferenceWeatherHome: View {
                             .font(.system(size: 14, weight: .semibold)).foregroundStyle(RTheme.cyan)
                     }.buttonStyle(.plain)
                     Button(action: refresh) {
-                        Image(systemName: "location.circle")
-                            .font(.system(size: 17, weight: .semibold)).foregroundStyle(RTheme.cyan)
-                    }.buttonStyle(.plain)
+                        Image(systemName: "arrow.clockwise.circle.fill")
+                            .font(.system(size: 19, weight: .semibold)).foregroundStyle(RTheme.cyan)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Uppdatera väder och varningar")
                 }
             }
         }
