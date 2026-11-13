@@ -75,7 +75,7 @@ enum WeatherNotificationScheduler {
             let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
             let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
             let stamp = Int(event.date.timeIntervalSince1970)
-            let identifier = prefix + event.type + "." + stamp
+            let identifier = prefix + event.type + "." + String(stamp)
             requests.append(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
         }
 
