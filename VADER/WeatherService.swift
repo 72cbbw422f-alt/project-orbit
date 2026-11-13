@@ -99,6 +99,50 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
         loadWeather(latitude: place.coordinate.latitude, longitude: place.coordinate.longitude, placeName: place.name)
     }
 
+    func selectSavedPlace(_ place: SavedWeatherPlace) {
+        lastFetch = nil
+        loadWeather(latitude: place.latitude, longitude: place.longitude, placeName: place.name)
+    }
+
+    func savePlace(_ place: PlaceSearchResult) {
+        let latitude = place.coordinate.latitude
+        let longitude = place.coordinate.longitude
+        if let index = savedPlaces.firstIndex(where: {
+            abs($0.latitude - latitude) < 0.015 && abs($0.longitude - longitude) < 0.015
+        }) {
+            savedPlaces[index].name = place.name
+        } else {
+            savedPlaces.append(SavedWeatherPlace(id: UUID(), name: place.name,
+                latitude: latitude, longitude: longitude, isFavorite: savedPlaces.isEmpty))
+        }
+        persistSavedPlaces()
+    }
+
+    func toggleFavorite(_ place: SavedWeatherPlace) {
+        guard let index = savedPlaces.firstIndex(where: { $0.id == place.id }) else { return }
+        let makeFavorite = !savedPlaces[index].isFavorite
+        if makeFavorite {
+            for i in savedPlaces.indices { savedPlaces[i].isFavorite = false }
+        }
+        savedPlaces[index].isFavorite = makeFavorite
+        persistSavedPlaces()
+    }
+
+    func removePlace(_ place: SavedWeatherPlace) {
+        savedPlaces.removeAll { $0.id == place.id }
+        if !savedPlaces.contains(where: \.isFavorite), let first = savedPlaces.first,
+           let index = savedPlaces.firstIndex(where: { $0.id == first.id }) {
+            savedPlaces[index].isFavorite = true
+        }
+        persistSavedPlaces()
+    }
+
+    private func persistSavedPlaces() {
+        if let data = try? JSONEncoder().encode(savedPlaces) {
+            UserDefaults.standard.set(data, forKey: savedPlacesKey)
+        }
+    }
+
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         if manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse {
             requestLocation()
