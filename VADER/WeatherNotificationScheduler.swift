@@ -109,15 +109,22 @@ enum WeatherNotificationScheduler {
 
         var result: [Event] = []
         var previousTypes = Set<String>()
-        var previousWet = false
+        var lastWetForecastDate: Date?
 
         for hour in hours {
             guard let date = formatter.date(from: hour.id), date > Date() else { continue }
+
             let condition = hour.condition.lowercased()
             let isRain = condition.contains("regn") || condition.contains("dugg") || condition.contains("skur")
             let isSnow = condition.contains("snö")
             let isThunder = condition.contains("åska")
-            let wetNow = hour.precipitation >= 0.2 || (hour.precipitationChance >= 50 && (isRain || isSnow))
+            let isFreezingPrecipitation = condition.contains("underkylt")
+            let hasPrecipitation = hour.precipitation >= 0.2
+            let forecastShowsWetWeather = isRain || isSnow || isFreezingPrecipitation
+            let wetNow = hasPrecipitation ||
+                (hour.precipitationChance >= 50 && forecastShowsWetWeather)
+            let wetWithinThreeHours = wetNow ||
+                lastWetForecastDate.map { date.timeIntervalSince($0) <= 3 * 60 * 60 } ?? false
             var active: [Event] = []
 
             if defaults.object(forKey: "Regnvakt.notifications.rain") as? Bool ?? true,
@@ -142,19 +149,33 @@ enum WeatherNotificationScheduler {
             }
 
             if defaults.object(forKey: "Regnvakt.notifications.frost") as? Bool ?? true {
-                let calendar = Calendar.current
-                let localHour = calendar.component(.hour, from: date)
+                let localHour = Calendar.current.component(.hour, from: date)
                 let overnight = localHour >= 18 || localHour < 9
+                // Forecast temperatures are whole degrees. A 1°C buffer is used
+                // overnight; during daytime, require freezing temperature.
                 let frostThreshold = overnight ? 1 : 0
+
                 if hour.temperature <= frostThreshold {
-                    active.append(Event(type: "frost", title: overnight ? "Frostnatt väntas" : "Frostrisk",
+                    active.append(Event(
+                        type: "frost",
+                        title: overnight ? "Frostnatt väntas" : "Frostrisk",
                         body: "Temperaturen väntas nå \(hour.temperature)° omkring kl. \(hour.time).",
-                        date: date, safetyCritical: true))
+                        date: date,
+                        safetyCritical: true
+                    ))
                 }
-                if hour.temperature <= 1 && (wetNow || previousWet) {
-                    active.append(Event(type: "ice", title: "Risk för halka",
+
+                // Ice risk is distinct from frost: moisture must be present now,
+                // or have occurred within the previous three forecast hours.
+                // Freezing drizzle/rain is treated as wet even at low amounts.
+                if hour.temperature <= 1 && (wetWithinThreeHours || isFreezingPrecipitation) {
+                    active.append(Event(
+                        type: "ice",
+                        title: "Risk för halka",
                         body: "Fukt eller nederbörd kan frysa när temperaturen ligger kring \(hour.temperature)°. Var extra försiktig på vägar och gångbanor.",
-                        date: date, safetyCritical: true))
+                        date: date,
+                        safetyCritical: true
+                    ))
                 }
             }
 
@@ -163,7 +184,10 @@ enum WeatherNotificationScheduler {
                 result.append(event)
             }
             previousTypes = currentTypes
-            previousWet = wetNow
+
+            if wetNow {
+                lastWetForecastDate = date
+            }
         }
         return result
     }
