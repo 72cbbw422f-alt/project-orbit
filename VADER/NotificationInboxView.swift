@@ -67,6 +67,27 @@ enum SMHIWarningService {
         return result.sorted { rank($0.level) > rank($1.level) }
     }
 
+    static func checkAndNotify(at coordinate: CLLocationCoordinate2D) async {
+        guard UserDefaults.standard.bool(forKey: "Regnvakt.notifications.enabled"),
+              UserDefaults.standard.bool(forKey: "Regnvakt.notifications.smhi") else { return }
+        do {
+            let current = try await warnings(at: coordinate)
+            let signatures = Set(current.map { $0.id + "|" + $0.level + "|" + $0.title })
+            let key = "Regnvakt.smhi.warningSignatures.v1"
+            if let previous = UserDefaults.standard.stringArray(forKey: key) {
+                let old = Set(previous)
+                for warning in current where !old.contains(warning.id + "|" + warning.level + "|" + warning.title) {
+                    let content = UNMutableNotificationContent()
+                    content.title = "SMHI: \(warning.level)"
+                    content.body = "\(warning.title) – \(warning.area)"
+                    content.sound = .default
+                    let request = UNNotificationRequest(identifier: "smhi-\(warning.id)-\(warning.level)", content: content, trigger: UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false))
+                    try? await UNUserNotificationCenter.current().add(request)
+                }
+            }
+            UserDefaults.standard.set(Array(signatures), forKey: key)
+        } catch { }
+    }
     private static func rank(_ level: String) -> Int {
         let value = level.lowercased()
         if value.contains("röd") { return 3 }; if value.contains("orange") { return 2 }; if value.contains("gul") { return 1 }; return 0
