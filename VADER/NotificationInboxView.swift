@@ -77,6 +77,13 @@ enum SMHIWarningService {
         return result.sorted { rank($0.level) > rank($1.level) }
     }
 
+    static func clearPendingNotifications() {
+        UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
+            let ids = requests.map(\.identifier).filter { $0.hasPrefix("smhi.") }
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
+        }
+    }
+
     static func checkAndNotify(at coordinate: CLLocationCoordinate2D) async {
         let defaults = UserDefaults.standard
         guard (defaults.object(forKey: "Regnvakt.notifications.enabled") as? Bool ?? true),
