@@ -37,7 +37,7 @@ struct ContentView: View {
                     )
                 case .radar: RPlaceholder(title: "Radar", subtitle: "Nederbördsradar", icon: "dot.radiowaves.left.and.right")
                 case .watch: VaktDashboard(weather: weatherModel.snapshot ?? .demo, days: weatherModel.days, hours: weatherModel.hours)
-                case .places: RPlaceholder(title: "Platser", subtitle: "Dina sparade platser", icon: "mappin.and.ellipse")
+                case .places: SavedPlacesView(model: weatherModel, onAddPlace: { showingPlaceSearch = true }, onSelectPlace: { selectedTab = .weather })
                 case .more: RPlaceholder(title: "Inställningar", subtitle: "Anpassa Regnvakt", icon: "gearshape.fill")
                 }
             }
