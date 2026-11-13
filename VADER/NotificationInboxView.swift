@@ -80,7 +80,17 @@ enum SMHIWarningService {
               (UserDefaults.standard.object(forKey: "Regnvakt.notifications.smhi") as? Bool ?? true) else { return }
         do {
             let current = try await warnings(at: coordinate)
+            let national = try await nationwideWarnings()
             let signatures = Set(current.map { $0.id + "|" + $0.level + "|" + $0.title })
+            let nationalSignatures = Set(national.map { $0.id + "|" + $0.level + "|" + $0.title })
+            let nationalKey = "Regnvakt.smhi.nationalSignatures.v1"
+            if let previousNational = UserDefaults.standard.stringArray(forKey: nationalKey) {
+                let oldNational = Set(previousNational)
+                if nationalSignatures.contains(where: { !oldNational.contains($0) }) {
+                    UserDefaults.standard.set(true, forKey: "Regnvakt.smhi.hasNewNationalWarnings")
+                }
+            }
+            UserDefaults.standard.set(Array(nationalSignatures), forKey: nationalKey)
             let key = "Regnvakt.smhi.warningSignatures.v1"
             if let previous = UserDefaults.standard.stringArray(forKey: key) {
                 let old = Set(previous)
