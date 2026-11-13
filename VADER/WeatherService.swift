@@ -19,6 +19,7 @@ struct SavedWeatherPlace: Identifiable, Codable, Equatable {
 @MainActor
 final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var snapshot: WeatherSnapshot?
+    @Published var currentCoordinate: CLLocationCoordinate2D?
     @Published var days: [DayForecast] = []
     @Published var hours: [HourForecast] = []
     @Published var status = "Väntar på platsåtkomst…"
@@ -160,6 +161,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
         guard let location = locations.last else { return }
         if let lastFetch, Date().timeIntervalSince(lastFetch) < 300 { return }
         lastFetch = Date()
+        currentCoordinate = location.coordinate
         status = "Hämtar prognos för din position…"
         Task {
             let placeName: String
