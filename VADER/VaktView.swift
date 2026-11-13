@@ -38,7 +38,7 @@ struct VaktDashboard: View {
             WatchItem(id: "precipitation", title: precipitationTitle, subtitle: "Nederbörd · regn · snö · duggregn", symbol: snow ? "cloud.snow.fill" : "cloud.rain.fill", active: rain || snow, detail: precipitationDetail, level: rain || snow ? "BEVAKAR" : "LUGNT", tint: WatchPalette.cyan),
             WatchItem(id: "thunder", title: "ÅSKVAKTEN", subtitle: "Åska · blixtar · åskrisk", symbol: "cloud.bolt.rain.fill", active: thunder, detail: thunder ? "Åska förekommer i prognosen" : "Ingen åska identifierad i prognosen", level: thunder ? "RISK I PROGNOS" : "LUGNT", tint: Color.orange),
             WatchItem(id: "wind", title: "VINDVAKTEN", subtitle: "Vindstyrka · hårda vindbyar", symbol: "wind", active: wind, detail: String(format: "Högsta prognostiserade byvind %.1f m/s", maxGust), level: wind ? "FÖRHÖJD VIND" : "LUGNT", tint: Color(red: 0.54, green: 0.72, blue: 1.0)),
-            WatchItem(id: "official", title: "SMHI:S VÄDERVARNINGAR", subtitle: "Gul · orange · röd varning", symbol: "exclamationmark.triangle.fill", active: false, detail: "Officiella varningar visas när SMHI:s varningsflöde har kopplats in.", level: "KÄLLA EJ ANSLUTEN", tint: Color.yellow)
+            WatchItem(id: "official", title: "SMHI:S VÄDERVARNINGAR", subtitle: "Gul · orange · röd varning", symbol: "exclamationmark.triangle.fill", active: false, detail: "Officiella SMHI-varningar hämtas när prognosen uppdateras.", level: "SMHI ANSLUTET", tint: Color.yellow)
         ]
     }
 
@@ -67,9 +67,9 @@ struct VaktDashboard: View {
                     watchCard(watch)
                 }
 
-                Text("Riskbedömningarna bygger just nu på tillgänglig väderprognos. De är inte officiella varningar. SMHI:s officiella varningsflöde och radarn kopplas in i nästa utvecklingssteg.")
-                    .font(.system(size: 10, weight: .medium)).foregroundStyle(WatchPalette.muted).fixedSize(horizontal: false, vertical: true).padding(.horizontal, 3)
-                Text("VÄDERDATA: OPEN-METEO").font(.system(size: 8, weight: .bold)).tracking(1).foregroundStyle(WatchPalette.muted.opacity(0.7)).frame(maxWidth: .infinity).padding(.top, 5).padding(.bottom, 20)
+                Text("Väderprognosen visar vilka bevakningar som är aktiva. SMHI-varningar är officiella och visas separat när de berör vald plats.")
+                    .font(.system(size: 9, weight: .medium)).foregroundStyle(WatchPalette.muted).fixedSize(horizontal: false, vertical: true).padding(.horizontal, 3)
+                Text("PROGNOS: OPEN-METEO  •  VARNINGAR: SMHI").font(.system(size: 8, weight: .bold)).tracking(0.7).foregroundStyle(WatchPalette.muted.opacity(0.7)).frame(maxWidth: .infinity).padding(.top, 3).padding(.bottom, 20)
             }
             .padding(.horizontal, 14).padding(.top, 22)
         }
@@ -85,13 +85,13 @@ struct VaktDashboard: View {
                 Text(watch.title).font(.system(size: 13, weight: .heavy)).foregroundStyle(.white)
                 Text(watch.subtitle).font(.system(size: 9, weight: .medium)).foregroundStyle(WatchPalette.muted).lineLimit(2)
                 Text(watch.detail).font(.system(size: 10, weight: .medium)).foregroundStyle(.white.opacity(0.88)).lineLimit(2)
-                Text(watch.level).font(.system(size: 8, weight: .heavy)).tracking(0.6).foregroundStyle(watch.active ? watch.tint : WatchPalette.muted)
+                HStack(spacing: 5) { Circle().fill(watch.active ? watch.tint : WatchPalette.muted.opacity(0.55)).frame(width: 6, height: 6).shadow(color: watch.active ? watch.tint : .clear, radius: watch.active ? 6 : 0); Text(watch.level) }.font(.system(size: 8, weight: .heavy)).tracking(0.6).foregroundStyle(watch.active ? watch.tint : WatchPalette.muted)
             }
             Spacer(minLength: 0)
         }
         .padding(10).background(WatchPalette.panel, in: RoundedRectangle(cornerRadius: 19))
-        .overlay(RoundedRectangle(cornerRadius: 19).stroke(watch.active ? watch.tint.opacity(0.55) : WatchPalette.line, lineWidth: 1))
-        .shadow(color: .black.opacity(0.2), radius: 10, y: 5)
+        .overlay(RoundedRectangle(cornerRadius: 19).stroke(watch.active ? watch.tint.opacity(0.9) : WatchPalette.line, lineWidth: watch.active ? 1.6 : 1))
+        .shadow(color: watch.active ? watch.tint.opacity(0.20) : .black.opacity(0.2), radius: watch.active ? 13 : 10, y: 5)
     }
 }
 
