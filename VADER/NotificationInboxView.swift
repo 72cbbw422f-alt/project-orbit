@@ -216,21 +216,27 @@ struct NotificationInboxView: View {
                         }.padding(13).background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 15)).overlay(RoundedRectangle(cornerRadius: 15).stroke(warning.color.opacity(0.5), lineWidth: 1))
                     }
                     Text("SCHEMALAGDA AVISERINGAR").font(.system(size: 10, weight: .heavy)).tracking(1).foregroundStyle(cyan).padding(.top, 4)
-                    Text("Det här är notiser som iPhone faktiskt har i sin väntande kö.").font(.system(size: 10)).foregroundStyle(.white.opacity(0.55))
+                    Text("Här visas förvarningar som iPhone har schemalagt. Tiden för förvarningen är inte samma sak som tiden då väderhändelsen eventuellt kan inträffa. Prognoser är osäkra och beskriver möjliga förhållanden.").font(.system(size: 10)).foregroundStyle(.white.opacity(0.65)).fixedSize(horizontal: false, vertical: true)
                     if pending.isEmpty { emptyCard("Inga kommande vädernotiser är schemalagda just nu.", icon: "calendar.badge.clock") }
                     ForEach(pending, id: \.identifier) { item in
                         let watch = (item.content.userInfo["watch"] as? String) ?? watchNameFromIdentifier(item.identifier)
                         let fireDate = (item.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate()
                             ?? (item.trigger as? UNTimeIntervalNotificationTrigger).map { Date().addingTimeInterval($0.timeInterval) }
-                        VStack(alignment: .leading, spacing: 5) {
-                            HStack {
-                                Text(watchName(from: watch)).font(.system(size: 10, weight: .heavy)).foregroundStyle(cyan)
-                                Spacer()
-                                if let fireDate { Text(fireDate.formatted(date: .abbreviated, time: .shortened)).font(.system(size: 10, weight: .bold)).foregroundStyle(.white.opacity(0.8)) }
-                            }
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(watchName(from: watch)).font(.system(size: 10, weight: .heavy)).foregroundStyle(cyan)
                             Text(item.content.title).font(.system(size: 13, weight: .bold)).foregroundStyle(.white)
-                            Text(item.content.body).font(.system(size: 11)).foregroundStyle(.white.opacity(0.7))
-                            Text(item.identifier).font(.system(size: 8, design: .monospaced)).foregroundStyle(.white.opacity(0.35))
+                            Text(item.content.body).font(.system(size: 11)).foregroundStyle(.white.opacity(0.78))
+                            if let fireDate {
+                                Label("Förvarning skickas: " + fireDate.formatted(date: .abbreviated, time: .shortened), systemImage: "bell")
+                                    .font(.system(size: 10, weight: .semibold)).foregroundStyle(.white.opacity(0.85))
+                            }
+                            if let eventStamp = item.content.userInfo["forecastEventDate"] as? TimeInterval {
+                                let eventDate = Date(timeIntervalSince1970: eventStamp)
+                                Label("Möjlig väderhändelse: omkring " + eventDate.formatted(date: .omitted, time: .shortened), systemImage: "cloud.sun")
+                                    .font(.system(size: 10, weight: .medium)).foregroundStyle(.white.opacity(0.65))
+                            } else if item.identifier.hasPrefix("smhi.") {
+                                Text("Officiell SMHI-varning").font(.system(size: 10, weight: .medium)).foregroundStyle(.white.opacity(0.65))
+                            }
                         }.padding(11).frame(maxWidth: .infinity, alignment: .leading).background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 12))
                     }
                     HStack {
