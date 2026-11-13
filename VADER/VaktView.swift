@@ -31,6 +31,9 @@ struct VaktDashboard: View {
         let thunder = conditions.contains { $0.contains("åska") }
         let maxGust = max(weather.windGust, upcoming.map(\.gust).max() ?? days.first?.gust ?? 0)
         let wind = maxGust >= 14
+        let frostHour = upcoming.first { $0.temperature <= 1 }
+        let frost = frostHour != nil
+        let wetNearFreeze = upcoming.first { $0.temperature <= 1 && ($0.precipitation >= 0.2 || $0.precipitationChance >= 50) }
         let precipitationTitle = snow ? "SNÖVAKTEN" : "REGNVAKTEN"
         let firstPrecipitation = upcoming.first { $0.condition.localizedCaseInsensitiveContains("regn") || $0.condition.localizedCaseInsensitiveContains("snö") || $0.condition.localizedCaseInsensitiveContains("skur") }
         let precipitationDetail = firstPrecipitation.map { "\($0.condition) väntas kl. \($0.time)" } ?? (snow && rain ? "Snö och regn finns i timprognosen" : snow ? "Snöfall finns i timprognosen" : rain ? "Regn finns i timprognosen" : "Ingen nederbörd identifierad kommande timmar")
@@ -38,6 +41,7 @@ struct VaktDashboard: View {
             WatchItem(id: "precipitation", title: precipitationTitle, subtitle: "Nederbörd · regn · snö · duggregn", symbol: snow ? "cloud.snow.fill" : "cloud.rain.fill", active: rain || snow, detail: precipitationDetail, level: rain || snow ? "BEVAKAR" : "LUGNT", tint: WatchPalette.cyan),
             WatchItem(id: "thunder", title: "ÅSKVAKTEN", subtitle: "Åska · blixtar · åskrisk", symbol: "cloud.bolt.rain.fill", active: thunder, detail: thunder ? "Åska förekommer i prognosen" : "Ingen åska identifierad i prognosen", level: thunder ? "RISK I PROGNOS" : "LUGNT", tint: Color.orange),
             WatchItem(id: "wind", title: "VINDVAKTEN", subtitle: "Vindstyrka · hårda vindbyar", symbol: "wind", active: wind, detail: String(format: "Högsta prognostiserade byvind %.1f m/s", maxGust), level: wind ? "FÖRHÖJD VIND" : "LUGNT", tint: Color(red: 0.54, green: 0.72, blue: 1.0)),
+            WatchItem(id: "frost", title: "FROSTVAKTEN", subtitle: "Frostnatt · minusgrader · halkrisk", symbol: "thermometer.snowflake", active: frost, detail: wetNearFreeze.map { "Fukt/nederbörd och cirka \($0.temperature)° omkring kl. \($0.time) – risk för halka" } ?? frostHour.map { "Temperaturen väntas nå \($0.temperature)° omkring kl. \($0.time)" } ?? "Ingen tydlig frostrisk i timprognosen", level: wetNearFreeze != nil ? "HALKRISK" : frost ? "FROSTRISK" : "LUGNT", tint: Color.cyan),
             WatchItem(id: "official", title: "SMHI:S VÄDERVARNINGAR", subtitle: "Gul · orange · röd varning", symbol: "exclamationmark.triangle.fill", active: false, detail: "Officiella SMHI-varningar hämtas när prognosen uppdateras.", level: "SMHI ANSLUTET", tint: Color.yellow)
         ]
     }
