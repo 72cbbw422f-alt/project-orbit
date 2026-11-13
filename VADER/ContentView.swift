@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var selectedTab: WeatherTab = .weather
     @State private var showingSevenDayForecast = false
     @State private var showingWeatherDetails = false
+    @State private var showingHourlyForecast = false
     @State private var showingPlaceSearch = false
     @StateObject private var weatherModel = WeatherViewModel()
 
@@ -35,6 +36,7 @@ struct ContentView: View {
                         refresh: { weatherModel.refresh() },
                         showSevenDayForecast: { showingSevenDayForecast = true },
                         showWeatherDetails: { showingWeatherDetails = true },
+                        showHourlyForecast: { showingHourlyForecast = true },
                         showPlaceSearch: { showingPlaceSearch = true }
                     )
                 case .radar: RPlaceholder(title: "Radar", subtitle: "Nederbördsradar", icon: "dot.radiowaves.left.and.right")
@@ -69,6 +71,13 @@ struct ContentView: View {
                 .presentationBackground(RTheme.bg)
                 .preferredColorScheme(.dark)
         }
+        .sheet(isPresented: $showingHourlyForecast) {
+            HourlyForecastDetail(hours: weatherModel.hours, place: weatherModel.snapshot?.place ?? "Din plats")
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(RTheme.bg)
+                .preferredColorScheme(.dark)
+        }
         .sheet(isPresented: $showingPlaceSearch) {
             PlaceSearchSheet(model: weatherModel)
                 .presentationDetents([.medium, .large])
@@ -90,6 +99,7 @@ private struct ReferenceWeatherHome: View {
     let refresh: () -> Void
     let showSevenDayForecast: () -> Void
     let showWeatherDetails: () -> Void
+    let showHourlyForecast: () -> Void
     let showPlaceSearch: () -> Void
     private let bars: [CGFloat] = [0.08,0.12,0.16,0.22,0.30,0.38,0.48,0.58,0.70,0.83,0.96,1.0,0.86,0.72,0.64,0.57,0.48,0.36,0.26,0.19,0.16,0.14,0.12,0.10]
     private var watchTitle: String {
@@ -629,28 +639,34 @@ private struct ReferenceWeatherHome: View {
     }
 
     private var hourlyCard: some View {
-        VStack(alignment:.leading,spacing:11) {
+        VStack(alignment: .leading, spacing: 11) {
             HStack {
-                Label("Kommande timmar",systemImage:"clock")
-                    .font(.system(size:14,weight:.bold)).foregroundStyle(.white)
+                Label("Kommande timmar", systemImage: "clock")
+                    .font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
                 Spacer()
-                Text("VISA MER  ›").font(.system(size:9,weight:.bold)).foregroundStyle(RTheme.cyan)
+                Button(action: showHourlyForecast) {
+                    HStack(spacing: 4) {
+                        Text("VISA MER")
+                        Image(systemName: "chevron.right")
+                    }
+                    .font(.system(size: 9, weight: .bold)).foregroundStyle(RTheme.cyan)
+                }.buttonStyle(.plain)
             }
-            HStack(spacing:0) {
-                if hours.isEmpty {
-                    Text("Timprognosen visas när väderdata har hämtats.")
-                        .font(.system(size: 9, weight: .medium)).foregroundStyle(RTheme.muted)
-                } else {
-                ForEach(hours) { hour in
-                    VStack(spacing:7) {
-                        Text(hour.time).font(.system(size:10,weight:.semibold)).foregroundStyle(.white)
-                        Image(systemName:hour.symbol).symbolRenderingMode(.palette)
-                            .foregroundStyle(Color(red:0.82,green:0.90,blue:1),RTheme.cyan)
-                            .font(.system(size:22)).frame(height:27)
-                        Text("\(hour.precipitationChance)%").font(.system(size:9,weight:.bold)).foregroundStyle(RTheme.cyan)
-                        Text("\(hour.temperature)°").font(.system(size:14,weight:.bold,design:.rounded)).foregroundStyle(.white)
-                    }.frame(maxWidth:.infinity)
-                }
+            if hours.isEmpty {
+                Text("Timprognosen visas när väderdata har hämtats.")
+                    .font(.system(size: 9, weight: .medium)).foregroundStyle(RTheme.muted)
+            } else {
+                HStack(spacing: 0) {
+                    ForEach(hours.prefix(8)) { hour in
+                        VStack(spacing: 7) {
+                            Text(hour.time).font(.system(size: 10, weight: .semibold)).foregroundStyle(.white)
+                            Image(systemName: hour.symbol).symbolRenderingMode(.palette)
+                                .foregroundStyle(Color(red: 0.82, green: 0.90, blue: 1), RTheme.cyan)
+                                .font(.system(size: 22)).frame(height: 27)
+                            Text("\(hour.precipitationChance)%").font(.system(size: 9, weight: .bold)).foregroundStyle(RTheme.cyan)
+                            Text("\(hour.temperature)°").font(.system(size: 14, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                        }.frame(maxWidth: .infinity)
+                    }
                 }
             }
         }.referencePanel()
@@ -764,13 +780,127 @@ private struct TodayWeatherDetails: View {
     }
 
     private func detailMetric(_ title:String,_ value:String,_ symbol:String) -> some View {
-        VStack(alignment:.leading,spacing:8) {
-            Image(systemName:symbol).font(.system(size:16,weight:.semibold)).foregroundStyle(RTheme.cyan)
-            Text(value).font(.system(size:20,weight:.bold,design:.rounded)).foregroundStyle(.white)
-            Text(title).font(.system(size:10,weight:.medium)).foregroundStyle(RTheme.muted)
-        }.frame(maxWidth:.infinity,alignment:.leading).padding(13)
-            .background(RTheme.panel,in:RoundedRectangle(cornerRadius:15))
-            .overlay(RoundedRectangle(cornerRadius:15).stroke(RTheme.line.opacity(0.7),lineWidth:1))
+        HStack(spacing: 10) {
+            Image(systemName: symbol).font(.system(size: 17, weight: .semibold)).foregroundStyle(RTheme.cyan)
+                .frame(width: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(value).font(.system(size: 17, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                Text(title).font(.system(size: 10, weight: .medium)).foregroundStyle(RTheme.muted)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
+        .padding(.horizontal, 11).padding(.vertical, 7)
+        .background(RTheme.panel, in: RoundedRectangle(cornerRadius: 13))
+        .overlay(RoundedRectangle(cornerRadius: 13).stroke(RTheme.line.opacity(0.7), lineWidth: 1))
+    }
+}
+ 
+private struct HourlyForecastDetail: View {
+    let hours: [HourForecast]
+    let place: String
+    @State private var selectedMetric = "Temperatur"
+
+    private let metrics = ["Temperatur", "Nederbörd", "Vind"]
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                RTheme.bg.ignoresSafeArea()
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(place).font(.system(size: 13, weight: .semibold)).foregroundStyle(RTheme.cyan)
+                            Text("Timprognos").font(.system(size: 24, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                            Text("48 timmar framåt • Prognos per timme")
+                                .font(.system(size: 11, weight: .medium)).foregroundStyle(RTheme.muted)
+                        }
+                        if hours.isEmpty {
+                            Text("Ingen timprognos tillgänglig just nu.")
+                                .font(.system(size: 12, weight: .medium)).foregroundStyle(RTheme.muted)
+                                .referencePanel()
+                        } else {
+                            Picker("Visa", selection: $selectedMetric) {
+                                ForEach(metrics, id: \.self) { Text($0).tag($0) }
+                            }
+                            .pickerStyle(.segmented)
+                            .tint(RTheme.cyan)
+
+                            metricChart
+
+                            Text("PROGNOS TIMME FÖR TIMME")
+                                .font(.system(size: 9, weight: .heavy)).tracking(1).foregroundStyle(RTheme.cyan)
+
+                            VStack(spacing: 0) {
+                                ForEach(Array(hours.prefix(48))) { hour in
+                                    HStack(spacing: 9) {
+                                        Text(hour.time).font(.system(size: 11, weight: .bold))
+                                            .foregroundStyle(.white).frame(width: 38, alignment: .leading)
+                                        Image(systemName: hour.symbol).font(.system(size: 19))
+                                            .symbolRenderingMode(.palette)
+                                            .foregroundStyle(Color(red: 0.82, green: 0.90, blue: 1), RTheme.cyan)
+                                            .frame(width: 27)
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text("\(hour.temperature)°  •  Regnrisk \(hour.precipitationChance)%")
+                                                .font(.system(size: 10, weight: .semibold)).foregroundStyle(.white)
+                                            Text(String(format: "%.1f mm nederbörd  •  Vind %.1f / by %.1f m/s", hour.precipitation, hour.wind, hour.gust))
+                                                .font(.system(size: 8, weight: .medium)).foregroundStyle(RTheme.muted)
+                                        }
+                                        Spacer(minLength: 0)
+                                    }
+                                    .padding(.vertical, 9).padding(.horizontal, 11)
+                                    if hour.id != hours.prefix(48).last?.id { Divider().overlay(RTheme.line) }
+                                }
+                            }.referencePanel()
+                        }
+                    }.padding(16)
+                }
+            }
+            .navigationTitle("Kommande timmar")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+        }.preferredColorScheme(.dark)
+    }
+
+    private var metricChart: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Text(selectedMetric.uppercased())
+                .font(.system(size: 9, weight: .heavy)).tracking(1).foregroundStyle(RTheme.muted)
+            GeometryReader { proxy in
+                let values = Array(hours.prefix(24)).map { hour -> Double in
+                    switch selectedMetric {
+                    case "Nederbörd": return hour.precipitation
+                    case "Vind": return hour.wind
+                    default: return Double(hour.temperature)
+                    }
+                }
+                let minimum = min(values.min() ?? 0, 0)
+                let maximum = max(values.max() ?? 1, minimum + 1)
+                HStack(alignment: .bottom, spacing: 3) {
+                    ForEach(Array(values.enumerated()), id: \.offset) { index, value in
+                        VStack {
+                            Spacer(minLength: 0)
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(RTheme.cyan.gradient)
+                                .frame(height: max(3, proxy.size.height * CGFloat((value - minimum) / (maximum - minimum))))
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+            }
+            .frame(height: 94)
+            HStack {
+                Text("Nu")
+                Spacer()
+                Text("+6 h")
+                Spacer()
+                Text("+12 h")
+                Spacer()
+                Text("+18 h")
+                Spacer()
+                Text("+24 h")
+            }.font(.system(size: 8, weight: .medium)).foregroundStyle(RTheme.muted)
+        }.referencePanel()
     }
 }
 
