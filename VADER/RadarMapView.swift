@@ -22,7 +22,7 @@ private enum SMHIRadarService {
             throw URLError(.badServerResponse)
         }
 
-        let pattern = #"RADAR_SWE_EPSG3006_QCOMP_(\\d{12})\\.png"#
+        let pattern = #"RADAR_SWE_EPSG3006_QCOMP_(\d{12})\.png"#
         let regex = try NSRegularExpression(pattern: pattern)
         let range = NSRange(html.startIndex..., in: html)
         let formatter = DateFormatter()
