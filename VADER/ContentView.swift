@@ -1194,43 +1194,65 @@ private struct HourlyForecastDetail: View {
     }
 
     private var metricChart: some View {
-        VStack(alignment: .leading, spacing: 9) {
+        let values = Array(hours.prefix(24)).map { hour -> Double in
+            switch selectedMetric {
+            case "Nederbörd": return hour.precipitation
+            case "Vind": return hour.wind
+            default: return Double(hour.temperature)
+            }
+        }
+        let rawMin = values.min() ?? 0
+        let rawMax = values.max() ?? 1
+        let padding = max((rawMax - rawMin) * 0.18, selectedMetric == "Temperatur" ? 1 : 0.5)
+        let minimum = selectedMetric == "Temperatur" ? rawMin - padding : 0
+        let maximum = max(rawMax + padding, minimum + 1)
+        let ticks = (0...4).map { maximum - (maximum - minimum) * Double($0) / 4 }
+        return VStack(alignment: .leading, spacing: 9) {
             Text(selectedMetric.uppercased())
                 .font(.system(size: 9, weight: .heavy)).tracking(1).foregroundStyle(RTheme.muted)
             GeometryReader { proxy in
-                let values = Array(hours.prefix(24)).map { hour -> Double in
-                    switch selectedMetric {
-                    case "Nederbörd": return hour.precipitation
-                    case "Vind": return hour.wind
-                    default: return Double(hour.temperature)
-                    }
-                }
-                let minimum = min(values.min() ?? 0, 0)
-                let maximum = max(values.max() ?? 1, minimum + 1)
-                HStack(alignment: .bottom, spacing: 3) {
-                    ForEach(Array(values.enumerated()), id: \.offset) { index, value in
-                        VStack {
-                            Spacer(minLength: 0)
-                            RoundedRectangle(cornerRadius: 3)
-                                .fill(RTheme.cyan.gradient)
-                                .frame(height: max(3, proxy.size.height * CGFloat((value - minimum) / (maximum - minimum))))
+                HStack(spacing: 7) {
+                    VStack(alignment: .trailing, spacing: 0) {
+                        ForEach(Array(ticks.enumerated()), id: \.offset) { _, tick in
+                            Text(String(format: selectedMetric == "Temperatur" ? "%.0f°" : "%.1f", tick))
+                                .font(.system(size: 8, weight: .medium, design: .rounded))
+                                .foregroundStyle(RTheme.muted)
+                            if tick != ticks.last { Spacer(minLength: 0) }
                         }
-                        .frame(maxWidth: .infinity)
+                    }.frame(width: 31)
+                    ZStack {
+                        VStack(spacing: 0) {
+                            ForEach(0..<5, id: \.self) { index in
+                                Rectangle().fill(RTheme.line.opacity(index == 4 ? 0.85 : 0.55))
+                                    .frame(height: 1)
+                                    .overlay(alignment: .leading) {
+                                        if index < 4 {
+                                            Rectangle().fill(RTheme.cyan.opacity(0.65))
+                                                .frame(width: 4, height: 1)
+                                        }
+                                    }
+                                if index < 4 { Spacer(minLength: 0) }
+                            }
+                        }
+                        HStack(alignment: .bottom, spacing: 3) {
+                            ForEach(Array(values.enumerated()), id: \.offset) { _, value in
+                                let ratio = min(1, max(0, (value - minimum) / (maximum - minimum)))
+                                VStack {
+                                    Spacer(minLength: 0)
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .fill(RTheme.cyan.gradient)
+                                        .frame(height: max(3, proxy.size.height * CGFloat(ratio)))
+                                }.frame(maxWidth: .infinity)
+                            }
+                        }.padding(.vertical, 1)
                     }
                 }
-            }
-            .frame(height: 94)
+            }.frame(height: 132)
             HStack {
-                Text("Nu")
-                Spacer()
-                Text("+6 h")
-                Spacer()
-                Text("+12 h")
-                Spacer()
-                Text("+18 h")
-                Spacer()
-                Text("+24 h")
+                Text("Nu"); Spacer(); Text("+6 h"); Spacer(); Text("+12 h"); Spacer(); Text("+18 h"); Spacer(); Text("+24 h")
             }.font(.system(size: 8, weight: .medium)).foregroundStyle(RTheme.muted)
+            Text("Referenslinjer visar jämn fördelning mellan prognosens lägsta och högsta värde.")
+                .font(.system(size: 8, weight: .medium)).foregroundStyle(RTheme.muted.opacity(0.8))
         }.referencePanel()
     }
 }
