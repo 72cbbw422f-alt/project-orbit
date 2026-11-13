@@ -43,6 +43,7 @@ struct ContentView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(RTheme.bg.ignoresSafeArea())
+        .statusBarHidden(true)
         .safeAreaInset(edge: .bottom, spacing: 0) { RTabBar(selection: $selectedTab) }
         .sheet(isPresented: $showingSevenDayForecast) {
             SevenDayForecastDetail(days: weatherModel.days, place: weatherModel.snapshot?.place ?? "Din plats")
