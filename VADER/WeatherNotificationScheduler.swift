@@ -37,7 +37,7 @@ enum WeatherNotificationScheduler {
                 settings.removePendingNotificationRequests(withIdentifiers: oldIDs)
 
                 let requests = events.compactMap { event -> UNNotificationRequest? in
-                    let fireDate = event.date.addingTimeInterval(-Double(max(0, defaults.integer(forKey: "Regnvakt.notifications.leadMinutes"))) * 60)
+                    let fireDate = event.date.addingTimeInterval(-Double(max(0, defaults.object(forKey: "Regnvakt.notifications.leadMinutes") == nil ? 30 : defaults.integer(forKey: "Regnvakt.notifications.leadMinutes"))) * 60)
                     guard fireDate > Date().addingTimeInterval(30),
                           !isQuietTime(fireDate, setting: defaults.string(forKey: "Regnvakt.notifications.quietHours") ?? "22–07") else { return nil }
                     let content = UNMutableNotificationContent()
