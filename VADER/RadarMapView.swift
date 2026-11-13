@@ -3,110 +3,40 @@ import MapLibre
 import Combine
 import UIKit
 
-private struct SMHIRadarFrame: Identifiable, Equatable {
-    let timestamp: Date
-    let url: URL
-    var id: Date { timestamp }
+private struct RadarFrame: Identifiable, Equatable {
+    let time: Date
+    let path: String
+    var id: TimeInterval { time.timeIntervalSince1970 }
 }
 
-private enum SMHIRadarService {
-    static let directory = URL(string: "https://data-download.smhi.se/data/meteorology/radar/")!
+private enum RadarService {
+    private struct Manifest: Decodable {
+        struct Radar: Decodable {
+            struct Frame: Decodable {
+                let time: TimeInterval
+                let path: String
+            }
+            let past: [Frame]
+        }
+        let host: String
+        let radar: Radar
+    }
 
-    static func loadFrames() async throws -> [SMHIRadarFrame] {
-        var request = URLRequest(url: directory)
+    static func loadFrames() async throws -> (String, [RadarFrame]) {
+        var request = URLRequest(url: URL(string: "https://api.rainviewer.com/public/weather-maps.json")!)
+        request.timeoutInterval = 15
         request.cachePolicy = .reloadIgnoringLocalCacheData
-        request.timeoutInterval = 20
+        request.setValue("Regnvakt iOS", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard (response as? HTTPURLResponse)?.statusCode == 200,
-              let html = String(data: data, encoding: .utf8) else {
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
             throw URLError(.badServerResponse)
         }
-
-        let pattern = #"RADAR_SWE_EPSG3006_QCOMP_(\d{12})\.png"#
-        let regex = try NSRegularExpression(pattern: pattern)
-        let range = NSRange(html.startIndex..., in: html)
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyyMMddHHmm"
-
-        var found: [SMHIRadarFrame] = []
-        for match in regex.matches(in: html, range: range) {
-            guard let matchRange = Range(match.range(at: 1), in: html) else { continue }
-            let stamp = String(html[matchRange])
-            guard let date = formatter.date(from: stamp) else { continue }
-            let name = "RADAR_SWE_EPSG3006_QCOMP_\(stamp).png"
-            found.append(SMHIRadarFrame(timestamp: date, url: directory.appendingPathComponent(name)))
-        }
-
-        let unique = Dictionary(grouping: found, by: { $0.timestamp })
-        let frames = unique.values.compactMap { $0.first }.sorted { $0.timestamp < $1.timestamp }
-        let recent = Array(frames.suffix(25))
-        guard !recent.isEmpty else { throw URLError(.cannotParseResponse) }
-        return recent
-    }
-
-    static func image(for frame: SMHIRadarFrame) async throws -> UIImage {
-        var request = URLRequest(url: frame.url)
-        request.cachePolicy = .reloadIgnoringLocalCacheData
-        request.timeoutInterval = 20
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard (response as? HTTPURLResponse)?.statusCode == 200,
-              let image = UIImage(data: data) else {
-            throw URLError(.cannotDecodeContentData)
-        }
-        return image
-    }
-}
-
-// SMHI QCOMP PNG coordinates are published in SWEREF 99 TM (EPSG:3006).
-private enum SWEREF99 {
-    static func toWGS84(easting: Double, northing: Double) -> CLLocationCoordinate2D {
-        let a = 6378137.0
-        let f = 1.0 / 298.257222101
-        let k0 = 0.9996
-        let e2 = f * (2 - f)
-        let n = f / (2 - f)
-        let A = a / (1 + n) * (1 + pow(n, 2) / 4 + pow(n, 4) / 64)
-        let beta1 = n / 2 - 2 * pow(n, 2) / 3 + 5 * pow(n, 3) / 16 + 41 * pow(n, 4) / 180
-        let beta2 = 13 * pow(n, 2) / 48 - 3 * pow(n, 3) / 5 + 557 * pow(n, 4) / 1440
-        let beta3 = 61 * pow(n, 3) / 240 - 103 * pow(n, 4) / 140
-        let beta4 = 49561 * pow(n, 4) / 161280
-        let xi = northing / (k0 * A)
-        let eta = (easting - 500000) / (k0 * A)
-        let xiPrime = xi - beta1 * sin(2 * xi) * cosh(2 * eta)
-            - beta2 * sin(4 * xi) * cosh(4 * eta)
-            - beta3 * sin(6 * xi) * cosh(6 * eta)
-            - beta4 * sin(8 * xi) * cosh(8 * eta)
-        let etaPrime = eta - beta1 * cos(2 * xi) * sinh(2 * eta)
-            - beta2 * cos(4 * xi) * sinh(4 * eta)
-            - beta3 * cos(6 * xi) * sinh(6 * eta)
-            - beta4 * cos(8 * xi) * sinh(8 * eta)
-        let sinhEta = sinh(etaPrime)
-        let tauPrime = sin(xiPrime) / sqrt(sinhEta * sinhEta + cos(xiPrime) * cos(xiPrime))
-        var tau = tauPrime
-        for _ in 0..<5 {
-            let tauE = tau * sqrt(e2)
-            let atanhTauE = 0.5 * (log(1 + tauE) - log(1 - tauE))
-            let sigma = sinh(atanhTauE)
-            let rootSigma = sqrt(1 + sigma * sigma)
-            let rootTau = sqrt(1 + tau * tau)
-            let next = tau * rootSigma - sigma * rootTau
-            if abs(next - tau) < 1e-13 { tau = next; break }
-            tau = next
-        }
-        let latitude = atan(tau)
-        let longitude = atan2(sinhEta, cos(xiPrime)) + 15.0 * .pi / 180.0
-        return CLLocationCoordinate2D(latitude: latitude * 180 / .pi, longitude: longitude * 180 / .pi)
-    }
-
-    static var imageCorners: [CLLocationCoordinate2D] {
-        let sw = toWGS84(easting: 126648, northing: 5983984)
-        let ne = toWGS84(easting: 1075693, northing: 7771252)
-        let nw = toWGS84(easting: 126648, northing: 7771252)
-        let se = toWGS84(easting: 1075693, northing: 5983984)
-        // MapLibre expects a counter-clockwise quadrilateral.
-        return [nw, sw, se, ne]
+        let manifest = try JSONDecoder().decode(Manifest.self, from: data)
+        let frames = manifest.radar.past.map {
+            RadarFrame(time: Date(timeIntervalSince1970: $0.time), path: $0.path)
+        }.sorted { $0.time < $1.time }
+        guard !frames.isEmpty else { throw URLError(.dataNotAllowed) }
+        return (manifest.host, frames)
     }
 }
 
@@ -114,9 +44,9 @@ struct RadarMapView: View {
     let coordinate: CLLocationCoordinate2D?
     let place: String
 
-    @State private var frames: [SMHIRadarFrame] = []
+    @State private var radarHost = "https://tilecache.rainviewer.com"
+    @State private var frames: [RadarFrame] = []
     @State private var selectedIndex = 0
-    @State private var selectedImage: UIImage?
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var lastUpdated: Date?
@@ -126,7 +56,7 @@ struct RadarMapView: View {
     @State private var typeDetail = "Modellbedömning vid vald plats"
     @State private var showTypeInfo = false
 
-    private let playback = Timer.publish(every: 0.8, on: .main, in: .common).autoconnect()
+    private let playback = Timer.publish(every: 0.75, on: .main, in: .common).autoconnect()
 
     private var mapCoordinate: CLLocationCoordinate2D {
         let value = coordinate ?? CLLocationCoordinate2D(latitude: 61.7274, longitude: 17.1058)
@@ -136,85 +66,105 @@ struct RadarMapView: View {
         )
     }
 
-    private var selectedFrame: SMHIRadarFrame? {
+    private var selectedFrame: RadarFrame? {
         frames.indices.contains(selectedIndex) ? frames[selectedIndex] : nil
+    }
+
+    private var radarTileURL: String? {
+        guard showRadar, let frame = selectedFrame else { return nil }
+        return "\(radarHost)\(frame.path)/512/{z}/{x}/{y}/2/1_1.png"
     }
 
     var body: some View {
         ZStack {
-            Color(red: 0.025, green: 0.045, blue: 0.075).ignoresSafeArea()
+            Color(red: 0.035, green: 0.055, blue: 0.085).ignoresSafeArea()
             VStack(spacing: 0) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("NEDERBÖRDSRADAR")
-                            .font(.system(size: 22, weight: .black, design: .rounded))
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("REGNVAKT")
+                            .font(.system(size: 13, weight: .heavy, design: .rounded))
+                            .tracking(2.2)
+                            .foregroundStyle(Color(red: 0.45, green: 0.83, blue: 1))
+                        Text("Nederbördsradar")
+                            .font(.system(size: 25, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
-                        Text(place.uppercased())
-                            .font(.system(size: 9, weight: .bold))
-                            .tracking(1)
-                            .foregroundStyle(.cyan)
+                        Text(place)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.68))
                     }
                     Spacer()
                     Button { showRadar.toggle() } label: {
                         Image(systemName: showRadar ? "cloud.rain.fill" : "cloud")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(showRadar ? .cyan : .white.opacity(0.65))
-                            .padding(10)
-                            .background(.white.opacity(0.08), in: Circle())
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(showRadar ? Color.cyan : .white.opacity(0.75))
+                            .frame(width: 44, height: 44)
+                            .background(Color.white.opacity(0.09), in: Circle())
                     }
-                    .accessibilityLabel(showRadar ? "Dölj SMHI-radar" : "Visa SMHI-radar")
+                    .accessibilityLabel(showRadar ? "Dölj radar" : "Visa radar")
                     Button { Task { await refreshRadar() } } label: {
                         Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(.cyan)
-                            .padding(10)
-                            .background(.white.opacity(0.08), in: Circle())
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 44, height: 44)
+                            .background(Color.white.opacity(0.09), in: Circle())
                     }
                     .accessibilityLabel("Uppdatera radarn")
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 18)
                 .padding(.top, 12)
-                .padding(.bottom, 10)
+                .padding(.bottom, 12)
 
-                RegnvaktMapView(coordinate: mapCoordinate, radarImage: showRadar ? selectedImage : nil)
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
-                    .padding(.horizontal, 10)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                VStack(spacing: 9) {
+                ZStack(alignment: .topLeading) {
+                    RegnvaktMapView(coordinate: mapCoordinate, radarTileURL: radarTileURL)
+                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     HStack(spacing: 7) {
-                        Circle().fill(frames.isEmpty ? .orange : .cyan).frame(width: 7, height: 7)
-                        Text(frames.isEmpty ? "RADAR" : "SMHI QCOMP • 5 MIN")
-                            .font(.system(size: 9, weight: .heavy))
-                            .tracking(0.8)
+                        Circle().fill(Color(red: 0.25, green: 0.88, blue: 0.96)).frame(width: 7, height: 7)
+                        Text("RADAR • RAINVIEWER")
+                            .font(.system(size: 10, weight: .heavy))
+                            .tracking(1)
                             .foregroundStyle(.white)
                         Spacer()
-                        Text("Källa: SMHI")
+                        Text("© OpenStreetMap")
                             .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.65))
+                            .foregroundStyle(.white.opacity(0.8))
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 9)
+                    .background(.black.opacity(0.48), in: Capsule())
+                    .padding(12)
+                }
+                .padding(.horizontal, 12)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                    HStack(spacing: 8) {
-                        Image(systemName: precipitationSymbol).foregroundStyle(.cyan)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(precipitationType).font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
-                            Text(typeDetail).font(.system(size: 8, weight: .medium)).foregroundStyle(.white.opacity(0.62))
+                VStack(spacing: 13) {
+                    HStack(spacing: 9) {
+                        Image(systemName: precipitationSymbol)
+                            .font(.system(size: 19, weight: .semibold))
+                            .foregroundStyle(Color(red: 0.45, green: 0.83, blue: 1))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(precipitationType)
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(.white)
+                            Text(typeDetail)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.62))
                         }
                         Spacer()
                         Button { showTypeInfo = true } label: {
-                            Image(systemName: "info.circle").foregroundStyle(.cyan)
+                            Image(systemName: "info.circle")
+                                .font(.system(size: 19))
+                                .foregroundStyle(Color.cyan)
                         }
-                        .accessibilityLabel("Information om nederbördstyp")
                     }
-                    .padding(9)
-                    .background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 10))
+                    .padding(12)
+                    .background(Color(red: 0.10, green: 0.15, blue: 0.21), in: RoundedRectangle(cornerRadius: 15))
 
                     if isLoading {
                         HStack(spacing: 8) {
                             ProgressView().tint(.cyan)
-                            Text("Hämtar SMHI-radar…")
+                            Text("Hämtar senaste radarobservationer…")
                                 .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.8))
+                                .foregroundStyle(.white.opacity(0.75))
                         }.frame(maxWidth: .infinity, alignment: .leading)
                     } else if let errorMessage {
                         Text(errorMessage)
@@ -224,60 +174,87 @@ struct RadarMapView: View {
                     }
 
                     if let selectedFrame {
-                        HStack {
-                            Text(selectedFrame.timestamp.formatted(date: .omitted, time: .shortened))
-                                .font(.system(size: 12, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white)
+                        HStack(alignment: .firstTextBaseline) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("VALD RADARTID")
+                                    .font(.system(size: 9, weight: .heavy))
+                                    .tracking(1)
+                                    .foregroundStyle(Color.cyan)
+                                Text(selectedFrame.time.formatted(date: .omitted, time: .shortened))
+                                    .font(.system(size: 24, weight: .bold, design: .rounded).monospacedDigit())
+                                    .foregroundStyle(.white)
+                            }
                             Spacer()
                             Text("SENASTE 2 TIMMARNA")
-                                .font(.system(size: 8, weight: .heavy))
-                                .tracking(0.7)
-                                .foregroundStyle(.cyan)
+                                .font(.system(size: 9, weight: .heavy))
+                                .tracking(0.8)
+                                .foregroundStyle(.white.opacity(0.58))
                         }
                         Slider(value: Binding(
                             get: { Double(selectedIndex) },
                             set: { selectedIndex = Int($0.rounded()) }
                         ), in: 0...Double(max(0, frames.count - 1)), step: 1)
-                        .tint(.cyan)
+                        .tint(Color(red: 0.27, green: 0.79, blue: 1))
                         .disabled(frames.count < 2)
-                        HStack(spacing: 14) {
-                            Button { selectedIndex = max(0, selectedIndex - 1) } label: { Image(systemName: "backward.end.fill") }
+                        HStack(spacing: 18) {
+                            Button { selectedIndex = max(0, selectedIndex - 1) } label: {
+                                Image(systemName: "backward.end.fill").font(.system(size: 17))
+                            }
                             Button { isPlaying.toggle() } label: {
                                 Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                                    .font(.system(size: 15, weight: .bold))
-                                    .frame(width: 40, height: 40)
-                                    .background(Color.cyan.opacity(0.18), in: Circle())
+                                    .font(.system(size: 18, weight: .bold))
+                                    .foregroundStyle(Color(red: 0.03, green: 0.09, blue: 0.14))
+                                    .frame(width: 48, height: 48)
+                                    .background(Color(red: 0.43, green: 0.84, blue: 1), in: Circle())
                             }
-                            Button { selectedIndex = min(frames.count - 1, selectedIndex + 1) } label: { Image(systemName: "forward.end.fill") }
+                            Button { selectedIndex = min(frames.count - 1, selectedIndex + 1) } label: {
+                                Image(systemName: "forward.end.fill").font(.system(size: 17))
+                            }
                             Spacer()
-                            if let lastUpdated {
-                                Text("Uppdaterad \(lastUpdated.formatted(date: .omitted, time: .shortened))")
-                                    .font(.system(size: 8, weight: .medium))
-                                    .foregroundStyle(.white.opacity(0.6))
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text("OBSERVATION")
+                                    .font(.system(size: 8, weight: .heavy))
+                                    .tracking(0.8)
+                                    .foregroundStyle(.white.opacity(0.45))
+                                Text(lastUpdated?.formatted(date: .omitted, time: .shortened) ?? "—")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(.white.opacity(0.72))
                             }
                         }
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(.cyan)
+                        .foregroundStyle(Color(red: 0.45, green: 0.83, blue: 1))
+                    } else {
+                        Text("Radarhistorik visas här när data har hämtats.")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.7))
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-
                     HStack {
-                        Text("OpenFreeMap • © OpenStreetMap")
+                        Text("Väderdata från RainViewer")
                         Spacer()
-                        Text("Observerad radar")
+                        Text("Karta © OpenStreetMap")
                     }
-                    .font(.system(size: 8, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.6))
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.52))
                 }
-                .padding(13)
-                .background(Color(red: 0.035, green: 0.095, blue: 0.145).opacity(0.94), in: RoundedRectangle(cornerRadius: 18))
-                .padding(10)
+                .padding(16)
+                .background(
+                    LinearGradient(colors: [
+                        Color(red: 0.075, green: 0.12, blue: 0.18),
+                        Color(red: 0.055, green: 0.09, blue: 0.14)
+                    ], startPoint: .topLeading, endPoint: .bottomTrailing),
+                    in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+                )
+                .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.white.opacity(0.07), lineWidth: 1))
+                .padding(12)
             }
         }
         .task {
             await refreshRadar()
             await refreshPrecipitationType()
         }
-        .onChange(of: selectedIndex) { _, _ in Task { await loadSelectedImage() } }
+        .onChange(of: selectedIndex) { _, _ in
+            if selectedFrame != nil { }
+        }
         .onReceive(playback) { _ in
             guard isPlaying, !frames.isEmpty else { return }
             selectedIndex = selectedIndex >= frames.count - 1 ? 0 : selectedIndex + 1
@@ -285,7 +262,7 @@ struct RadarMapView: View {
         .alert("Om nederbördstyp", isPresented: $showTypeInfo) {
             Button("Stäng", role: .cancel) {}
         } message: {
-            Text("SMHI-radarn visar nederbördsintensitet. Typen vid din valda plats hämtas separat från en vädermodell och är en bedömning – inte en direkt klassificering av varje radar-pixel.")
+            Text("Radarbilden visar observerad nederbörd från RainViewer. Nederbördstypen vid din valda plats hämtas separat från en vädermodell och är en bedömning – inte en direkt klassificering av varje radar-pixel.")
         }
     }
 
@@ -304,24 +281,15 @@ struct RadarMapView: View {
         isPlaying = false
         errorMessage = nil
         do {
-            frames = try await SMHIRadarService.loadFrames()
+            let result = try await RadarService.loadFrames()
+            radarHost = result.0
+            frames = result.1
             selectedIndex = frames.count - 1
-            await loadSelectedImage()
             lastUpdated = Date()
         } catch {
-            errorMessage = "SMHI:s radarbilder kunde inte hämtas just nu."
+            errorMessage = "Radarleverantören kunde inte nås. Försök igen om en stund."
         }
         isLoading = false
-    }
-
-    @MainActor
-    private func loadSelectedImage() async {
-        guard let frame = selectedFrame else { return }
-        do {
-            selectedImage = try await SMHIRadarService.image(for: frame)
-        } catch {
-            errorMessage = "Kunde inte läsa vald radartid från SMHI."
-        }
     }
 
     @MainActor
@@ -363,8 +331,8 @@ struct RadarMapView: View {
 
 private struct RegnvaktMapView: UIViewRepresentable {
     let coordinate: CLLocationCoordinate2D
-    let radarImage: UIImage?
-    private let styleURL = URL(string: "https://tiles.openfreemap.org/styles/bright")!
+    let radarTileURL: String?
+    private let styleURL = URL(string: "https://tiles.openfreemap.org/styles/fiord")!
 
     func makeUIView(context: Context) -> MLNMapView {
         let map = MLNMapView(frame: .zero, styleURL: styleURL)
@@ -375,19 +343,21 @@ private struct RegnvaktMapView: UIViewRepresentable {
         map.showsUserLocation = false
         map.allowsRotating = false
         map.allowsTilting = false
-        map.setCenter(coordinate, zoomLevel: 8.5, animated: false)
-        context.coordinator.latestImage = radarImage
+        map.minimumZoomLevel = 3
+        map.maximumZoomLevel = 12
+        map.setCenter(coordinate, zoomLevel: 7.0, animated: false)
+        context.coordinator.latestTileURL = radarTileURL
         return map
     }
 
     func updateUIView(_ map: MLNMapView, context: Context) {
-        context.coordinator.latestImage = radarImage
+        context.coordinator.latestTileURL = radarTileURL
         context.coordinator.applyRadarIfReady()
         let previous = context.coordinator.lastCoordinate
         if previous == nil || abs(previous!.latitude - coordinate.latitude) > 0.001 ||
             abs(previous!.longitude - coordinate.longitude) > 0.001 {
             context.coordinator.lastCoordinate = coordinate
-            map.setCenter(coordinate, zoomLevel: max(map.zoomLevel, 8.5), animated: true)
+            map.setCenter(coordinate, zoomLevel: min(max(map.zoomLevel, 7.0), 12), animated: true)
         }
     }
 
@@ -395,41 +365,38 @@ private struct RegnvaktMapView: UIViewRepresentable {
 
     final class Coordinator: NSObject, MLNMapViewDelegate {
         weak var mapView: MLNMapView?
-        var latestImage: UIImage?
+        var latestTileURL: String?
         var lastCoordinate: CLLocationCoordinate2D?
         private var styleReady = false
-        private var lastImageIdentity: ObjectIdentifier?
+        private var appliedURL: String?
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             self.mapView = mapView
             styleReady = true
+            appliedURL = nil
             applyRadarIfReady()
         }
 
         func applyRadarIfReady() {
             guard styleReady, let style = mapView?.style else { return }
-            if let existingLayer = style.layer(withIdentifier: "regnvakt-smhi-radar") {
-                style.removeLayer(existingLayer)
+            guard appliedURL != latestTileURL else { return }
+            if let layer = style.layer(withIdentifier: "regnvakt-radar-layer") {
+                style.removeLayer(layer)
             }
-            if let existingSource = style.source(withIdentifier: "regnvakt-smhi-source") {
-                style.removeSource(existingSource)
+            if let source = style.source(withIdentifier: "regnvakt-radar-source") {
+                style.removeSource(source)
             }
-            guard let image = latestImage else {
-                lastImageIdentity = nil
-                return
-            }
-            let quad = MLNCoordinateQuad(
-                topLeft: SWEREF99.imageCorners[0],
-                bottomLeft: SWEREF99.imageCorners[1],
-                bottomRight: SWEREF99.imageCorners[2],
-                topRight: SWEREF99.imageCorners[3]
+            appliedURL = latestTileURL
+            guard let template = latestTileURL else { return }
+            let source = MLNRasterTileSource(
+                identifier: "regnvakt-radar-source",
+                tileURLTemplates: [template],
+                options: nil
             )
-            let source = MLNImageSource(identifier: "regnvakt-smhi-source", coordinateQuad: quad, image: image)
-            let layer = MLNRasterStyleLayer(identifier: "regnvakt-smhi-radar", source: source)
+            let layer = MLNRasterStyleLayer(identifier: "regnvakt-radar-layer", source: source)
             layer.rasterOpacity = NSExpression(forConstantValue: 0.82)
             style.addSource(source)
             style.addLayer(layer)
-            lastImageIdentity = ObjectIdentifier(image)
         }
     }
 }
