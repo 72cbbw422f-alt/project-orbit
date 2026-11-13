@@ -1,5 +1,5 @@
 import SwiftUI
-import MapKit
+import MapLibre
 import Combine
 import UIKit
 
@@ -32,15 +32,18 @@ private enum SMHIRadarService {
 
         var found: [SMHIRadarFrame] = []
         for match in regex.matches(in: html, range: range) {
-            guard let r = Range(match.range(at: 1), in: html) else { continue }
-            let stamp = String(html[r])
+            guard let matchRange = Range(match.range(at: 1), in: html) else { continue }
+            let stamp = String(html[matchRange])
             guard let date = formatter.date(from: stamp) else { continue }
-            let name = "RADAR_SWE_EPSG3006_QCOMP_\\(stamp).png"
+            let name = "RADAR_SWE_EPSG3006_QCOMP_\(stamp).png"
             found.append(SMHIRadarFrame(timestamp: date, url: directory.appendingPathComponent(name)))
         }
-        let frames = Array(Dictionary(grouping: found, by: \\.timestamp).compactMap { $0.value.first }.sorted { $0.timestamp < $1.timestamp }.suffix(25))
-        guard !frames.isEmpty else { throw URLError(.cannotParseResponse) }
-        return frames
+
+        let unique = Dictionary(grouping: found, by: { $0.timestamp })
+        let frames = unique.values.compactMap { $0.first }.sorted { $0.timestamp < $1.timestamp }
+        let recent = Array(frames.suffix(25))
+        guard !recent.isEmpty else { throw URLError(.cannotParseResponse) }
+        return recent
     }
 
     static func image(for frame: SMHIRadarFrame) async throws -> UIImage {
@@ -49,20 +52,20 @@ private enum SMHIRadarService {
         request.timeoutInterval = 20
         let (data, response) = try await URLSession.shared.data(for: request)
         guard (response as? HTTPURLResponse)?.statusCode == 200,
-              let image = UIImage(data: data) else { throw URLError(.cannotDecodeContentData) }
+              let image = UIImage(data: data) else {
+            throw URLError(.cannotDecodeContentData)
+        }
         return image
     }
 }
 
-// SMHI's PNG is georeferenced in SWEREF 99 TM (EPSG:3006).
-// Convert the published image bounds to WGS84 for MapKit placement.
+// SMHI QCOMP PNG coordinates are published in SWEREF 99 TM (EPSG:3006).
 private enum SWEREF99 {
     static func toWGS84(easting: Double, northing: Double) -> CLLocationCoordinate2D {
         let a = 6378137.0
         let f = 1.0 / 298.257222101
         let k0 = 0.9996
         let e2 = f * (2 - f)
-        let ep2 = e2 / (1 - e2)
         let n = f / (2 - f)
         let A = a / (1 + n) * (1 + pow(n, 2) / 4 + pow(n, 4) / 64)
         let beta1 = n / 2 - 2 * pow(n, 2) / 3 + 5 * pow(n, 3) / 16 + 41 * pow(n, 4) / 180
@@ -83,61 +86,23 @@ private enum SWEREF99 {
         let tauPrime = sin(xiPrime) / sqrt(sinhEta * sinhEta + cos(xiPrime) * cos(xiPrime))
         var tau = tauPrime
         for _ in 0..<5 {
-            let sigma = sinh(eccentricityAtanh(tau * sqrt(e2)))
-            let tauNew = tau * sqrt(1 + sigma * sigma) - sigma * sqrt(1 + tau * tau)
-            if abs(tauNew - tau) < 1e-13 { tau = tauNew; break }
-            tau = tauNew
+            let sigma = sinh(0.5 * log((1 + tau * sqrt(e2)) / (1 - tau * sqrt(e2))))
+            let next = tau * sqrt(1 + sigma * sigma) - sigma * sqrt(1 + tau * tau)
+            if abs(next - tau) < 1e-13 { tau = next; break }
+            tau = next
         }
         let latitude = atan(tau)
         let longitude = atan2(sinhEta, cos(xiPrime)) + 15.0 * .pi / 180.0
         return CLLocationCoordinate2D(latitude: latitude * 180 / .pi, longitude: longitude * 180 / .pi)
     }
 
-    private static func eccentricityAtanh(_ value: Double) -> Double {
-        0.5 * log((1 + value) / (1 - value))
-    }
-}
-
-private final class SMHIRasterOverlay: NSObject, MKOverlay {
-    let coordinate: CLLocationCoordinate2D
-    let boundingMapRect: MKMapRect
-    let image: UIImage
-
-    init(image: UIImage) {
-        self.image = image
-        let lowerLeft = SWEREF99.toWGS84(easting: 126648, northing: 5983984)
-        let upperRight = SWEREF99.toWGS84(easting: 1075693, northing: 7771252)
-        let corners = [
-            MKMapPoint(lowerLeft),
-            MKMapPoint(upperRight),
-            MKMapPoint(SWEREF99.toWGS84(easting: 126648, northing: 7771252)),
-            MKMapPoint(SWEREF99.toWGS84(easting: 1075693, northing: 5983984))
-        ]
-        let minX = corners.map(\\.x).min() ?? 0
-        let maxX = corners.map(\\.x).max() ?? 0
-        let minY = corners.map(\\.y).min() ?? 0
-        let maxY = corners.map(\\.y).max() ?? 0
-        boundingMapRect = MKMapRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
-        coordinate = CLLocationCoordinate2D(latitude: (lowerLeft.latitude + upperRight.latitude) / 2,
-                                             longitude: (lowerLeft.longitude + upperRight.longitude) / 2)
-        super.init()
-    }
-}
-
-private final class SMHIRasterRenderer: MKOverlayRenderer {
-    private let raster: SMHIRasterOverlay
-    init(overlay: SMHIRasterOverlay) {
-        raster = overlay
-        super.init(overlay: overlay)
-    }
-    override func draw(_ mapRect: MKMapRect, zoomScale: MKZoomScale, in context: CGContext) {
-        let rect = self.rect(for: raster.boundingMapRect)
-        guard rect.intersects(self.rect(for: mapRect)), let cgImage = raster.image.cgImage else { return }
-        context.saveGState()
-        context.interpolationQuality = .high
-        context.setAlpha(0.88)
-        context.draw(cgImage, in: rect)
-        context.restoreGState()
+    static var imageCorners: [CLLocationCoordinate2D] {
+        let sw = toWGS84(easting: 126648, northing: 5983984)
+        let ne = toWGS84(easting: 1075693, northing: 7771252)
+        let nw = toWGS84(easting: 126648, northing: 7771252)
+        let se = toWGS84(easting: 1075693, northing: 5983984)
+        // MapLibre expects a counter-clockwise quadrilateral.
+        return [nw, sw, se, ne]
     }
 }
 
@@ -147,11 +112,12 @@ struct RadarMapView: View {
 
     @State private var frames: [SMHIRadarFrame] = []
     @State private var selectedIndex = 0
+    @State private var selectedImage: UIImage?
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var lastUpdated: Date?
     @State private var isPlaying = false
-    @State private var mapView: MKMapView?
+    @State private var showRadar = true
     @State private var precipitationType = "Hämtar nederbördstyp…"
     @State private var typeDetail = "Modellbedömning vid vald plats"
     @State private var showTypeInfo = false
@@ -185,9 +151,17 @@ struct RadarMapView: View {
                             .foregroundStyle(.cyan)
                     }
                     Spacer()
+                    Button { showRadar.toggle() } label: {
+                        Image(systemName: showRadar ? "cloud.rain.fill" : "cloud")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(showRadar ? .cyan : .white.opacity(0.65))
+                            .padding(10)
+                            .background(.white.opacity(0.08), in: Circle())
+                    }
+                    .accessibilityLabel(showRadar ? "Dölj SMHI-radar" : "Visa SMHI-radar")
                     Button { Task { await refreshRadar() } } label: {
                         Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 16, weight: .bold))
+                            .font(.system(size: 15, weight: .bold))
                             .foregroundStyle(.cyan)
                             .padding(10)
                             .background(.white.opacity(0.08), in: Circle())
@@ -198,7 +172,7 @@ struct RadarMapView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 10)
 
-                SMHIMapView(coordinate: mapCoordinate, image: selectedImage)
+                RegnvaktMapView(coordinate: mapCoordinate, radarImage: showRadar ? selectedImage : nil)
                     .clipShape(RoundedRectangle(cornerRadius: 18))
                     .padding(.horizontal, 10)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -217,20 +191,14 @@ struct RadarMapView: View {
                     }
 
                     HStack(spacing: 8) {
-                        Image(systemName: precipitationSymbol)
-                            .foregroundStyle(.cyan)
+                        Image(systemName: precipitationSymbol).foregroundStyle(.cyan)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(precipitationType)
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(.white)
-                            Text(typeDetail)
-                                .font(.system(size: 8, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.62))
+                            Text(precipitationType).font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
+                            Text(typeDetail).font(.system(size: 8, weight: .medium)).foregroundStyle(.white.opacity(0.62))
                         }
                         Spacer()
                         Button { showTypeInfo = true } label: {
-                            Image(systemName: "info.circle")
-                                .foregroundStyle(.cyan)
+                            Image(systemName: "info.circle").foregroundStyle(.cyan)
                         }
                         .accessibilityLabel("Information om nederbördstyp")
                     }
@@ -269,18 +237,14 @@ struct RadarMapView: View {
                         .tint(.cyan)
                         .disabled(frames.count < 2)
                         HStack(spacing: 14) {
-                            Button { selectedIndex = max(0, selectedIndex - 1) } label: {
-                                Image(systemName: "backward.end.fill")
-                            }
+                            Button { selectedIndex = max(0, selectedIndex - 1) } label: { Image(systemName: "backward.end.fill") }
                             Button { isPlaying.toggle() } label: {
                                 Image(systemName: isPlaying ? "pause.fill" : "play.fill")
                                     .font(.system(size: 15, weight: .bold))
                                     .frame(width: 40, height: 40)
                                     .background(Color.cyan.opacity(0.18), in: Circle())
                             }
-                            Button { selectedIndex = min(frames.count - 1, selectedIndex + 1) } label: {
-                                Image(systemName: "forward.end.fill")
-                            }
+                            Button { selectedIndex = min(frames.count - 1, selectedIndex + 1) } label: { Image(systemName: "forward.end.fill") }
                             Spacer()
                             if let lastUpdated {
                                 Text("Uppdaterad \(lastUpdated.formatted(date: .omitted, time: .shortened))")
@@ -293,7 +257,7 @@ struct RadarMapView: View {
                     }
 
                     HStack {
-                        Text("SMHI • SWEREF 99 TM")
+                        Text("OpenFreeMap • © OpenStreetMap")
                         Spacer()
                         Text("Observerad radar")
                     }
@@ -309,9 +273,7 @@ struct RadarMapView: View {
             await refreshRadar()
             await refreshPrecipitationType()
         }
-        .onChange(of: selectedIndex) { _, _ in
-            Task { await loadSelectedImage() }
-        }
+        .onChange(of: selectedIndex) { _, _ in Task { await loadSelectedImage() } }
         .onReceive(playback) { _ in
             guard isPlaying, !frames.isEmpty else { return }
             selectedIndex = selectedIndex >= frames.count - 1 ? 0 : selectedIndex + 1
@@ -319,11 +281,9 @@ struct RadarMapView: View {
         .alert("Om nederbördstyp", isPresented: $showTypeInfo) {
             Button("Stäng", role: .cancel) {}
         } message: {
-            Text("Radarkartan från SMHI visar nederbördsintensitet. Typen vid din valda plats hämtas separat från en vädermodell och är en bedömning – inte en direkt klassificering av varje radar-pixel.")
+            Text("SMHI-radarn visar nederbördsintensitet. Typen vid din valda plats hämtas separat från en vädermodell och är en bedömning – inte en direkt klassificering av varje radar-pixel.")
         }
     }
-
-    @State private var selectedImage: UIImage?
 
     private var precipitationSymbol: String {
         let text = precipitationType.lowercased()
@@ -397,48 +357,75 @@ struct RadarMapView: View {
     }
 }
 
-private struct SMHIMapView: UIViewRepresentable {
+private struct RegnvaktMapView: UIViewRepresentable {
     let coordinate: CLLocationCoordinate2D
-    let image: UIImage?
+    let radarImage: UIImage?
+    private let styleURL = URL(string: "https://tiles.openfreemap.org/styles/dark")!
 
-    func makeUIView(context: Context) -> MKMapView {
-        let map = MKMapView(frame: .zero)
+    func makeUIView(context: Context) -> MLNMapView {
+        let map = MLNMapView(frame: .zero, styleURL: styleURL)
         map.delegate = context.coordinator
-        map.mapType = .mutedStandard
-        map.overrideUserInterfaceStyle = .dark
-        map.showsCompass = true
-        map.showsScale = true
-        map.pointOfInterestFilter = .excludingAll
-        map.isRotateEnabled = false
-        map.isPitchEnabled = false
-        map.setRegion(MKCoordinateRegion(center: coordinate,
-            span: MKCoordinateSpan(latitudeDelta: 1.2, longitudeDelta: 1.2)), animated: false)
+        map.logoView.isHidden = false
+        map.attributionButton.isHidden = false
+        map.compassView.isHidden = false
+        map.showsUserLocation = false
+        map.allowsRotating = false
+        map.allowsTilting = false
+        map.setCenter(coordinate, zoomLevel: 8.5, animated: false)
+        context.coordinator.latestImage = radarImage
         return map
     }
 
-    func updateUIView(_ map: MKMapView, context: Context) {
-        if context.coordinator.lastImage !== image {
-            context.coordinator.lastImage = image
-            map.removeOverlays(map.overlays.filter { $0 is SMHIRasterOverlay })
-            if let image { map.addOverlay(SMHIRasterOverlay(image: image), level: .aboveLabels) }
-        }
-        let old = context.coordinator.lastCoordinate
-        if old == nil || abs(old!.latitude - coordinate.latitude) > 0.001 ||
-            abs(old!.longitude - coordinate.longitude) > 0.001 {
+    func updateUIView(_ map: MLNMapView, context: Context) {
+        context.coordinator.latestImage = radarImage
+        context.coordinator.applyRadarIfReady()
+        let previous = context.coordinator.lastCoordinate
+        if previous == nil || abs(previous!.latitude - coordinate.latitude) > 0.001 ||
+            abs(previous!.longitude - coordinate.longitude) > 0.001 {
             context.coordinator.lastCoordinate = coordinate
-            map.setRegion(MKCoordinateRegion(center: coordinate,
-                span: MKCoordinateSpan(latitudeDelta: 1.2, longitudeDelta: 1.2)), animated: false)
+            map.setCenter(coordinate, zoomLevel: max(map.zoomLevel, 8.5), animated: true)
         }
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    final class Coordinator: NSObject, MKMapViewDelegate {
-        var lastImage: UIImage?
+    final class Coordinator: NSObject, MLNMapViewDelegate {
+        weak var mapView: MLNMapView?
+        var latestImage: UIImage?
         var lastCoordinate: CLLocationCoordinate2D?
-        func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
-            if let raster = overlay as? SMHIRasterOverlay { return SMHIRasterRenderer(overlay: raster) }
-            return MKOverlayRenderer(overlay: overlay)
+        private var styleReady = false
+        private var lastImageIdentity: ObjectIdentifier?
+
+        func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
+            self.mapView = mapView
+            styleReady = true
+            applyRadarIfReady()
+        }
+
+        func applyRadarIfReady() {
+            guard styleReady, let style = mapView?.style else { return }
+            if let existingLayer = style.layer(withIdentifier: "regnvakt-smhi-radar") {
+                style.removeLayer(existingLayer)
+            }
+            if let existingSource = style.source(withIdentifier: "regnvakt-smhi-source") {
+                style.removeSource(existingSource)
+            }
+            guard let image = latestImage else {
+                lastImageIdentity = nil
+                return
+            }
+            let quad = MLNCoordinateQuad(
+                topLeft: SWEREF99.imageCorners[0],
+                topRight: SWEREF99.imageCorners[3],
+                bottomRight: SWEREF99.imageCorners[2],
+                bottomLeft: SWEREF99.imageCorners[1]
+            )
+            let source = MLNImageSource(identifier: "regnvakt-smhi-source", coordinateQuad: quad, image: image)
+            let layer = MLNRasterStyleLayer(identifier: "regnvakt-smhi-radar", source: source)
+            layer.rasterOpacity = NSExpression(forConstantValue: 0.82)
+            style.addSource(source)
+            style.addLayer(layer)
+            lastImageIdentity = ObjectIdentifier(image)
         }
     }
 }
