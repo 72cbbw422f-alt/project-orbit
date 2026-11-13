@@ -23,12 +23,11 @@ jobs:
           xcode-select -p
 
       - name: Install XcodeGen
-        run: brew install xcodegen
+        run: brew install xcodegen librsvg
 
-      - name: Normalize app icon to Apple 1024px size
+      - name: Render verified Regnvakt app icon
         run: |
-          sips -z 1024 1024 VADER/Assets.xcassets/AppIcon.appiconset/AppIcon.png --out /tmp/Regnvakt-AppIcon.png
-          cp /tmp/Regnvakt-AppIcon.png VADER/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+          rsvg-convert -w 1024 -h 1024 VADER/Assets.xcassets/AppIcon.appiconset/AppIcon.svg -o VADER/Assets.xcassets/AppIcon.appiconset/AppIcon.png
           sips -g pixelWidth -g pixelHeight VADER/Assets.xcassets/AppIcon.appiconset/AppIcon.png
 
       - name: Generate Xcode project
