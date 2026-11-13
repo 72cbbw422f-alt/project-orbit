@@ -97,7 +97,7 @@ enum SMHIWarningService {
         do {
             let current = try await warnings(at: coordinate)
             defaults.set(!current.isEmpty, forKey: "Regnvakt.smhi.active")
-            let summary = current.prefix(3).map { "\\($0.title) – \\($0.area)" }.joined(separator: " • ")
+            let summary = current.prefix(3).map { warning in "\(warning.title) – \(warning.area)" }.joined(separator: " • ")
             defaults.set(current.isEmpty ? "Inga aktiva SMHI-varningar för vald position" : summary, forKey: "Regnvakt.smhi.summary")
             defaults.set(current.first?.level.uppercased() ?? "", forKey: "Regnvakt.smhi.level")
             defaults.set(ISO8601DateFormatter().string(from: Date()), forKey: "Regnvakt.smhi.updated")
