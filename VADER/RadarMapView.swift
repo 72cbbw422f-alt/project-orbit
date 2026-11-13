@@ -72,7 +72,7 @@ private enum RadarService {
         return recent
     }
 
-    private static func loadRainViewerFrames() async throws -> (String, [RadarFrame]) {
+    static func loadRainViewerFrames() async throws -> (String, [RadarFrame]) {
         let url = URL(string: "https://api.rainviewer.com/public/weather-maps.json")!
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
@@ -397,7 +397,7 @@ struct RadarMapView: View {
             selectedImage = nil
             errorMessage = "SMHI-bilden kunde inte hämtas. Försöker använda reservradarn."
             do {
-                let (host, fallback) = try await RadarService.loadRainViewerFramesForFallback()
+                let (host, fallback) = try await RadarService.loadRainViewerFrames()
                 radarHost = host
                 provider = .rainViewer
                 frames = fallback
