@@ -52,13 +52,13 @@ enum WeatherNotificationScheduler {
             let recentTemperature = temperatureAge >= 0 && temperatureAge <= 2 * 60 * 60
                 ? defaults.object(forKey: currentTemperatureKey) as? Int
                 : nil
-            Task { await schedule(place: place, hours: hours, currentTemperature: recentTemperature, token: token) }
+            Task { await schedule(place: place, hours: hours, currentTemperature: recentTemperature, token: token, locationID: defaults.string(forKey: locationKey) ?? "unknown") }
         } else {
             // Reconcile even without a cached forecast so turning a watch off
             // cannot leave stale pending notifications armed.
             let token = UUID().uuidString
             defaults.set(token, forKey: scheduleTokenKey)
-            Task { await schedule(place: "vald plats", hours: [], currentTemperature: nil, token: token) }
+            Task { await schedule(place: "vald plats", hours: [], currentTemperature: nil, token: token, locationID: defaults.string(forKey: locationKey) ?? "unknown") }
         }
     }
 
