@@ -29,6 +29,14 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
     @Published var isSearchingPlaces = false
     @Published private(set) var savedPlaces: [SavedWeatherPlace] = []
     private let savedPlacesKey = "Regnvakt.savedPlaces.v1"
+    private let cachedForecastKey = "Regnvakt.cachedForecast.v1"
+
+    private struct CachedForecast: Codable {
+        let snapshot: WeatherSnapshot
+        let days: [DayForecast]
+        let hours: [HourForecast]
+        let savedAt: Date
+    }
     private let manager = CLLocationManager()
     private let geocoder = CLGeocoder()
     private var lastFetch: Date?
@@ -38,6 +46,14 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
         if let data = UserDefaults.standard.data(forKey: savedPlacesKey),
            let places = try? JSONDecoder().decode([SavedWeatherPlace].self, from: data) {
             savedPlaces = places
+        }
+        if let data = UserDefaults.standard.data(forKey: cachedForecastKey),
+           let cached = try? JSONDecoder().decode(CachedForecast.self, from: data) {
+            snapshot = cached.snapshot
+            days = cached.days
+            hours = cached.hours
+            lastUpdated = cached.savedAt
+            status = "Senast visade prognos • uppdaterar…"
         }
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyKilometer
@@ -190,8 +206,16 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
         Task {
             do {
                 let result = try await OpenMeteoService.fetch(latitude: latitude, longitude: longitude)
-                snapshot = result.current.replacingPlace(placeName)
-                lastUpdated = Date()
+                let updatedSnapshot = result.current.replacingPlace(placeName)
+                let updateTime = Date()
+                // Persist the last complete forecast so launch never starts in demo mode
+                // and then visibly replaces the entire home screen when live data arrives.
+                let cached = CachedForecast(snapshot: updatedSnapshot, days: result.days, hours: result.hours, savedAt: updateTime)
+                if let data = try? JSONEncoder().encode(cached) {
+                    UserDefaults.standard.set(data, forKey: cachedForecastKey)
+                }
+                snapshot = updatedSnapshot
+                lastUpdated = updateTime
                 days = result.days
                 hours = result.hours
                 WeatherNotificationScheduler.refresh(place: placeName, hours: result.hours)
