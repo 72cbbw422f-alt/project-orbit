@@ -8,6 +8,9 @@ enum WeatherNotificationScheduler {
     private static let forecastKey = "Regnvakt.notifications.lastForecast.v1"
     private static let placeKey = "Regnvakt.notifications.lastPlace.v1"
     private static let currentFrostAlertDayKey = "Regnvakt.notifications.currentFrostAlertDay.v1"
+    private static let scheduleStatusKey = "Regnvakt.notifications.scheduleStatus.v1"
+    private static let scheduledCountKey = "Regnvakt.notifications.scheduledCount.v1"
+    private static let scheduleUpdatedKey = "Regnvakt.notifications.scheduleUpdated.v1"
 
     private struct Event {
         let type: String
@@ -29,7 +32,11 @@ enum WeatherNotificationScheduler {
         let defaults = UserDefaults.standard
         guard let data = defaults.data(forKey: forecastKey),
               let hours = try? JSONDecoder().decode([HourForecast].self, from: data),
-              let place = defaults.string(forKey: placeKey) else { return }
+              let place = defaults.string(forKey: placeKey) else {
+            defaults.set("Väntar på en aktuell prognos", forKey: scheduleStatusKey)
+            defaults.set(0, forKey: scheduledCountKey)
+            return
+        }
         Task { await schedule(place: place, hours: hours, currentTemperature: nil) }
     }
 
@@ -42,18 +49,33 @@ enum WeatherNotificationScheduler {
 
     private static func schedule(place: String, hours: [HourForecast], currentTemperature: Int?) async {
         let defaults = UserDefaults.standard
-        guard defaults.object(forKey: "Regnvakt.notifications.enabled") as? Bool ?? true else {
-            removeAll()
+        let center = UNUserNotificationCenter.current()
+        let globallyEnabled = defaults.object(forKey: "Regnvakt.notifications.enabled") as? Bool ?? true
+        guard globallyEnabled else {
+            let pending = await center.pendingNotificationRequests()
+            let staleIDs = pending.map(\.identifier).filter { $0.hasPrefix(prefix) }
+            center.removePendingNotificationRequests(withIdentifiers: staleIDs)
+            defaults.set("Aviseringar avstängda i Regnvakt", forKey: scheduleStatusKey)
+            defaults.set(0, forKey: scheduledCountKey)
+            defaults.set(Date(), forKey: scheduleUpdatedKey)
             return
         }
 
-        let center = UNUserNotificationCenter.current()
         let authorization = await center.notificationSettings()
-        guard authorization.authorizationStatus == .authorized ||
-              authorization.authorizationStatus == .provisional ||
-              authorization.authorizationStatus == .ephemeral else {
-            // Do not silently pretend that alerts are armed. The settings screen
-            // reports the actual permission state and offers the system prompt.
+        let allowed = authorization.authorizationStatus == .authorized ||
+            authorization.authorizationStatus == .provisional ||
+            authorization.authorizationStatus == .ephemeral
+        guard allowed else {
+            // Remove previously armed weather alerts immediately if permission was revoked.
+            let pending = await center.pendingNotificationRequests()
+            let staleIDs = pending.map(\.identifier).filter { $0.hasPrefix(prefix) }
+            center.removePendingNotificationRequests(withIdentifiers: staleIDs)
+            let status = authorization.authorizationStatus == .denied
+                ? "iPhone blockerar notiser – inga väderaviseringar är schemalagda"
+                : "Notisbehörighet saknas – inga väderaviseringar är schemalagda"
+            defaults.set(status, forKey: scheduleStatusKey)
+            defaults.set(0, forKey: scheduledCountKey)
+            defaults.set(Date(), forKey: scheduleUpdatedKey)
             return
         }
 
@@ -136,8 +158,17 @@ enum WeatherNotificationScheduler {
                     defaults.set(alertDay, forKey: currentFrostAlertDayKey)
                 }
             } catch {
-                // A later successful forecast refresh will retry scheduling.
+                defaults.set("Fel vid schemaläggning: \\(error.localizedDescription)", forKey: scheduleStatusKey)
             }
+        }
+        let finalPending = await center.pendingNotificationRequests()
+        let finalCount = finalPending.filter { $0.identifier.hasPrefix(prefix) }.count
+        defaults.set(finalCount, forKey: scheduledCountKey)
+        defaults.set(Date(), forKey: scheduleUpdatedKey)
+        if defaults.string(forKey: scheduleStatusKey)?.hasPrefix("Fel vid schemaläggning:") != true {
+            defaults.set(finalCount == 0
+                ? "Inga framtida risker passerade aviseringsgränserna"
+                : "\\(finalCount) väderavisering(ar) schemalagda i iPhone", forKey: scheduleStatusKey)
         }
     }
 
