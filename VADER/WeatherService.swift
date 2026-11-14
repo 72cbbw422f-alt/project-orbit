@@ -40,6 +40,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
     private let manager = CLLocationManager()
     private let geocoder = CLGeocoder()
     private var lastFetch: Date?
+    private var weatherRequestID = UUID()
 
     override init() {
         super.init()
@@ -201,11 +202,14 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
     }
 
     private func loadWeather(latitude: Double, longitude: Double, placeName: String) {
+        weatherRequestID = UUID()
+        let requestID = weatherRequestID
         currentCoordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
         status = "Hämtar prognos för \(placeName)…"
         Task {
             do {
                 let result = try await OpenMeteoService.fetch(latitude: latitude, longitude: longitude)
+                guard requestID == weatherRequestID else { return }
                 let updatedSnapshot = result.current.replacingPlace(placeName)
                 let updateTime = Date()
                 // Persist the last complete forecast so launch never starts in demo mode
@@ -218,10 +222,11 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                 lastUpdated = updateTime
                 days = result.days
                 hours = result.hours
-                WeatherNotificationScheduler.refresh(place: placeName, hours: result.hours, currentTemperature: updatedSnapshot.temperature)
+                WeatherNotificationScheduler.refresh(place: placeName, latitude: latitude, longitude: longitude, hours: result.hours, currentTemperature: updatedSnapshot.temperature)
                 Task { await SMHIWarningService.checkAndNotify(at: CLLocationCoordinate2D(latitude: latitude, longitude: longitude)) }
                 status = "Liveprognos • Open-Meteo"
             } catch {
+                guard requestID == weatherRequestID else { return }
                 status = "Kunde inte hämta väderdata. Försök igen."
             }
         }
