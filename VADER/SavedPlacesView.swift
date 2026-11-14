@@ -29,7 +29,7 @@ struct SavedPlacesView: View {
                     Text("Dina sparade väderplatser")
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(PlacesPalette.cyan)
-                    Text("Sparade platser bevakas automatiskt parallellt – upp till sex platser åt gången.")
+                    Text("Sparade platser bevakas inte automatiskt. Slå på Bevaka för de orter du vill få notiser från.")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(PlacesPalette.muted)
                         .fixedSize(horizontal: false, vertical: true)
@@ -160,6 +160,22 @@ struct SavedPlacesView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+
+            Button {
+                model.setMonitoring(place, enabled: !model.isMonitored(place))
+            } label: {
+                VStack(spacing: 3) {
+                    Image(systemName: model.isMonitored(place) ? "bell.badge.fill" : "bell.slash")
+                        .font(.system(size: 17, weight: .semibold))
+                    Text(model.isMonitored(place) ? "Bevakas" : "Bevaka")
+                        .font(.system(size: 10, weight: .bold))
+                }
+                .foregroundStyle(model.isMonitored(place) ? PlacesPalette.cyan : PlacesPalette.muted)
+                .frame(minWidth: 54, minHeight: 40)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(model.isMonitored(place) ? "Stäng av bevakning för \\(place.name)" : "Börja bevaka \\(place.name)")
 
             Menu {
                 Button {
