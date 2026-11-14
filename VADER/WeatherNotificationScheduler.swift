@@ -98,9 +98,12 @@ enum WeatherNotificationScheduler {
         // Keep well below iOS's pending local-notification limit and prioritize
         // safety-critical frost/ice alerts before ordinary weather notices.
         requests.sort {
-            let left = ($0.content.userInfo["safetyCritical"] as? Bool) ?? false
-            let right = ($1.content.userInfo["safetyCritical"] as? Bool) ?? false
-            if left != right { return left && !right }
+            let leftImmediate = ($0.content.userInfo["immediate"] as? Bool) ?? false
+            let rightImmediate = ($1.content.userInfo["immediate"] as? Bool) ?? false
+            if leftImmediate != rightImmediate { return leftImmediate && !rightImmediate }
+            let leftSafetyCritical = ($0.content.userInfo["safetyCritical"] as? Bool) ?? false
+            let rightSafetyCritical = ($1.content.userInfo["safetyCritical"] as? Bool) ?? false
+            if leftSafetyCritical != rightSafetyCritical { return leftSafetyCritical && !rightSafetyCritical }
             let leftDate = ($0.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() ?? .distantFuture
             let rightDate = ($1.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() ?? .distantFuture
             return leftDate < rightDate
