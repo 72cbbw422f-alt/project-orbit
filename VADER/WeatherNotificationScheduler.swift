@@ -69,6 +69,32 @@ enum WeatherNotificationScheduler {
         }
     }
 
+    static func removeNotifications(latitude: Double, longitude: Double) {
+        let locationID = String(format: "%.4f,%.4f", latitude, longitude)
+            .replacingOccurrences(of: ",", with: "_")
+        let locationPrefix = prefix + locationID + "."
+        let center = UNUserNotificationCenter.current()
+        center.getPendingNotificationRequests { requests in
+            let ids = requests.map(\\.identifier).filter { $0.hasPrefix(locationPrefix) }
+            center.removePendingNotificationRequests(withIdentifiers: ids)
+        }
+        center.getDeliveredNotifications { notifications in
+            let ids = notifications.map { $0.request.identifier }.filter { $0.hasPrefix(locationPrefix) }
+            center.removeDeliveredNotifications(withIdentifiers: ids)
+        }
+    }
+
+    static func clearLegacyWeatherNotificationsOnce() {
+        let key = "Regnvakt.notifications.explicitPlaceMonitoringMigration.v1"
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: key) else { return }
+        UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
+            let ids = requests.map(\\.identifier).filter { $0.hasPrefix(prefix) }
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
+            defaults.set(true, forKey: key)
+        }
+    }
+
     private static func schedule(place: String, hours: [HourForecast], currentTemperature: Int?, token: String, locationID: String) async {
         let defaults = UserDefaults.standard
         let center = UNUserNotificationCenter.current()
