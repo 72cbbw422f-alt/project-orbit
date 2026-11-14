@@ -146,7 +146,8 @@ enum WeatherNotificationScheduler {
             } else {
                 stamp = String(Int(event.date.timeIntervalSince1970))
             }
-            let identifier = prefix + event.type + (event.immediate ? ".current." : ".") + stamp
+            let locationToken = (defaults.string(forKey: locationKey) ?? "unknown").replacingOccurrences(of: ",", with: "_")
+            let identifier = prefix + locationToken + "." + event.type + (event.immediate ? ".current." : ".") + stamp
             requests.append(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
         }
 
