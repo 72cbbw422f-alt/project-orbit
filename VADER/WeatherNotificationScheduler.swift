@@ -131,21 +131,24 @@ enum WeatherNotificationScheduler {
 
         // Current frost is a separate, immediate safety alert. It is deduplicated
         // by a stable daily identifier and remains armed across forecast refreshes.
-        if let currentTemperature {
-            let now = Date()
-            let hour = Calendar.current.component(.hour, from: now)
-            let overnight = hour >= 18 || hour < 9
-            let threshold = overnight ? 1 : 0
-            if currentTemperature <= threshold {
-                result.append(Event(
-                    type: "frost",
-                    title: "Frostrisk just nu",
-                    body: "Den aktuella temperaturen är omkring \(currentTemperature)°. Frost kan bildas även utan nederbörd. Detta är en riskbedömning.",
-                    date: now,
-                    safetyCritical: true,
-                    immediate: true
-                ))
-            }
+        let now = Date()
+        let currentHour = Calendar.current.component(.hour, from: now)
+        let currentOvernight = currentHour >= 18 || currentHour < 9
+        let currentThreshold = currentOvernight ? 1 : 0
+        let currentFrost = (defaults.object(forKey: "Regnvakt.notifications.frost") as? Bool ?? true)
+            && (currentTemperature.map { $0 <= currentThreshold } ?? false)
+        if currentFrost {
+            // Seed the transition detector so a continuous frost period does not
+            // also create a second, redundant future alert for the same episode.
+            previousTypes.insert("frost")
+            result.append(Event(
+                type: "frost",
+                title: "Frostrisk just nu",
+                body: "Den aktuella temperaturen är omkring \(currentTemperature ?? 0)°. Frost kan bildas även utan nederbörd. Detta är en riskbedömning.",
+                date: now,
+                safetyCritical: true,
+                immediate: true
+            ))
         }
 
         for hour in hours {
