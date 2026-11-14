@@ -7,6 +7,7 @@ enum WeatherNotificationScheduler {
     private static let prefix = "regnvakt.weather."
     private static let forecastKey = "Regnvakt.notifications.lastForecast.v1"
     private static let placeKey = "Regnvakt.notifications.lastPlace.v1"
+    private static let currentFrostAlertDayKey = "Regnvakt.notifications.currentFrostAlertDay.v1"
 
     private struct Event {
         let type: String
@@ -72,7 +73,7 @@ enum WeatherNotificationScheduler {
             content.title = event.title
             content.body = "\(event.body) • \(place)"
             content.sound = .default
-            content.userInfo = ["watch": event.type, "place": place, "safetyCritical": event.safetyCritical, "immediate": event.immediate, "forecastEventDate": event.date.timeIntervalSince1970, "leadMinutes": lead]
+            content.userInfo = ["watch": event.type, "place": place, "safetyCritical": event.safetyCritical, "immediate": event.immediate, "alertDay": Calendar.current.startOfDay(for: event.date), "forecastEventDate": event.date.timeIntervalSince1970, "leadMinutes": lead]
             let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
             let trigger: UNNotificationTrigger
             if event.immediate {
@@ -118,8 +119,20 @@ enum WeatherNotificationScheduler {
         }
         center.removePendingNotificationRequests(withIdentifiers: oldIDs)
         let existingIDs = Set(pending.map(\.identifier)).union(delivered.map { $0.request.identifier })
-        for request in selected where !existingIDs.contains(request.identifier) {
-            do { try await center.add(request) } catch {
+        for request in selected {
+            let isImmediate = (request.content.userInfo["immediate"] as? Bool) ?? false
+            if existingIDs.contains(request.identifier) {
+                if isImmediate, let alertDay = request.content.userInfo["alertDay"] as? Date {
+                    defaults.set(alertDay, forKey: currentFrostAlertDayKey)
+                }
+                continue
+            }
+            do {
+                try await center.add(request)
+                if isImmediate, let alertDay = request.content.userInfo["alertDay"] as? Date {
+                    defaults.set(alertDay, forKey: currentFrostAlertDayKey)
+                }
+            } catch {
                 // A later successful forecast refresh will retry scheduling.
             }
         }
@@ -143,7 +156,11 @@ enum WeatherNotificationScheduler {
         let currentThreshold = currentOvernight ? 1 : 0
         let currentFrost = (defaults.object(forKey: "Regnvakt.notifications.frost") as? Bool ?? true)
             && (currentTemperature.map { $0 <= currentThreshold } ?? false)
-        if currentFrost {
+        let lastCurrentFrostAlertDay = defaults.object(forKey: currentFrostAlertDayKey) as? Date
+        let alreadyAlertedForCurrentFrostToday = lastCurrentFrostAlertDay.map {
+            Calendar.current.isDate($0, inSameDayAs: now)
+        } ?? false
+        if currentFrost && !alreadyAlertedForCurrentFrostToday {
             // Seed the transition detector so a continuous frost period does not
             // also create a second, redundant future alert for the same episode.
             previousTypes.insert("frost")
