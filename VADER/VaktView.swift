@@ -90,13 +90,24 @@ struct VaktDashboard: View {
                     Spacer()
                     Image(systemName: "shield.lefthalf.filled").font(.system(size: 29)).foregroundStyle(WatchPalette.cyan)
                 }
-                HStack(spacing: 8) {
-                    Circle().fill(activeWatches.isEmpty ? Color.green : Color.orange).frame(width: 7, height: 7)
-                    Text(activeWatches.isEmpty ? "Inga förhöjda risker i prognosen" : "\(activeWatches.count) aktiva bevakningar i prognosen")
-                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
-                    Spacer()
-                    Text("PROGNOSBASERAT").font(.system(size: 11, weight: .heavy)).tracking(0.4).foregroundStyle(WatchPalette.cyan).lineLimit(1).fixedSize(horizontal: true, vertical: false)
-                }.padding(12).background(WatchPalette.panel, in: RoundedRectangle(cornerRadius: 15)).overlay(RoundedRectangle(cornerRadius: 15).stroke(WatchPalette.line, lineWidth: 1))
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(activeWatches.isEmpty ? "Inga förhöjda risker" : "Risker i prognosen")
+                            .font(.system(size: 15, weight: .bold)).foregroundStyle(.white)
+                        Text("Väderläge för \(weather.place)")
+                            .font(.system(size: 12, weight: .medium)).foregroundStyle(WatchPalette.muted)
+                    }
+                    Spacer(minLength: 8)
+                    VStack(alignment: .trailing, spacing: 3) {
+                        Text("\(activeWatches.count) \(activeWatches.count == 1 ? "aktiv" : "aktiva")")
+                            .font(.system(size: 16, weight: .heavy, design: .rounded)).foregroundStyle(activeWatches.isEmpty ? WatchPalette.muted : WatchPalette.cyan)
+                        Text("PROGNOS")
+                            .font(.system(size: 10, weight: .heavy)).tracking(0.8).foregroundStyle(WatchPalette.cyan.opacity(0.85))
+                    }
+                }
+                .padding(.horizontal, 14).padding(.vertical, 13)
+                .background(WatchPalette.panel, in: RoundedRectangle(cornerRadius: 15))
+                .overlay(RoundedRectangle(cornerRadius: 15).stroke(WatchPalette.line, lineWidth: 1))
 
                 ForEach(watches) { watch in
                     watchCard(watch)
