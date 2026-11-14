@@ -5,6 +5,10 @@ on:
     branches: [main, feature/wind-radar, feature/frost-notification-audit]
   workflow_dispatch:
 
+concurrency:
+  group: regnvakt-ios-build
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
