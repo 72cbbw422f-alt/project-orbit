@@ -180,7 +180,7 @@ enum WeatherNotificationScheduler {
             let rightDate = ($1.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() ?? .distantFuture
             return leftDate < rightDate
         }
-        let selected = Array(requests.prefix(48))
+        let selected = Array(requests.prefix(8))
 
         
         let pending = await center.pendingNotificationRequests()
