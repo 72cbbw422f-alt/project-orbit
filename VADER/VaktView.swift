@@ -72,7 +72,10 @@ struct VaktDashboard: View {
             }
             return wetNow || recentWet || condition.contains("underkylt")
         }?.element
-        let frost = frostHour != nil || wetNearFreeze != nil
+        let currentHourOfDay = Calendar.current.component(.hour, from: Date())
+        let currentFrostThreshold = (currentHourOfDay >= 18 || currentHourOfDay < 9) ? 1 : 0
+        let currentFrost = weather.temperature <= currentFrostThreshold
+        let frost = currentFrost || frostHour != nil || wetNearFreeze != nil
         let precipitationTitle = snow ? "SNÖVAKTEN" : "REGNVAKTEN"
         let firstPrecipitation = upcoming.first { hour in
             let condition = hour.condition.lowercased()
@@ -90,7 +93,7 @@ struct VaktDashboard: View {
             WatchItem(id: "precipitation", title: precipitationTitle, subtitle: "Nederbörd · regn · snö · duggregn", symbol: snow ? "cloud.snow.fill" : "cloud.rain.fill", active: rain || snow, detail: precipitationDetail, level: rain || snow ? "BEVAKAR" : "LUGNT", tint: WatchPalette.cyan),
             WatchItem(id: "thunder", title: "ÅSKVAKTEN", subtitle: "Åska · blixtar · åskrisk", symbol: "cloud.bolt.rain.fill", active: thunder, detail: thunder ? "Åska förekommer i prognosen" : "Ingen åska identifierad i prognosen", level: thunder ? "RISK I PROGNOS" : "LUGNT", tint: Color.orange),
             WatchItem(id: "wind", title: "VINDVAKTEN", subtitle: "Vindstyrka · hårda vindbyar", symbol: "wind", active: wind, detail: String(format: "Vind upp till %.1f m/s • byvind %.1f m/s", maxWind, maxGust), level: wind ? "FÖRHÖJD VIND" : "LUGNT", tint: Color(red: 0.54, green: 0.72, blue: 1.0)),
-            WatchItem(id: "frost", title: "FROSTVAKTEN", subtitle: "Frostbildning · temperatur · separat halkrisk", symbol: "thermometer.snowflake", active: frost, detail: wetNearFreeze.map { "Fukt/nederbörd och cirka \($0.temperature)° omkring kl. \($0.time) – risk för halka" } ?? frostHour.map { "Frostrisk: cirka \($0.temperature)° kl. \($0.time). Frost kan bildas även utan nederbörd." } ?? "Ingen tydlig frostrisk i timprognosen", level: wetNearFreeze != nil ? "HALKRISK" : frost ? "FROSTRISK" : "LUGNT", tint: Color.cyan),
+            WatchItem(id: "frost", title: "FROSTVAKTEN", subtitle: "Frostbildning · temperatur · separat halkrisk", symbol: "thermometer.snowflake", active: frost, detail: wetNearFreeze.map { "Fukt/nederbörd och cirka \($0.temperature)° omkring kl. \($0.time) – risk för halka" } ?? (currentFrost ? "Frostrisk just nu: cirka \(weather.temperature)°. Frost kan bildas även utan nederbörd." : frostHour.map { "Frostrisk: cirka \($0.temperature)° kl. \($0.time). Frost kan bildas även utan nederbörd." } ?? "Ingen tydlig frostrisk i timprognosen"), level: wetNearFreeze != nil ? "HALKRISK" : frost ? "FROSTRISK" : "LUGNT", tint: Color.cyan),
             WatchItem(id: "official", title: "SMHI:S VÄDERVARNINGAR", subtitle: "Officiella vädervarningar för Gävleborgs län", symbol: "exclamationmark.triangle.fill", active: smhiActive, detail: smhiSummary + (smhiUpdated.isEmpty ? "" : " • Uppdaterad " + smhiUpdated), level: smhiActive ? (smhiLevel.isEmpty ? "AKTIV VARNING" : smhiLevel + " VARNING") : "INGEN AKTIV VARNING", tint: Color.yellow)
         ]
     }
