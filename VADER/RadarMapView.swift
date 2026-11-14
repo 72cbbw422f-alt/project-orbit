@@ -203,47 +203,64 @@ private struct WindFieldOverlay: View {
             Canvas { context, size in
                 guard show, samples.count >= 9 else { return }
 
-                // Cache the interpolated field on a small screen-space grid for each
-                // animation frame. Every particle then samples the same smooth field
-                // instead of recalculating all 25 model points at every integration step.
-                var fieldCache: [Int: (u: Double, v: Double, speed: Double)] = [:]
-                func vector(at point: CGPoint) -> (u: Double, v: Double, speed: Double) {
-                    let nx = 28
-                    let ny = 22
-                    let px = min(nx - 1, max(0, Int(point.x / max(size.width, 1) * CGFloat(nx))))
-                    let py = min(ny - 1, max(0, Int(point.y / max(size.height, 1) * CGFloat(ny))))
-                    let key = py * nx + px
-                    if let cached = fieldCache[key] { return cached }
-                    let samplePoint = CGPoint(
-                        x: (CGFloat(px) + 0.5) / CGFloat(nx) * size.width,
-                        y: (CGFloat(py) + 0.5) / CGFloat(ny) * size.height
-                    )
-                    var total = 0.0
-                    var u = 0.0
-                    var v = 0.0
-                    var speed = 0.0
-                    for sample in samples {
-                        let sx = 0.5 + (sample.longitude - samples[samples.count / 2].longitude) / 0.90
-                        let sy = 0.5 - (sample.latitude - samples[samples.count / 2].latitude) / 0.80
-                        let dx = Double(samplePoint.x / max(size.width, 1)) - sx
-                        let dy = Double(samplePoint.y / max(size.height, 1)) - sy
-                        let weight = 1.0 / max(dx * dx + dy * dy, 0.0025)
-                        let magnitude = gustMode ? sample.gust : sample.speed
-                        let radians = (sample.direction + 180) * .pi / 180
-                        u += -sin(radians) * magnitude * weight
-                        v += cos(radians) * magnitude * weight
-                        speed += magnitude * weight
-                        total += weight
+                // Build a continuous vector field once per frame. Bilinear sampling
+                // between grid cells avoids the stepped direction changes of nearest-cell
+                // lookup, while keeping the 25 Open-Meteo observations as the only input.
+                let nx = 36
+                let ny = 28
+                typealias WindVector = (u: Double, v: Double, speed: Double)
+                var fieldGrid = [WindVector](repeating: (0, 0, 0), count: nx * ny)
+
+                for gy in 0..<ny {
+                    for gx in 0..<nx {
+                        let px = (Double(gx) + 0.5) / Double(nx)
+                        let py = (Double(gy) + 0.5) / Double(ny)
+                        var total = 0.0
+                        var u = 0.0
+                        var v = 0.0
+                        var speed = 0.0
+                        for sample in samples {
+                            let sx = 0.5 + (sample.longitude - samples[samples.count / 2].longitude) / 0.90
+                            let sy = 0.5 - (sample.latitude - samples[samples.count / 2].latitude) / 0.80
+                            let dx = px - sx
+                            let dy = py - sy
+                            let weight = 1.0 / max(dx * dx + dy * dy, 0.0025)
+                            let magnitude = gustMode ? sample.gust : sample.speed
+                            let radians = (sample.direction + 180) * .pi / 180
+                            u += -sin(radians) * magnitude * weight
+                            v += cos(radians) * magnitude * weight
+                            speed += magnitude * weight
+                            total += weight
+                        }
+                        fieldGrid[gy * nx + gx] = (u / total, v / total, speed / total)
                     }
-                    let result = (u / total, v / total, speed / total)
-                    fieldCache[key] = result
-                    return result
+                }
+
+                func vector(at point: CGPoint) -> WindVector {
+                    let gx = min(Double(nx - 1), max(0, Double(point.x / max(size.width, 1)) * Double(nx) - 0.5))
+                    let gy = min(Double(ny - 1), max(0, Double(point.y / max(size.height, 1)) * Double(ny) - 0.5))
+                    let x0 = min(nx - 1, max(0, Int(gx)))
+                    let y0 = min(ny - 1, max(0, Int(gy)))
+                    let x1 = min(nx - 1, x0 + 1)
+                    let y1 = min(ny - 1, y0 + 1)
+                    let tx = gx - Double(x0)
+                    let ty = gy - Double(y0)
+                    let a = fieldGrid[y0 * nx + x0]
+                    let b = fieldGrid[y0 * nx + x1]
+                    let c = fieldGrid[y1 * nx + x0]
+                    let d = fieldGrid[y1 * nx + x1]
+                    func blend(_ key: (WindVector) -> Double) -> Double {
+                        let top = key(a) * (1 - tx) + key(b) * tx
+                        let bottom = key(c) * (1 - tx) + key(d) * tx
+                        return top * (1 - ty) + bottom * ty
+                    }
+                    return (blend { $0.u }, blend { $0.v }, blend { $0.speed })
                 }
 
                 let now = timeline.date.timeIntervalSinceReferenceDate
                 // Fewer, longer-lived trails create a calmer visual field and
                 // leave more rendering headroom on older iPhones.
-                let particleCount = 168
+                let particleCount = 132
                 for index in 0..<particleCount {
                     // Deterministic pseudo-random seed points; particles drift continuously
                     // through the interpolated Open-Meteo wind field and then respawn.
@@ -252,7 +269,7 @@ private struct WindFieldOverlay: View {
                     let seed = CGPoint(x: seedX * size.width, y: seedY * size.height)
                     let duration = 4.8 + Double((index * 7) % 13) * 0.43
                     let phase = (now / duration + Double(index) * 0.137).truncatingRemainder(dividingBy: 1.0)
-                    let progress = phase * 42.0
+                    let progress = phase * 68.0
                     let steps = Int(progress)
                     let remainder = progress - Double(steps)
                     var point = seed
@@ -261,12 +278,18 @@ private struct WindFieldOverlay: View {
 
                     for _ in 0..<steps {
                         let field = vector(at: point)
-                        localSpeed = field.speed
-                        let magnitude = max(0.1, hypot(field.u, field.v))
-                        let step = min(6.5, max(2.8, magnitude * 0.48))
+                        let firstMagnitude = max(0.1, hypot(field.u, field.v))
+                        let step = min(5.5, max(2.4, firstMagnitude * 0.42))
+                        let midpoint = CGPoint(
+                            x: point.x + CGFloat(field.u / firstMagnitude) * step * 0.5,
+                            y: point.y - CGFloat(field.v / firstMagnitude) * step * 0.5
+                        )
+                        let midField = vector(at: midpoint)
+                        localSpeed = midField.speed
+                        let magnitude = max(0.1, hypot(midField.u, midField.v))
                         point = CGPoint(
-                            x: point.x + CGFloat(field.u / magnitude) * step,
-                            y: point.y - CGFloat(field.v / magnitude) * step
+                            x: point.x + CGFloat(midField.u / magnitude) * step,
+                            y: point.y - CGFloat(midField.v / magnitude) * step
                         )
                         if point.x < -8 || point.x > size.width + 8 || point.y < -8 || point.y > size.height + 8 {
                             break
@@ -293,7 +316,7 @@ private struct WindFieldOverlay: View {
                     guard let head = trail.last else { continue }
                     let color = tint(localSpeed)
                     if trail.count > 2 {
-                        let visibleTrail = Array(trail.suffix(18))
+                        let visibleTrail = Array(trail.suffix(34))
                         var smoothPath = Path()
                         smoothPath.move(to: visibleTrail[0])
                         if visibleTrail.count > 2 {
