@@ -570,7 +570,10 @@ struct RadarMapView: View {
                             showWind = false
                             showClouds = true
                             showRadar = false
-                            if windSamples.isEmpty { Task { await refreshWindField() } }
+                            // Always load a fresh cloud field for the map's current
+                            // geographic center; existing wind samples may belong to
+                            // a different area or an earlier map position.
+                            Task { await refreshWindField(center: windMapCenter ?? mapCoordinate) }
                         } label: {
                             Label("Moln", systemImage: "cloud.fill")
                                 .font(.system(size: 15, weight: .bold))
@@ -1007,8 +1010,8 @@ struct RadarMapView: View {
         windSamples = results.sorted { $0.id < $1.id }
         windUpdated = Date()
         windStatus = results.count == offsets.count
-            ? "Vindfält • 25 modellpunkter runt kartans mittpunkt"
-            : "Vindfält delvis tillgängligt • \(results.count) av 25 punkter"
+            ? (showClouds ? "Molntäcke • 25 geografiskt placerade modellpunkter" : "Vindfält • 25 modellpunkter runt kartans mittpunkt")
+            : (showClouds ? "Molntäcke delvis tillgängligt • \(results.count) av 25 punkter" : "Vindfält delvis tillgängligt • \(results.count) av 25 punkter")
     }
 
     private static func precipitationName(code: Int, temperature: Double) -> String {
