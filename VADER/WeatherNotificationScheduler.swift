@@ -72,7 +72,7 @@ enum WeatherNotificationScheduler {
             content.title = event.title
             content.body = "\(event.body) • \(place)"
             content.sound = .default
-            content.userInfo = ["watch": event.type, "place": place, "safetyCritical": event.safetyCritical, "forecastEventDate": event.date.timeIntervalSince1970, "leadMinutes": lead]
+            content.userInfo = ["watch": event.type, "place": place, "safetyCritical": event.safetyCritical, "immediate": event.immediate, "forecastEventDate": event.date.timeIntervalSince1970, "leadMinutes": lead]
             let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
             let trigger: UNNotificationTrigger
             if event.immediate {
