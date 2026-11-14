@@ -176,6 +176,29 @@ private struct WindSample: Identifiable {
     let speed: Double
     let direction: Double
     let gust: Double
+    let cloudCover: Double
+}
+
+private struct CloudFieldOverlay: View {
+    let samples: [WindSample]
+    let show: Bool
+
+    var body: some View {
+        Canvas { context, size in
+            guard show, samples.count >= 9 else { return }
+            let center = samples.first(where: { $0.id == 12 }) ?? samples[samples.count / 2]
+            for sample in samples {
+                let x = size.width * (0.5 + (sample.longitude - center.longitude) / 0.90)
+                let y = size.height * (0.5 - (sample.latitude - center.latitude) / 0.80)
+                let radius = min(size.width, size.height) * 0.19
+                let rect = CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2)
+                let intensity = min(1, max(0, sample.cloudCover / 100))
+                let gradient = Gradient(colors: [Color.white.opacity(intensity * 0.24), Color(red: 0.66, green: 0.78, blue: 0.90).opacity(intensity * 0.16), .clear])
+                context.fill(Path(ellipseIn: rect), with: .radialGradient(gradient, center: CGPoint(x: x, y: y), startRadius: 2, endRadius: radius))
+            }
+        }
+        .allowsHitTesting(false)
+    }
 }
 
 private enum WindLayer: String, CaseIterable {
@@ -510,6 +533,8 @@ struct RadarMapView: View {
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     WindFieldOverlay(samples: windSamples, show: showWind, gustMode: windLayer == .gust)
+                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    CloudFieldOverlay(samples: windSamples, show: showClouds)
                         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     HStack(spacing: 7) {
                         Circle().fill(Color(red: 0.35, green: 0.88, blue: 0.83)).frame(width: 7, height: 7)
@@ -980,7 +1005,7 @@ struct RadarMapView: View {
                     components.queryItems = [
                         URLQueryItem(name: "latitude", value: String(lat)),
                         URLQueryItem(name: "longitude", value: String(lon)),
-                        URLQueryItem(name: "current", value: "wind_speed_10m,wind_direction_10m,wind_gusts_10m"),
+                        URLQueryItem(name: "current", value: "wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover"),
                         URLQueryItem(name: "wind_speed_unit", value: "ms"),
                         URLQueryItem(name: "timezone", value: "auto")
                     ]
@@ -992,7 +1017,8 @@ struct RadarMapView: View {
                           let speed = (current["wind_speed_10m"] as? NSNumber)?.doubleValue,
                           let direction = (current["wind_direction_10m"] as? NSNumber)?.doubleValue,
                           let gust = (current["wind_gusts_10m"] as? NSNumber)?.doubleValue else { return nil }
-                    return WindSample(id: index, latitude: lat, longitude: lon, speed: speed, direction: direction, gust: gust)
+                    let cloud = (current["cloud_cover"] as? NSNumber)?.doubleValue ?? 0
+                    return WindSample(id: index, latitude: lat, longitude: lon, speed: speed, direction: direction, gust: gust, cloudCover: cloud)
                 }
             }
             for await sample in group { if let sample { results.append(sample) } }
