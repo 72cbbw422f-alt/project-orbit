@@ -61,6 +61,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
             lastUpdated = cached.savedAt
             status = "Senast visade prognos • uppdaterar…"
         }
+        WeatherNotificationScheduler.clearLegacyWeatherNotificationsOnce()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyKilometer
         manager.distanceFilter = 1500
