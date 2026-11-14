@@ -59,7 +59,7 @@ enum WeatherNotificationScheduler {
             SMHIWarningService.clearPendingNotifications()
             defaults.set("Aviseringar avstängda i Regnvakt", forKey: scheduleStatusKey)
             defaults.set(0, forKey: scheduledCountKey)
-            defaults.set(Date(), forKey: scheduleUpdatedKey)
+            defaults.set(Date().timeIntervalSince1970, forKey: scheduleUpdatedKey)
             return
         }
 
@@ -77,7 +77,7 @@ enum WeatherNotificationScheduler {
                 : "Notisbehörighet saknas – inga väderaviseringar är schemalagda"
             defaults.set(status, forKey: scheduleStatusKey)
             defaults.set(0, forKey: scheduledCountKey)
-            defaults.set(Date(), forKey: scheduleUpdatedKey)
+            defaults.set(Date().timeIntervalSince1970, forKey: scheduleUpdatedKey)
             return
         }
 
@@ -166,7 +166,7 @@ enum WeatherNotificationScheduler {
         let finalPending = await center.pendingNotificationRequests()
         let finalCount = finalPending.filter { $0.identifier.hasPrefix(prefix) }.count
         defaults.set(finalCount, forKey: scheduledCountKey)
-        defaults.set(Date(), forKey: scheduleUpdatedKey)
+        defaults.set(Date().timeIntervalSince1970, forKey: scheduleUpdatedKey)
         if defaults.string(forKey: scheduleStatusKey)?.hasPrefix("Fel vid schemaläggning:") != true {
             defaults.set(finalCount == 0
                 ? "Inga framtida risker passerade aviseringsgränserna"
