@@ -482,13 +482,13 @@ private struct ReferenceWeatherHome: View {
                     .minimumScaleFactor(0.72)
                     .layoutPriority(1)
                 Spacer(minLength: 4)
-                Text("KOMMANDE TIMMAR")
+                Text("PROGNOS")
                     .font(.system(size: 10, weight: .bold))
                     .tracking(0.2)
                     .foregroundStyle(RTheme.muted)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .layoutPriority(1)
             }
         }
         .padding(11)
