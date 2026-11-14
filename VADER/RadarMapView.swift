@@ -199,60 +199,78 @@ private struct WindFieldOverlay: View {
     }
 
     var body: some View {
-        Canvas { context, size in
-            guard show, samples.count >= 9 else { return }
-            func vector(at point: CGPoint) -> (u: Double, v: Double, speed: Double) {
-                var total = 0.0, u = 0.0, v = 0.0, speed = 0.0
-                for sample in samples {
-                    let sx = 0.5 + (sample.longitude - samples[4].longitude) / 0.56
-                    let sy = 0.5 - (sample.latitude - samples[4].latitude) / 0.40
-                    let dx = Double(point.x / max(size.width, 1)) - sx
-                    let dy = Double(point.y / max(size.height, 1)) - sy
-                    let weight = 1.0 / max(dx * dx + dy * dy, 0.0025)
-                    let magnitude = gustMode ? sample.gust : sample.speed
-                    let radians = (sample.direction + 180) * .pi / 180
-                    u += -sin(radians) * magnitude * weight
-                    v += cos(radians) * magnitude * weight
-                    speed += magnitude * weight
-                    total += weight
-                }
-                return (u / total, v / total, speed / total)
-            }
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !show || samples.count < 9)) { timeline in
+            Canvas { context, size in
+                guard show, samples.count >= 9 else { return }
 
-            for row in 0..<8 {
-                for column in 0..<10 {
-                    var point = CGPoint(
-                        x: (CGFloat(column) + 0.35 + CGFloat(row % 2) * 0.3) * size.width / 10,
-                        y: (CGFloat(row) + 0.5) * size.height / 8
-                    )
-                    var path = Path()
-                    path.move(to: point)
+                func vector(at point: CGPoint) -> (u: Double, v: Double, speed: Double) {
+                    var total = 0.0
+                    var u = 0.0
+                    var v = 0.0
+                    var speed = 0.0
+                    for sample in samples {
+                        let sx = 0.5 + (sample.longitude - samples[4].longitude) / 0.56
+                        let sy = 0.5 - (sample.latitude - samples[4].latitude) / 0.40
+                        let dx = Double(point.x / max(size.width, 1)) - sx
+                        let dy = Double(point.y / max(size.height, 1)) - sy
+                        let weight = 1.0 / max(dx * dx + dy * dy, 0.0025)
+                        let magnitude = gustMode ? sample.gust : sample.speed
+                        let radians = (sample.direction + 180) * .pi / 180
+                        u += -sin(radians) * magnitude * weight
+                        v += cos(radians) * magnitude * weight
+                        speed += magnitude * weight
+                        total += weight
+                    }
+                    return (u / total, v / total, speed / total)
+                }
+
+                let now = timeline.date.timeIntervalSinceReferenceDate
+                let particleCount = 105
+                for index in 0..<particleCount {
+                    // Deterministic pseudo-random seed points; particles drift continuously
+                    // through the interpolated Open-Meteo wind field and then respawn.
+                    let seedX = CGFloat((index * 73 + 19) % 997) / 997.0
+                    let seedY = CGFloat((index * 193 + 47) % 991) / 991.0
+                    let seed = CGPoint(x: seedX * size.width, y: seedY * size.height)
+                    let duration = 3.8 + Double(index % 7) * 0.42
+                    let phase = (now / duration + Double(index) * 0.137).truncatingRemainder(dividingBy: 1.0)
+                    let steps = max(1, Int(phase * 26.0))
+                    var point = seed
+                    var trail: [CGPoint] = [seed]
                     var localSpeed = 0.0
-                    for _ in 0..<10 {
+
+                    for _ in 0..<steps {
                         let field = vector(at: point)
                         localSpeed = field.speed
                         let magnitude = max(0.1, hypot(field.u, field.v))
-                        let step = min(8.0, max(3.5, magnitude * 0.65))
-                        let next = CGPoint(x: point.x + CGFloat(field.u / magnitude) * step,
-                                           y: point.y - CGFloat(field.v / magnitude) * step)
-                        if next.x < 2 || next.x > size.width - 2 || next.y < 2 || next.y > size.height - 2 { break }
-                        path.addLine(to: next)
-                        point = next
+                        let step = min(6.5, max(2.8, magnitude * 0.48))
+                        point = CGPoint(
+                            x: point.x + CGFloat(field.u / magnitude) * step,
+                            y: point.y - CGFloat(field.v / magnitude) * step
+                        )
+                        if point.x < -8 || point.x > size.width + 8 || point.y < -8 || point.y > size.height + 8 {
+                            break
+                        }
+                        trail.append(point)
                     }
+
+                    guard let head = trail.last else { continue }
                     let color = tint(localSpeed)
-                    context.stroke(path, with: .color(color.opacity(0.95)),
-                                   style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
-                    let field = vector(at: point)
-                    let angle = atan2(-field.v, field.u)
-                    let head: CGFloat = 5
-                    var arrow = Path()
-                    arrow.move(to: point)
-                    arrow.addLine(to: CGPoint(x: point.x - CGFloat(cos(angle - 0.65)) * head,
-                                              y: point.y - CGFloat(sin(angle - 0.65)) * head))
-                    arrow.move(to: point)
-                    arrow.addLine(to: CGPoint(x: point.x - CGFloat(cos(angle + 0.65)) * head,
-                                              y: point.y - CGFloat(sin(angle + 0.65)) * head))
-                    context.stroke(arrow, with: .color(color), style: StrokeStyle(lineWidth: 2.2, lineCap: .round))
+                    if trail.count > 1 {
+                        let first = max(0, trail.count - 7)
+                        for segment in first..<trail.count - 1 {
+                            var path = Path()
+                            path.move(to: trail[segment])
+                            path.addLine(to: trail[segment + 1])
+                            let opacity = Double(segment - first + 1) / Double(trail.count - first)
+                            context.stroke(path, with: .color(color.opacity(0.12 + opacity * 0.58)),
+                                           style: StrokeStyle(lineWidth: 1.4 + opacity * 1.1, lineCap: .round))
+                        }
+                    }
+                    let radius: CGFloat = 1.8 + CGFloat(min(localSpeed, 20)) * 0.07
+                    let particle = Path(ellipseIn: CGRect(x: head.x - radius, y: head.y - radius,
+                                                          width: radius * 2, height: radius * 2))
+                    context.fill(particle, with: .color(color.opacity(0.98)))
                 }
             }
         }
