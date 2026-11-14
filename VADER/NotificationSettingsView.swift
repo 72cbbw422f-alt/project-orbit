@@ -144,7 +144,10 @@ struct NotificationSettingsView: View {
         }
         .background(Color(red: 0.008, green: 0.025, blue: 0.055).ignoresSafeArea())
         .task { await refreshPermissionStatus() }
-        .onChange(of: notificationsEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
+        .onChange(of: notificationsEnabled) { _, enabled in
+            if !enabled { SMHIWarningService.clearPendingNotifications() }
+            WeatherNotificationScheduler.refreshFromStoredForecast()
+        }
         .onChange(of: rainEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
         .onChange(of: snowEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
         .onChange(of: windEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
