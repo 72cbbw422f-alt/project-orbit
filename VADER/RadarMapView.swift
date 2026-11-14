@@ -209,8 +209,8 @@ private struct WindFieldOverlay: View {
                     var v = 0.0
                     var speed = 0.0
                     for sample in samples {
-                        let sx = 0.5 + (sample.longitude - samples[4].longitude) / 0.56
-                        let sy = 0.5 - (sample.latitude - samples[4].latitude) / 0.40
+                        let sx = 0.5 + (sample.longitude - samples[samples.count / 2].longitude) / 0.90
+                        let sy = 0.5 - (sample.latitude - samples[samples.count / 2].latitude) / 0.80
                         let dx = Double(point.x / max(size.width, 1)) - sx
                         let dy = Double(point.y / max(size.height, 1)) - sy
                         let weight = 1.0 / max(dx * dx + dy * dy, 0.0025)
@@ -225,16 +225,16 @@ private struct WindFieldOverlay: View {
                 }
 
                 let now = timeline.date.timeIntervalSinceReferenceDate
-                let particleCount = 105
+                let particleCount = 420
                 for index in 0..<particleCount {
                     // Deterministic pseudo-random seed points; particles drift continuously
                     // through the interpolated Open-Meteo wind field and then respawn.
                     let seedX = CGFloat((index * 73 + 19) % 997) / 997.0
                     let seedY = CGFloat((index * 193 + 47) % 991) / 991.0
                     let seed = CGPoint(x: seedX * size.width, y: seedY * size.height)
-                    let duration = 3.8 + Double(index % 7) * 0.42
+                    let duration = 5.2 + Double(index % 9) * 0.48
                     let phase = (now / duration + Double(index) * 0.137).truncatingRemainder(dividingBy: 1.0)
-                    let steps = max(1, Int(phase * 26.0))
+                    let steps = max(1, Int(phase * 42.0))
                     var point = seed
                     var trail: [CGPoint] = [seed]
                     var localSpeed = 0.0
@@ -257,17 +257,17 @@ private struct WindFieldOverlay: View {
                     guard let head = trail.last else { continue }
                     let color = tint(localSpeed)
                     if trail.count > 1 {
-                        let first = max(0, trail.count - 7)
+                        let first = max(0, trail.count - 16)
                         for segment in first..<trail.count - 1 {
                             var path = Path()
                             path.move(to: trail[segment])
                             path.addLine(to: trail[segment + 1])
                             let opacity = Double(segment - first + 1) / Double(trail.count - first)
                             context.stroke(path, with: .color(color.opacity(0.12 + opacity * 0.58)),
-                                           style: StrokeStyle(lineWidth: 1.4 + opacity * 1.1, lineCap: .round))
+                                           style: StrokeStyle(lineWidth: 1.2 + opacity * 1.5, lineCap: .round))
                         }
                     }
-                    let radius: CGFloat = 1.8 + CGFloat(min(localSpeed, 20)) * 0.07
+                    let radius: CGFloat = 1.25 + CGFloat(min(localSpeed, 20)) * 0.055
                     let particle = Path(ellipseIn: CGRect(x: head.x - radius, y: head.y - radius,
                                                           width: radius * 2, height: radius * 2))
                     context.fill(particle, with: .color(color.opacity(0.98)))
@@ -839,11 +839,10 @@ struct RadarMapView: View {
     private func refreshWindField() async {
         windStatus = "Hämtar vinddata över området…"
         let center = mapCoordinate
-        let offsets: [(Double, Double)] = [
-            (-0.20, -0.28), (-0.20, 0), (-0.20, 0.28),
-            (0, -0.28), (0, 0), (0, 0.28),
-            (0.20, -0.28), (0.20, 0), (0.20, 0.28)
-        ]
+        let grid = [-0.40, -0.20, 0.0, 0.20, 0.40]
+        let offsets: [(Double, Double)] = grid.flatMap { lat in
+            grid.map { lon in (lat, lon) }
+        }
         var results: [WindSample] = []
         await withTaskGroup(of: WindSample?.self) { group in
             for (index, offset) in offsets.enumerated() {
@@ -874,8 +873,8 @@ struct RadarMapView: View {
         windSamples = results.sorted { $0.id < $1.id }
         windUpdated = Date()
         windStatus = results.count == offsets.count
-            ? "Vindfält • 9 modellpunkter runt \(place)"
-            : "Vindfält delvis tillgängligt • \(results.count) av 9 punkter"
+            ? "Vindfält • 25 modellpunkter runt \(place)"
+            : "Vindfält delvis tillgängligt • \(results.count) av 25 punkter"
     }
 
     private static func precipitationName(code: Int, temperature: Double) -> String {
@@ -912,6 +911,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
         // 'Zoom level not supported' tile placeholder covering the map.
         map.maximumZoomLevel = 7
         map.setCenter(coordinate, zoomLevel: 7.0, animated: false)
+        context.coordinator.lastCoordinate = coordinate
         context.coordinator.latestImage = radarImage
         context.coordinator.latestTileURL = radarTileURL
         context.coordinator.updateLocationMarker(on: map, coordinate: coordinate, title: locationTitle)
@@ -923,12 +923,8 @@ private struct RegnvaktMapView: UIViewRepresentable {
         context.coordinator.latestTileURL = radarTileURL
         context.coordinator.updateLocationMarker(on: map, coordinate: coordinate, title: locationTitle)
         context.coordinator.applyRadarIfReady()
-        let previous = context.coordinator.lastCoordinate
-        if previous == nil || abs(previous!.latitude - coordinate.latitude) > 0.001 ||
-            abs(previous!.longitude - coordinate.longitude) > 0.001 {
-            context.coordinator.lastCoordinate = coordinate
-            map.setCenter(coordinate, zoomLevel: 7.0, animated: false)
-        }
+        // Deliberately do not recenter when GPS/model state changes.
+        // The initial camera is set once in makeUIView; the location marker can move independently.
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
