@@ -203,7 +203,21 @@ private struct WindFieldOverlay: View {
             Canvas { context, size in
                 guard show, samples.count >= 9 else { return }
 
+                // Cache the interpolated field on a small screen-space grid for each
+                // animation frame. Every particle then samples the same smooth field
+                // instead of recalculating all 25 model points at every integration step.
+                var fieldCache: [Int: (u: Double, v: Double, speed: Double)] = [:]
                 func vector(at point: CGPoint) -> (u: Double, v: Double, speed: Double) {
+                    let nx = 28
+                    let ny = 22
+                    let px = min(nx - 1, max(0, Int(point.x / max(size.width, 1) * CGFloat(nx))))
+                    let py = min(ny - 1, max(0, Int(point.y / max(size.height, 1) * CGFloat(ny))))
+                    let key = py * nx + px
+                    if let cached = fieldCache[key] { return cached }
+                    let samplePoint = CGPoint(
+                        x: (CGFloat(px) + 0.5) / CGFloat(nx) * size.width,
+                        y: (CGFloat(py) + 0.5) / CGFloat(ny) * size.height
+                    )
                     var total = 0.0
                     var u = 0.0
                     var v = 0.0
@@ -211,8 +225,8 @@ private struct WindFieldOverlay: View {
                     for sample in samples {
                         let sx = 0.5 + (sample.longitude - samples[samples.count / 2].longitude) / 0.90
                         let sy = 0.5 - (sample.latitude - samples[samples.count / 2].latitude) / 0.80
-                        let dx = Double(point.x / max(size.width, 1)) - sx
-                        let dy = Double(point.y / max(size.height, 1)) - sy
+                        let dx = Double(samplePoint.x / max(size.width, 1)) - sx
+                        let dy = Double(samplePoint.y / max(size.height, 1)) - sy
                         let weight = 1.0 / max(dx * dx + dy * dy, 0.0025)
                         let magnitude = gustMode ? sample.gust : sample.speed
                         let radians = (sample.direction + 180) * .pi / 180
@@ -221,7 +235,9 @@ private struct WindFieldOverlay: View {
                         speed += magnitude * weight
                         total += weight
                     }
-                    return (u / total, v / total, speed / total)
+                    let result = (u / total, v / total, speed / total)
+                    fieldCache[key] = result
+                    return result
                 }
 
                 let now = timeline.date.timeIntervalSinceReferenceDate
