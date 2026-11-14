@@ -404,15 +404,15 @@ private struct ReferenceWeatherHome: View {
         if let precipitation {
             let snow = precipitation.condition.localizedCaseInsensitiveContains("snö")
             let kind = snow ? "Snöfall" : "Regn"
-            return ("\\(kind) kan komma", "\\(precipitation.condition) omkring kl. \\(precipitation.time). Nederbördsrisk \\(precipitation.precipitationChance)% enligt timprognosen.", snow ? "cloud.snow.fill" : "cloud.rain.fill", "RISK I PROGNOS", Color.orange)
+            return ("\(kind) kan komma", "\(precipitation.condition) omkring kl. \(precipitation.time). Nederbördsrisk \(precipitation.precipitationChance)% enligt timprognosen.", snow ? "cloud.snow.fill" : "cloud.rain.fill", "RISK I PROGNOS", Color.orange)
         }
 
         if thunderWatchEnabled, let storm = hours.first(where: { $0.condition.localizedCaseInsensitiveContains("åska") }) {
-            return ("Åskrisk", "Åska finns i prognosen omkring kl. \\(storm.time). Följ SMHI:s varningar och sök skydd vid åska.", "cloud.bolt.rain.fill", "ÅSKRISK", Color.orange)
+            return ("Åskrisk", "Åska finns i prognosen omkring kl. \(storm.time). Följ SMHI:s varningar och sök skydd vid åska.", "cloud.bolt.rain.fill", "ÅSKRISK", Color.orange)
         }
 
-        let maxGust = max(weather.windGust, hours.map(\\.gust).max() ?? 0)
-        let maxWind = max(weather.wind, hours.map(\\.wind).max() ?? 0)
+        let maxGust = max(weather.windGust, hours.map(\.gust).max() ?? 0)
+        let maxWind = max(weather.wind, hours.map(\.wind).max() ?? 0)
         if windWatchEnabled && (maxGust >= 17 || maxWind >= 11) {
             return ("Kraftiga vindar", String(format: "Vind upp till %.1f m/s och byar upp till %.1f m/s i prognosen.", maxWind, maxGust), "wind", "VINDRISK", Color.orange)
         }
@@ -424,14 +424,14 @@ private struct ReferenceWeatherHome: View {
         let currentHour = Calendar.current.component(.hour, from: Date())
         let currentThreshold = (currentHour >= 18 || currentHour < 9) ? 1 : 0
         if frostWatchEnabled && weather.temperature <= currentThreshold {
-            return ("Risk för frost", "Frostrisk just nu vid cirka \\(weather.temperature)°. Frost kan bildas även utan nederbörd.", "thermometer.snowflake", "FROSTRISK", Color.cyan)
+            return ("Risk för frost", "Frostrisk just nu vid cirka \(weather.temperature)°. Frost kan bildas även utan nederbörd.", "thermometer.snowflake", "FROSTRISK", Color.cyan)
         }
         if frostWatchEnabled, let frost = hours.first(where: { hour in
             guard let date = formatter.date(from: hour.id) else { return false }
             let hourOfDay = Calendar.current.component(.hour, from: date)
             return hour.temperature <= ((hourOfDay >= 18 || hourOfDay < 9) ? 1 : 0)
         }) {
-            return ("Risk för frost", "Temperaturen väntas nå \\(frost.temperature)° omkring kl. \\(frost.time).", "thermometer.snowflake", "FROSTRISK", Color.cyan)
+            return ("Risk för frost", "Temperaturen väntas nå \(frost.temperature)° omkring kl. \(frost.time).", "thermometer.snowflake", "FROSTRISK", Color.cyan)
         }
 
         let anyWatchEnabled = rainWatchEnabled || snowWatchEnabled || thunderWatchEnabled || windWatchEnabled || frostWatchEnabled
