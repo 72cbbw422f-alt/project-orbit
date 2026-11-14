@@ -14,13 +14,14 @@ enum WeatherNotificationScheduler {
         let body: String
         let date: Date
         let safetyCritical: Bool
+        let immediate: Bool = false
     }
 
-    static func refresh(place: String, hours: [HourForecast]) {
+    static func refresh(place: String, hours: [HourForecast], currentTemperature: Int? = nil) {
         guard let data = try? JSONEncoder().encode(hours) else { return }
         UserDefaults.standard.set(data, forKey: forecastKey)
         UserDefaults.standard.set(place, forKey: placeKey)
-        Task { await schedule(place: place, hours: hours) }
+        Task { await schedule(place: place, hours: hours, currentTemperature: currentTemperature) }
     }
 
     static func refreshFromStoredForecast() {
@@ -38,7 +39,7 @@ enum WeatherNotificationScheduler {
         }
     }
 
-    private static func schedule(place: String, hours: [HourForecast]) async {
+    private static func schedule(place: String, hours: [HourForecast], currentTemperature: Int?) async {
         let defaults = UserDefaults.standard
         guard defaults.object(forKey: "Regnvakt.notifications.enabled") as? Bool ?? true else {
             removeAll()
@@ -55,15 +56,15 @@ enum WeatherNotificationScheduler {
             return
         }
 
-        let events = makeEvents(hours: hours, defaults: defaults)
+        let events = makeEvents(hours: hours, currentTemperature: currentTemperature, defaults: defaults)
         let lead = defaults.object(forKey: "Regnvakt.notifications.leadMinutes") == nil
             ? 30 : max(0, defaults.integer(forKey: "Regnvakt.notifications.leadMinutes"))
         let quietSetting = defaults.string(forKey: "Regnvakt.notifications.quietHours") ?? "22–07"
 
         var requests: [UNNotificationRequest] = []
         for event in events {
-            let fireDate = event.date.addingTimeInterval(-Double(lead) * 60)
-            guard fireDate > Date().addingTimeInterval(30) else { continue }
+            let fireDate = event.immediate ? Date().addingTimeInterval(2) : event.date.addingTimeInterval(-Double(lead) * 60)
+            guard event.immediate || fireDate > Date().addingTimeInterval(30) else { continue }
             // Frost and ice alerts are safety-critical and intentionally bypass quiet hours.
             guard event.safetyCritical || !isQuietTime(fireDate, setting: quietSetting) else { continue }
 
@@ -73,9 +74,23 @@ enum WeatherNotificationScheduler {
             content.sound = .default
             content.userInfo = ["watch": event.type, "place": place, "safetyCritical": event.safetyCritical, "forecastEventDate": event.date.timeIntervalSince1970, "leadMinutes": lead]
             let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
-            let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
-            let stamp = Int(event.date.timeIntervalSince1970)
-            let identifier = prefix + event.type + "." + String(stamp)
+            let trigger: UNNotificationTrigger
+            if event.immediate {
+                trigger = UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false)
+            } else {
+                trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+            }
+            let stamp: String
+            if event.immediate {
+                let day = DateFormatter()
+                day.calendar = Calendar.current
+                day.timeZone = .current
+                day.dateFormat = "yyyyMMdd"
+                stamp = day.string(from: Date())
+            } else {
+                stamp = String(Int(event.date.timeIntervalSince1970))
+            }
+            let identifier = prefix + event.type + (event.immediate ? ".current." : ".") + stamp
             requests.append(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
         }
 
@@ -92,16 +107,19 @@ enum WeatherNotificationScheduler {
         let selected = Array(requests.prefix(48))
 
         let pending = await center.pendingNotificationRequests()
-        let oldIDs = pending.map(\.identifier).filter { $0.hasPrefix(prefix) }
+        let delivered = await center.deliveredNotifications()
+        let desiredIDs = Set(selected.map(\.identifier))
+        let oldIDs = pending.map(\.identifier).filter { $0.hasPrefix(prefix) && !desiredIDs.contains($0) }
         center.removePendingNotificationRequests(withIdentifiers: oldIDs)
-        for request in selected {
+        let existingIDs = Set(pending.map(\.identifier)).union(delivered.map { $0.request.identifier })
+        for request in selected where !existingIDs.contains(request.identifier) {
             do { try await center.add(request) } catch {
                 // A later successful forecast refresh will retry scheduling.
             }
         }
     }
 
-    private static func makeEvents(hours: [HourForecast], defaults: UserDefaults) -> [Event] {
+    private static func makeEvents(hours: [HourForecast], currentTemperature: Int?, defaults: UserDefaults) -> [Event] {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = .current
@@ -110,6 +128,25 @@ enum WeatherNotificationScheduler {
         var result: [Event] = []
         var previousTypes = Set<String>()
         var lastWetForecastDate: Date?
+
+        // Current frost is a separate, immediate safety alert. It is deduplicated
+        // by a stable daily identifier and remains armed across forecast refreshes.
+        if let currentTemperature {
+            let now = Date()
+            let hour = Calendar.current.component(.hour, from: now)
+            let overnight = hour >= 18 || hour < 9
+            let threshold = overnight ? 1 : 0
+            if currentTemperature <= threshold {
+                result.append(Event(
+                    type: "frost",
+                    title: "Frostrisk just nu",
+                    body: "Den aktuella temperaturen är omkring \(currentTemperature)°. Frost kan bildas även utan nederbörd. Detta är en riskbedömning.",
+                    date: now,
+                    safetyCritical: true,
+                    immediate: true
+                ))
+            }
+        }
 
         for hour in hours {
             guard let date = formatter.date(from: hour.id), date > Date() else { continue }
