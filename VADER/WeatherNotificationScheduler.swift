@@ -75,7 +75,7 @@ enum WeatherNotificationScheduler {
         let locationPrefix = prefix + locationID + "."
         let center = UNUserNotificationCenter.current()
         center.getPendingNotificationRequests { requests in
-            let ids = requests.map(\\.identifier).filter { $0.hasPrefix(locationPrefix) }
+            let ids = requests.map(\.identifier).filter { $0.hasPrefix(locationPrefix) }
             center.removePendingNotificationRequests(withIdentifiers: ids)
         }
         center.getDeliveredNotifications { notifications in
@@ -89,7 +89,7 @@ enum WeatherNotificationScheduler {
         let defaults = UserDefaults.standard
         guard !defaults.bool(forKey: key) else { return }
         UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
-            let ids = requests.map(\\.identifier).filter { $0.hasPrefix(prefix) }
+            let ids = requests.map(\.identifier).filter { $0.hasPrefix(prefix) }
             UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
             defaults.set(true, forKey: key)
         }
