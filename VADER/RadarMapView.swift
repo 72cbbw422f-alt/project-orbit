@@ -190,51 +190,76 @@ private struct WindFieldOverlay: View {
 
     private func tint(_ speed: Double) -> Color {
         switch speed {
-        case ..<4: return Color(red: 0.25, green: 0.82, blue: 0.92)
-        case ..<8: return Color(red: 0.25, green: 0.86, blue: 0.58)
-        case ..<12: return Color(red: 0.98, green: 0.82, blue: 0.28)
-        case ..<17: return Color(red: 1.0, green: 0.48, blue: 0.22)
-        default: return Color(red: 0.98, green: 0.25, blue: 0.30)
+        case ..<4: return Color(red: 0.25, green: 0.82, blue: 0.96)
+        case ..<8: return Color(red: 0.20, green: 0.88, blue: 0.56)
+        case ..<12: return Color(red: 1.0, green: 0.82, blue: 0.18)
+        case ..<17: return Color(red: 1.0, green: 0.48, blue: 0.18)
+        default: return Color(red: 0.98, green: 0.20, blue: 0.28)
         }
     }
 
     var body: some View {
-        GeometryReader { proxy in
-            Canvas { context, size in
-                guard show, !samples.isEmpty else { return }
-                let columns = 5
-                let rows = 5
-                for row in 0..<rows {
-                    for column in 0..<columns {
-                        let index = min(samples.count - 1, (row * columns + column) * samples.count / (rows * columns))
-                        let sample = samples[index]
-                        let speed = gustMode ? sample.gust : sample.speed
-                        let angle = (sample.direction + 180) * .pi / 180
-                        let length = min(25, max(11, speed * 1.2))
-                        let center = CGPoint(x: (CGFloat(column) + 0.5) * size.width / CGFloat(columns),
-                                             y: (CGFloat(row) + 0.5) * size.height / CGFloat(rows))
-                        let end = CGPoint(x: center.x + CGFloat(cos(angle)) * length,
-                                          y: center.y - CGFloat(sin(angle)) * length)
-                        var path = Path()
-                        path.move(to: center)
-                        path.addLine(to: end)
-                        let headAngle = atan2(end.y - center.y, end.x - center.x)
-                        let head = length * 0.35
-                        let left = CGPoint(x: end.x - CGFloat(cos(headAngle - 0.55)) * head,
-                                           y: end.y - CGFloat(sin(headAngle - 0.55)) * head)
-                        let right = CGPoint(x: end.x - CGFloat(cos(headAngle + 0.55)) * head,
-                                            y: end.y - CGFloat(sin(headAngle + 0.55)) * head)
-                        path.move(to: left); path.addLine(to: end); path.addLine(to: right)
-                        context.stroke(path, with: .color(tint(speed)), style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
-                        let dot = Path(ellipseIn: CGRect(x: center.x - 2.5, y: center.y - 2.5, width: 5, height: 5))
-                        context.fill(dot, with: .color(.white.opacity(0.85)))
+        Canvas { context, size in
+            guard show, samples.count >= 9 else { return }
+            func vector(at point: CGPoint) -> (u: Double, v: Double, speed: Double) {
+                var total = 0.0, u = 0.0, v = 0.0, speed = 0.0
+                for sample in samples {
+                    let sx = 0.5 + (sample.longitude - samples[4].longitude) / 0.56
+                    let sy = 0.5 - (sample.latitude - samples[4].latitude) / 0.40
+                    let dx = Double(point.x / max(size.width, 1)) - sx
+                    let dy = Double(point.y / max(size.height, 1)) - sy
+                    let weight = 1.0 / max(dx * dx + dy * dy, 0.0025)
+                    let magnitude = gustMode ? sample.gust : sample.speed
+                    let radians = (sample.direction + 180) * .pi / 180
+                    u += -sin(radians) * magnitude * weight
+                    v += cos(radians) * magnitude * weight
+                    speed += magnitude * weight
+                    total += weight
+                }
+                return (u / total, v / total, speed / total)
+            }
+
+            for row in 0..<8 {
+                for column in 0..<10 {
+                    var point = CGPoint(
+                        x: (CGFloat(column) + 0.35 + CGFloat(row % 2) * 0.3) * size.width / 10,
+                        y: (CGFloat(row) + 0.5) * size.height / 8
+                    )
+                    var path = Path()
+                    path.move(to: point)
+                    var localSpeed = 0.0
+                    for _ in 0..<10 {
+                        let field = vector(at: point)
+                        localSpeed = field.speed
+                        let magnitude = max(0.1, hypot(field.u, field.v))
+                        let step = min(8.0, max(3.5, magnitude * 0.65))
+                        let next = CGPoint(x: point.x + CGFloat(field.u / magnitude) * step,
+                                           y: point.y - CGFloat(field.v / magnitude) * step)
+                        if next.x < 2 || next.x > size.width - 2 || next.y < 2 || next.y > size.height - 2 { break }
+                        path.addLine(to: next)
+                        point = next
                     }
+                    let color = tint(localSpeed)
+                    context.stroke(path, with: .color(color.opacity(0.95)),
+                                   style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                    let field = vector(at: point)
+                    let angle = atan2(-field.v, field.u)
+                    let head: CGFloat = 5
+                    var arrow = Path()
+                    arrow.move(to: point)
+                    arrow.addLine(to: CGPoint(x: point.x - CGFloat(cos(angle - 0.65)) * head,
+                                              y: point.y - CGFloat(sin(angle - 0.65)) * head))
+                    arrow.move(to: point)
+                    arrow.addLine(to: CGPoint(x: point.x - CGFloat(cos(angle + 0.65)) * head,
+                                              y: point.y - CGFloat(sin(angle + 0.65)) * head))
+                    context.stroke(arrow, with: .color(color), style: StrokeStyle(lineWidth: 2.2, lineCap: .round))
                 }
             }
         }
         .allowsHitTesting(false)
     }
 }
+
 
 private enum SWEREF99 {
     static func toWGS84(easting: Double, northing: Double) -> CLLocationCoordinate2D {
@@ -465,6 +490,7 @@ struct RadarMapView: View {
                         .padding(12).frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color(red: 0.12, green: 0.16, blue: 0.21), in: RoundedRectangle(cornerRadius: 15))
                     }
+                    if !showWind {
                     HStack(spacing: 9) {
                         Image(systemName: precipitationSymbol)
                             .font(.system(size: 19, weight: .semibold))
@@ -481,6 +507,8 @@ struct RadarMapView: View {
                     }
                     .padding(12)
                     .background(Color(red: 0.12, green: 0.16, blue: 0.21), in: RoundedRectangle(cornerRadius: 15))
+                    }
+
 
                     if isLoading {
                         HStack(spacing: 8) {
@@ -494,6 +522,7 @@ struct RadarMapView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
+                    if !showWind {
                     if let selectedFrame {
                         HStack(alignment: .firstTextBaseline) {
                             VStack(alignment: .leading, spacing: 2) {
@@ -578,6 +607,8 @@ struct RadarMapView: View {
                     }
                     .padding(12)
                     .background(Color(red: 0.12, green: 0.16, blue: 0.21), in: RoundedRectangle(cornerRadius: 15))
+
+                    }
 
                     HStack {
                         Text(provider == .smhi ? "Radar: SMHI • 5 min" : "Reservradar: RainViewer")
