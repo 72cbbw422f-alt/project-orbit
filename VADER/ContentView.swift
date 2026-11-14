@@ -78,10 +78,12 @@ struct ContentView: View {
                 .preferredColorScheme(.dark)
         }
         .sheet(isPresented: $showingWeatherDetails) {
-            if let snapshot = weatherModel.snapshot {
-                TodayWeatherDetails(weather: snapshot, days: weatherModel.days, hours: weatherModel.hours)
-            } else {
-                WeatherLoadingHome(status: weatherModel.status)
+            Group {
+                if let snapshot = weatherModel.snapshot {
+                    TodayWeatherDetails(weather: snapshot, days: weatherModel.days, hours: weatherModel.hours)
+                } else {
+                    WeatherLoadingHome(status: weatherModel.status)
+                }
             }
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
@@ -96,10 +98,12 @@ struct ContentView: View {
                 .preferredColorScheme(.dark)
         }
         .sheet(isPresented: $showingHourlyForecast) {
-            if let snapshot = weatherModel.snapshot {
-                HourlyForecastDetail(hours: weatherModel.hours, place: snapshot.place, weather: snapshot, days: weatherModel.days)
-            } else {
-                WeatherLoadingHome(status: weatherModel.status)
+            Group {
+                if let snapshot = weatherModel.snapshot {
+                    HourlyForecastDetail(hours: weatherModel.hours, place: snapshot.place, weather: snapshot, days: weatherModel.days)
+                } else {
+                    WeatherLoadingHome(status: weatherModel.status)
+                }
             }
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
