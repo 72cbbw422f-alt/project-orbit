@@ -276,8 +276,8 @@ struct ActiveWatchSummary: View {
         else if text.contains("regn") || text.contains("skur") || text.contains("duggregn") { result.append(("REGNVAKTEN", "cloud.rain.fill")) }
         if text.contains("åska") { result.append(("ÅSKVAKTEN", "cloud.bolt.rain.fill")) }
 
-        let gust = max(weather.windGust, hours.map(\\.gust).max() ?? days.first?.gust ?? 0)
-        if gust >= 17 || max(weather.wind, hours.map(\\.wind).max() ?? 0) >= 11 {
+        let gust = max(weather.windGust, hours.map(\.gust).max() ?? days.first?.gust ?? 0)
+        if gust >= 17 || max(weather.wind, hours.map(\.wind).max() ?? 0) >= 11 {
             result.append(("VINDVAKTEN", "wind"))
         }
 
@@ -307,7 +307,7 @@ struct ActiveWatchSummary: View {
                 Label("VÄDERVAKTER", systemImage: "shield.lefthalf.filled")
                     .font(.system(size: 13, weight: .heavy)).foregroundStyle(.white)
                 Spacer()
-                Text("\\(activeTitles.count) \\(activeTitles.count == 1 ? "aktiv" : "aktiva")")
+                Text("\(activeTitles.count) \(activeTitles.count == 1 ? "aktiv" : "aktiva")")
                     .font(.system(size: 13, weight: .heavy)).foregroundStyle(WatchPalette.cyan)
             }
             if activeTitles.isEmpty {
@@ -316,7 +316,7 @@ struct ActiveWatchSummary: View {
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], alignment: .leading, spacing: 7) {
-                    ForEach(Array(activeTitles.enumerated()), id: \\.offset) { _, item in
+                    ForEach(Array(activeTitles.enumerated()), id: \.offset) { _, item in
                         HStack(spacing: 6) {
                             Image(systemName: item.1).foregroundStyle(WatchPalette.cyan)
                             Text(item.0).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.78)
