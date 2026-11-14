@@ -105,6 +105,10 @@ struct VaktDashboard: View {
     }
 
     private var activeWatches: [WatchItem] { watches.filter(\.active) }
+    private var enabledWatchCount: Int {
+        [rainEnabled, snowEnabled, thunderEnabled, windEnabled, frostEnabled, smhiNotificationsEnabled]
+            .filter { $0 }.count
+    }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -119,17 +123,17 @@ struct VaktDashboard: View {
                 }
                 HStack(alignment: .center, spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(activeWatches.isEmpty ? "Inga förhöjda risker" : "Risker i prognosen")
+                        Text(activeWatches.isEmpty ? "Inga aktiva risker i prognosen" : "Risker i prognosen")
                             .font(.system(size: 15, weight: .bold)).foregroundStyle(.white)
                         Text("Väderläge för \(weather.place)")
                             .font(.system(size: 12, weight: .medium)).foregroundStyle(WatchPalette.muted)
                     }
                     Spacer(minLength: 8)
                     VStack(alignment: .trailing, spacing: 3) {
-                        Text("\(activeWatches.count) \(activeWatches.count == 1 ? "aktiv" : "aktiva")")
+                        Text("\(activeWatches.count) \(activeWatches.count == 1 ? "risk" : "risker")")
                             .font(.system(size: 16, weight: .heavy, design: .rounded)).foregroundStyle(activeWatches.isEmpty ? WatchPalette.muted : WatchPalette.cyan)
-                        Text("PROGNOS")
-                            .font(.system(size: 10, weight: .heavy)).tracking(0.8).foregroundStyle(WatchPalette.cyan.opacity(0.85))
+                        Text("\(enabledWatchCount) BEVAKNINGAR PÅ")
+                            .font(.system(size: 10, weight: .heavy)).tracking(0.6).foregroundStyle(WatchPalette.muted)
                     }
                 }
                 .padding(.horizontal, 14).padding(.vertical, 13)
