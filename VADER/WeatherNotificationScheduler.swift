@@ -29,7 +29,7 @@ enum WeatherNotificationScheduler {
         guard let data = defaults.data(forKey: forecastKey),
               let hours = try? JSONDecoder().decode([HourForecast].self, from: data),
               let place = defaults.string(forKey: placeKey) else { return }
-        Task { await schedule(place: place, hours: hours) }
+        Task { await schedule(place: place, hours: hours, currentTemperature: nil) }
     }
 
     static func removeAll() {
