@@ -158,7 +158,7 @@ enum WeatherNotificationScheduler {
                     defaults.set(alertDay, forKey: currentFrostAlertDayKey)
                 }
             } catch {
-                defaults.set("Fel vid schemaläggning: \\(error.localizedDescription)", forKey: scheduleStatusKey)
+                defaults.set("Fel vid schemaläggning: \(error.localizedDescription)", forKey: scheduleStatusKey)
             }
         }
         let finalPending = await center.pendingNotificationRequests()
@@ -168,7 +168,7 @@ enum WeatherNotificationScheduler {
         if defaults.string(forKey: scheduleStatusKey)?.hasPrefix("Fel vid schemaläggning:") != true {
             defaults.set(finalCount == 0
                 ? "Inga framtida risker passerade aviseringsgränserna"
-                : "\\(finalCount) väderavisering(ar) schemalagda i iPhone", forKey: scheduleStatusKey)
+                : "\(finalCount) väderavisering(ar) schemalagda i iPhone", forKey: scheduleStatusKey)
         }
     }
 
