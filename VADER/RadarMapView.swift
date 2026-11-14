@@ -1252,6 +1252,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
                 style.addLayer(layer)
             }
             applyCloudsIfReady()
+            applyPrecipitationTypesIfReady()
         }
     }
 }
