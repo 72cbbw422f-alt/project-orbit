@@ -234,7 +234,9 @@ private struct WindFieldOverlay: View {
                     let seed = CGPoint(x: seedX * size.width, y: seedY * size.height)
                     let duration = 5.2 + Double(index % 9) * 0.48
                     let phase = (now / duration + Double(index) * 0.137).truncatingRemainder(dividingBy: 1.0)
-                    let steps = max(1, Int(phase * 42.0))
+                    let progress = phase * 42.0
+                    let steps = Int(progress)
+                    let remainder = progress - Double(steps)
                     var point = seed
                     var trail: [CGPoint] = [seed]
                     var localSpeed = 0.0
@@ -254,10 +256,26 @@ private struct WindFieldOverlay: View {
                         trail.append(point)
                     }
 
+                    // A fractional final integration step removes the visible
+                    // one-pixel jumps caused by rounding particle progress to frames.
+                    if remainder > 0.015,
+                       point.x >= -8, point.x <= size.width + 8,
+                       point.y >= -8, point.y <= size.height + 8 {
+                        let field = vector(at: point)
+                        localSpeed = field.speed
+                        let magnitude = max(0.1, hypot(field.u, field.v))
+                        let step = min(6.5, max(2.8, magnitude * 0.48)) * remainder
+                        point = CGPoint(
+                            x: point.x + CGFloat(field.u / magnitude) * step,
+                            y: point.y - CGFloat(field.v / magnitude) * step
+                        )
+                        trail.append(point)
+                    }
+
                     guard let head = trail.last else { continue }
                     let color = tint(localSpeed)
                     if trail.count > 1 {
-                        let first = max(0, trail.count - 16)
+                        let first = max(0, trail.count - 22)
                         for segment in first..<trail.count - 1 {
                             var path = Path()
                             path.move(to: trail[segment])
@@ -417,7 +435,12 @@ struct RadarMapView: View {
                         coordinate: mapCoordinate,
                         radarImage: showRadar && provider == .smhi ? selectedImage : nil,
                         radarTileURL: radarTileURL,
-                        locationTitle: place
+                        locationTitle: place,
+                        onRegionChange: { center in
+                            guard showWind else { return }
+                            windMapCenter = center
+                            Task { await refreshWindField(center: center) }
+                        }
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     WindFieldOverlay(samples: windSamples, show: showWind, gustMode: windLayer == .gust)
@@ -836,9 +859,10 @@ struct RadarMapView: View {
 
 
     @MainActor
-    private func refreshWindField() async {
+    private func refreshWindField(center requestedCenter: CLLocationCoordinate2D? = nil) async {
         windStatus = "Hämtar vinddata över området…"
-        let center = mapCoordinate
+        let center = requestedCenter ?? windMapCenter ?? mapCoordinate
+        windMapCenter = center
         let grid = [-0.40, -0.20, 0.0, 0.20, 0.40]
         let offsets: [(Double, Double)] = grid.flatMap { lat in
             grid.map { lon in (lat, lon) }
@@ -894,6 +918,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
     let radarImage: UIImage?
     let radarTileURL: String?
     let locationTitle: String
+    let onRegionChange: (CLLocationCoordinate2D) -> Void
     private let styleURL = URL(string: "https://tiles.openfreemap.org/styles/fiord")!
 
     func makeUIView(context: Context) -> MLNMapView {
@@ -927,9 +952,13 @@ private struct RegnvaktMapView: UIViewRepresentable {
         // The initial camera is set once in makeUIView; the location marker can move independently.
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator() }
+    func makeCoordinator() -> Coordinator { Coordinator(onRegionChange: onRegionChange) }
 
     final class Coordinator: NSObject, MLNMapViewDelegate {
+        private let onRegionChange: (CLLocationCoordinate2D) -> Void
+        init(onRegionChange: @escaping (CLLocationCoordinate2D) -> Void) {
+            self.onRegionChange = onRegionChange
+        }
         weak var mapView: MLNMapView?
         var latestImage: UIImage?
         var latestTileURL: String?
@@ -969,6 +998,10 @@ private struct RegnvaktMapView: UIViewRepresentable {
             view.isEnabled = false
             view.centerOffset = .zero
             return view
+        }
+
+        func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
+            onRegionChange(mapView.centerCoordinate)
         }
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
