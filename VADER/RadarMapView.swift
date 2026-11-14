@@ -940,6 +940,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
         context.coordinator.lastCoordinate = coordinate
         context.coordinator.latestImage = radarImage
         context.coordinator.latestTileURL = radarTileURL
+        context.coordinator.onRegionChange = onRegionChange
         context.coordinator.updateLocationMarker(on: map, coordinate: coordinate, title: locationTitle)
         return map
     }
@@ -956,7 +957,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(onRegionChange: onRegionChange) }
 
     final class Coordinator: NSObject, MLNMapViewDelegate {
-        private let onRegionChange: (CLLocationCoordinate2D) -> Void
+        var onRegionChange: (CLLocationCoordinate2D) -> Void
         init(onRegionChange: @escaping (CLLocationCoordinate2D) -> Void) {
             self.onRegionChange = onRegionChange
         }
