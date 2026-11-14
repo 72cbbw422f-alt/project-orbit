@@ -192,6 +192,22 @@ private struct WatchDetailSheet: View {
     @AppStorage("Regnvakt.notifications.frost") private var frostEnabled = true
     @AppStorage("Regnvakt.notifications.smhi") private var smhiEnabled = true
 
+    private var isWatchEnabled: Bool {
+        switch watch.id {
+        case "precipitation": return rainEnabled || snowEnabled
+        case "thunder": return thunderEnabled
+        case "wind": return windEnabled
+        case "frost": return frostEnabled
+        case "official": return smhiEnabled
+        default: return false
+        }
+    }
+
+    private var displayedLevel: String { isWatchEnabled ? watch.level : "AVSTÄNGD" }
+    private var displayedDetail: String {
+        isWatchEnabled ? watch.detail : "Bevakningen är avstängd. Inga aviseringar skickas från den här vakten."
+    }
+
     private var relevantHours: [HourForecast] {
         if watch.id == "frost" { return hours.filter { $0.temperature <= 1 } }
         if watch.id == "precipitation" { return hours.filter { let c = $0.condition.lowercased(); return c.contains("regn") || c.contains("snö") || c.contains("dugg") || c.contains("skur") } }
@@ -213,7 +229,7 @@ private struct WatchDetailSheet: View {
                             .background(watch.tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
                         VStack(alignment: .leading, spacing: 4) {
                             Text(watch.title).font(.system(size: 22, weight: .heavy)).foregroundStyle(.white)
-                            Text(watch.level).font(.system(size: 13, weight: .heavy)).tracking(1).foregroundStyle(watch.tint)
+                            Text(displayedLevel).font(.system(size: 13, weight: .heavy)).tracking(1).foregroundStyle(watch.tint)
                         }
                         Spacer()
                     }
@@ -222,7 +238,7 @@ private struct WatchDetailSheet: View {
                         watchEnableControl
                     }
                     .padding(13).background(WatchPalette.panel, in: RoundedRectangle(cornerRadius: 15))
-                    Text(watch.detail).font(.system(size: 14, weight: .medium)).foregroundStyle(.white)
+                    Text(displayedDetail).font(.system(size: 14, weight: .medium)).foregroundStyle(.white)
                         .padding(14).frame(maxWidth: .infinity, alignment: .leading)
                         .background(WatchPalette.panel, in: RoundedRectangle(cornerRadius: 15))
                     VStack(alignment: .leading, spacing: 9) {
