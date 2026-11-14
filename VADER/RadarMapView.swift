@@ -409,14 +409,14 @@ struct RadarMapView: View {
                         if !nowcastPoints.isEmpty {
                             HStack(alignment: .bottom, spacing: 5) {
                                 ForEach(nowcastPoints.prefix(6)) { point in
-                                    VStack(spacing: 4) {
+                                    VStack(spacing: 2) {
                                         Text(String(format: "%.1f", point.precipitationRate ?? 0))
                                             .font(.system(size: 11, weight: .bold).monospacedDigit())
                                             .foregroundStyle(.white)
                                         Capsule()
                                             .fill(Color.cyan.opacity(0.9))
                                             .frame(maxWidth: 38)
-                                            .frame(height: max(4, min(36, CGFloat(point.precipitationRate ?? 0) * 18)))
+                                            .frame(height: max(3, min(30, CGFloat(point.precipitationRate ?? 0) * 18)))
                                         Text(point.time.formatted(date: .omitted, time: .shortened))
                                             .font(.system(size: 11, weight: .semibold).monospacedDigit())
                                             .foregroundStyle(.white.opacity(0.82))
@@ -424,12 +424,12 @@ struct RadarMapView: View {
                                             .minimumScaleFactor(0.8)
                                     }
                                     .frame(maxWidth: .infinity)
-                                    .frame(height: 68, alignment: .bottom)
+                                    .frame(maxWidth: .infinity, alignment: .top)
                                     .accessibilityElement(children: .combine)
                                     .accessibilityLabel("\(point.time.formatted(date: .omitted, time: .shortened)), \(String(format: "%.1f", point.precipitationRate ?? 0)) millimeter per hour")
                                 }
                             }
-                            .frame(height: 70)
+                            .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                     .padding(12)
