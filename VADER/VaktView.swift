@@ -267,6 +267,7 @@ struct ActiveWatchSummary: View {
     let weather: WeatherSnapshot
     let days: [DayForecast]
     let hours: [HourForecast]
+    @AppStorage("Regnvakt.smhi.active") private var smhiActive = false
 
     private var activeTitles: [(String, String)] {
         let text = hours.map { $0.condition.lowercased() }.joined(separator: " ")
@@ -274,32 +275,63 @@ struct ActiveWatchSummary: View {
         if text.contains("snö") { result.append(("SNÖVAKTEN", "cloud.snow.fill")) }
         else if text.contains("regn") || text.contains("skur") || text.contains("duggregn") { result.append(("REGNVAKTEN", "cloud.rain.fill")) }
         if text.contains("åska") { result.append(("ÅSKVAKTEN", "cloud.bolt.rain.fill")) }
-        let gust = max(weather.windGust, hours.map(\.gust).max() ?? days.first?.gust ?? 0)
-        if gust >= 17 || max(weather.wind, hours.map(\.wind).max() ?? 0) >= 11 { result.append(("VINDVAKTEN", "wind")) }
+
+        let gust = max(weather.windGust, hours.map(\\.gust).max() ?? days.first?.gust ?? 0)
+        if gust >= 17 || max(weather.wind, hours.map(\\.wind).max() ?? 0) >= 11 {
+            result.append(("VINDVAKTEN", "wind"))
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        let nowHour = Calendar.current.component(.hour, from: Date())
+        let currentThreshold = (nowHour >= 18 || nowHour < 9) ? 1 : 0
+        let currentFrost = weather.temperature <= currentThreshold
+        let forecastFrost = hours.contains { hour in
+            guard let date = formatter.date(from: hour.id) else { return false }
+            let hourOfDay = Calendar.current.component(.hour, from: date)
+            let threshold = (hourOfDay >= 18 || hourOfDay < 9) ? 1 : 0
+            return hour.temperature <= threshold
+        }
+        if currentFrost || forecastFrost {
+            result.append(("FROSTVAKTEN", "thermometer.snowflake"))
+        }
+        if smhiActive { result.append(("SMHI-VARNING", "exclamationmark.triangle.fill")) }
         return result
     }
 
     var body: some View {
-        if !activeTitles.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Label("AKTIVA VÄDERVAKTER", systemImage: "shield.lefthalf.filled")
-                        .font(.system(size: 13, weight: .heavy)).foregroundStyle(.white)
-                    Spacer()
-                    Text("\(activeTitles.count) AKTIVA").font(.system(size: 13, weight: .heavy)).foregroundStyle(WatchPalette.cyan)
-                }
-                HStack(spacing: 7) {
-                    ForEach(Array(activeTitles.enumerated()), id: \.offset) { _, item in
-                        HStack(spacing: 5) {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack {
+                Label("VÄDERVAKTER", systemImage: "shield.lefthalf.filled")
+                    .font(.system(size: 13, weight: .heavy)).foregroundStyle(.white)
+                Spacer()
+                Text("\\(activeTitles.count) \\(activeTitles.count == 1 ? "aktiv" : "aktiva")")
+                    .font(.system(size: 13, weight: .heavy)).foregroundStyle(WatchPalette.cyan)
+            }
+            if activeTitles.isEmpty {
+                Text("Inga förhöjda risker i prognosen just nu. Vädervakterna är igång.")
+                    .font(.system(size: 12, weight: .medium)).foregroundStyle(WatchPalette.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], alignment: .leading, spacing: 7) {
+                    ForEach(Array(activeTitles.enumerated()), id: \\.offset) { _, item in
+                        HStack(spacing: 6) {
                             Image(systemName: item.1).foregroundStyle(WatchPalette.cyan)
-                            Text(item.0).foregroundStyle(.white)
-                        }.font(.system(size: 13, weight: .heavy)).padding(.horizontal, 9).padding(.vertical, 8)
-                            .background(.white.opacity(0.06), in: Capsule())
-                            .overlay(Capsule().stroke(WatchPalette.line, lineWidth: 1))
+                            Text(item.0).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.78)
+                            Spacer(minLength: 0)
+                        }
+                        .font(.system(size: 11, weight: .heavy))
+                        .padding(.horizontal, 9).padding(.vertical, 9)
+                        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(WatchPalette.line, lineWidth: 1))
                     }
-                    Spacer(minLength: 0)
                 }
-            }.padding(11).background(WatchPalette.panel, in: RoundedRectangle(cornerRadius: 16)).overlay(RoundedRectangle(cornerRadius: 16).stroke(WatchPalette.line, lineWidth: 1))
+            }
         }
+        .padding(12)
+        .background(WatchPalette.panel, in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(WatchPalette.line, lineWidth: 1))
     }
 }
