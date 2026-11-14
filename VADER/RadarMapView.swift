@@ -471,6 +471,7 @@ struct RadarMapView: View {
                     Spacer()
                     Button {
                         showWind.toggle()
+                        showClouds = false
                         showRadar = !showWind
                         if showWind && windSamples.isEmpty { Task { await refreshWindField() } }
                     } label: {
@@ -512,7 +513,7 @@ struct RadarMapView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     HStack(spacing: 7) {
                         Circle().fill(Color(red: 0.35, green: 0.88, blue: 0.83)).frame(width: 7, height: 7)
-                        Text(showWind ? "VIND • OPEN-METEO" : "RADAR • \(provider.rawValue.uppercased())")
+                        Text(showWind ? "VIND • OPEN-METEO" : (showClouds ? "MOLNTÄCKE • OPEN-METEO" : "RADAR • \(provider.rawValue.uppercased())"))
                             .font(.system(size: 12, weight: .heavy))
                             .tracking(0.8)
                             .foregroundStyle(.white)
@@ -534,6 +535,7 @@ struct RadarMapView: View {
                     HStack(spacing: 10) {
                         Button {
                             showWind = false
+                            showClouds = false
                             showRadar = true
                         } label: {
                             Label("Regn", systemImage: "cloud.rain.fill")
@@ -546,6 +548,7 @@ struct RadarMapView: View {
                         .buttonStyle(.plain)
                         Button {
                             showWind = true
+                            showClouds = false
                             showRadar = false
                             if windSamples.isEmpty { Task { await refreshWindField() } }
                         } label: {
@@ -555,6 +558,20 @@ struct RadarMapView: View {
                                 .foregroundStyle(showWind ? Color(red: 0.05, green: 0.12, blue: 0.15) : .white)
                                 .background(showWind ? Color.cyan : Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 13))
                                 .overlay(RoundedRectangle(cornerRadius: 13).stroke(showWind ? Color.white.opacity(0.38) : Color.white.opacity(0.16), lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                        Button {
+                            showWind = false
+                            showClouds = true
+                            showRadar = false
+                            if windSamples.isEmpty { Task { await refreshWindField() } }
+                        } label: {
+                            Label("Moln", systemImage: "cloud.fill")
+                                .font(.system(size: 15, weight: .bold))
+                                .frame(maxWidth: .infinity).frame(height: 48)
+                                .foregroundStyle(showClouds ? Color(red: 0.05, green: 0.12, blue: 0.15) : .white)
+                                .background(showClouds ? Color(red: 0.72, green: 0.82, blue: 0.92) : Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 13))
+                                .overlay(RoundedRectangle(cornerRadius: 13).stroke(showClouds ? Color.white.opacity(0.38) : Color.white.opacity(0.16), lineWidth: 1))
                         }
                         .buttonStyle(.plain)
                     }
@@ -596,7 +613,28 @@ struct RadarMapView: View {
                         .padding(12).frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color(red: 0.12, green: 0.16, blue: 0.21), in: RoundedRectangle(cornerRadius: 15))
                     }
-                    if !showWind {
+                    if showClouds {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("MOLNTÄCKE ÖVER KARTOMRÅDET")
+                                .font(.system(size: 12, weight: .heavy)).tracking(0.8).foregroundStyle(Color.cyan)
+                            Text("Modellberäknad molnighet från Open-Meteo. Ljusa fält visar större molntäcke; visualiseringen är en interpolerad områdesbild, inte satellitobservation.")
+                                .font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.82))
+                            HStack {
+                                Text(windStatus)
+                                Spacer()
+                                Text(windUpdated?.formatted(date: .omitted, time: .shortened) ?? "—")
+                                    .monospacedDigit()
+                            }
+                            .font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.62))
+                            if let center = windSamples.first(where: { $0.id == 12 }) {
+                                Text("Molnighet vid kartans mittpunkt: \(Int(center.cloudCover.rounded())) %")
+                                    .font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
+                            }
+                        }
+                        .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(red: 0.12, green: 0.16, blue: 0.21), in: RoundedRectangle(cornerRadius: 15))
+                    }
+                    if !showWind && !showClouds {
                     HStack(spacing: 9) {
                         Image(systemName: precipitationSymbol)
                             .font(.system(size: 19, weight: .semibold))
