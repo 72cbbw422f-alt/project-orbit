@@ -27,13 +27,14 @@ struct ContentView: View {
             // The root canvas and both background layers must occupy the complete
             // window. The scrollable content remains inside the safe area.
             RTheme.bg.ignoresSafeArea()
-            RWeatherBackground(condition: weatherModel.snapshot?.condition ?? WeatherSnapshot.demo.condition)
+            RWeatherBackground(condition: weatherModel.snapshot?.condition ?? "")
                 .ignoresSafeArea()
             Group {
                 switch selectedTab {
                 case .weather:
+                    if let snapshot = weatherModel.snapshot {
                     ReferenceWeatherHome(
-                        weather: weatherModel.snapshot ?? .demo,
+                        weather: snapshot,
                         days: weatherModel.days,
                         hours: weatherModel.hours,
                         status: weatherModel.status,
@@ -48,8 +49,11 @@ struct ContentView: View {
                         showPlaceSearch: { showingPlaceSearch = true },
                         selectForecastDay: { selectedForecastDay = $0 }
                     )
+                    } else {
+                        WeatherLoadingHome(status: weatherModel.status)
+                    }
                 case .radar: RadarMapView(coordinate: weatherModel.currentCoordinate, place: weatherModel.snapshot?.place ?? "Hudiksvall")
-                case .watch: VaktDashboard(weather: weatherModel.snapshot ?? .demo, days: weatherModel.days, hours: weatherModel.hours)
+                case .watch: if let snapshot = weatherModel.snapshot { VaktDashboard(weather: snapshot, days: weatherModel.days, hours: weatherModel.hours) } else { RPlaceholder(title: "Vädervakter", subtitle: "Inväntar riktiga väderdata", icon: "bell.badge") }
                 case .places: SavedPlacesView(model: weatherModel, onAddPlace: { showingPlaceSearch = true }, onSelectPlace: { selectedTab = .weather })
                 case .more: NotificationSettingsView()
                 }
@@ -74,7 +78,11 @@ struct ContentView: View {
                 .preferredColorScheme(.dark)
         }
         .sheet(isPresented: $showingWeatherDetails) {
-            TodayWeatherDetails(weather: weatherModel.snapshot ?? .demo, days: weatherModel.days, hours: weatherModel.hours)
+            if let snapshot = weatherModel.snapshot {
+                TodayWeatherDetails(weather: snapshot, days: weatherModel.days, hours: weatherModel.hours)
+            } else {
+                WeatherLoadingHome(status: weatherModel.status)
+            }
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(RTheme.bg)
@@ -88,7 +96,11 @@ struct ContentView: View {
                 .preferredColorScheme(.dark)
         }
         .sheet(isPresented: $showingHourlyForecast) {
-            HourlyForecastDetail(hours: weatherModel.hours, place: weatherModel.snapshot?.place ?? "Din plats", weather: weatherModel.snapshot ?? .demo, days: weatherModel.days)
+            if let snapshot = weatherModel.snapshot {
+                HourlyForecastDetail(hours: weatherModel.hours, place: snapshot.place, weather: snapshot, days: weatherModel.days)
+            } else {
+                WeatherLoadingHome(status: weatherModel.status)
+            }
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(RTheme.bg)
@@ -118,6 +130,33 @@ struct ContentView: View {
         .preferredColorScheme(.dark)
         .tint(RTheme.cyan)
         .transaction { transaction in transaction.animation = nil }
+    }
+}
+
+
+private struct WeatherLoadingHome: View {
+    let status: String
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Image(systemName: "cloud.sun")
+                .font(.system(size: 54, weight: .light))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(RTheme.cyan)
+            Text("Hämtar väder")
+                .font(.system(size: 25, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+            Text(status)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(RTheme.muted)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 280)
+            ProgressView().tint(RTheme.cyan)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(24)
     }
 }
 
