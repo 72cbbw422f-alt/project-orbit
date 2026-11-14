@@ -218,7 +218,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                 lastUpdated = updateTime
                 days = result.days
                 hours = result.hours
-                WeatherNotificationScheduler.refresh(place: placeName, hours: result.hours)
+                WeatherNotificationScheduler.refresh(place: placeName, hours: result.hours, currentTemperature: updatedSnapshot.temperature)
                 Task { await SMHIWarningService.checkAndNotify(at: CLLocationCoordinate2D(latitude: latitude, longitude: longitude)) }
                 status = "Liveprognos • Open-Meteo"
             } catch {
