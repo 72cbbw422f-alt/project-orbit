@@ -55,6 +55,7 @@ enum WeatherNotificationScheduler {
             let pending = await center.pendingNotificationRequests()
             let staleIDs = pending.map(\.identifier).filter { $0.hasPrefix(prefix) }
             center.removePendingNotificationRequests(withIdentifiers: staleIDs)
+            SMHIWarningService.clearPendingNotifications()
             defaults.set("Aviseringar avstängda i Regnvakt", forKey: scheduleStatusKey)
             defaults.set(0, forKey: scheduledCountKey)
             defaults.set(Date(), forKey: scheduleUpdatedKey)
