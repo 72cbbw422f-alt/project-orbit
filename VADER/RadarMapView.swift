@@ -909,7 +909,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
         if previous == nil || abs(previous!.latitude - coordinate.latitude) > 0.001 ||
             abs(previous!.longitude - coordinate.longitude) > 0.001 {
             context.coordinator.lastCoordinate = coordinate
-            map.setCenter(coordinate, zoomLevel: min(max(map.zoomLevel, 7.0), 7.0), animated: true)
+            map.setCenter(coordinate, zoomLevel: 7.0, animated: false)
         }
     }
 
