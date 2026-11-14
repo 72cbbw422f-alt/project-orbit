@@ -24,10 +24,6 @@ struct ContentView: View {
     @AppStorage("Regnvakt.notifications.snow") private var snowWatchEnabled = true
     @AppStorage("Regnvakt.notifications.wind") private var windWatchEnabled = true
     @AppStorage("Regnvakt.notifications.frost") private var frostWatchEnabled = true
-    @AppStorage("Regnvakt.notifications.rain") private var rainWatchEnabled = true
-    @AppStorage("Regnvakt.notifications.snow") private var snowWatchEnabled = true
-    @AppStorage("Regnvakt.notifications.wind") private var windWatchEnabled = true
-    @AppStorage("Regnvakt.notifications.frost") private var frostWatchEnabled = true
     @StateObject private var weatherModel = WeatherViewModel()
 
     var body: some View {
@@ -189,6 +185,10 @@ private struct ReferenceWeatherHome: View {
     let selectForecastDay: (DayForecast) -> Void
     @AppStorage("Regnvakt.notifications.hasUnread") private var hasUnreadNotifications = false
     @AppStorage("Regnvakt.smhi.hasNewNationalWarnings") private var hasNewNationalWarnings = false
+    @AppStorage("Regnvakt.notifications.rain") private var rainWatchEnabled = true
+    @AppStorage("Regnvakt.notifications.snow") private var snowWatchEnabled = true
+    @AppStorage("Regnvakt.notifications.wind") private var windWatchEnabled = true
+    @AppStorage("Regnvakt.notifications.frost") private var frostWatchEnabled = true
     private let bars: [CGFloat] = [0.08,0.12,0.16,0.22,0.30,0.38,0.48,0.58,0.70,0.83,0.96,1.0,0.86,0.72,0.64,0.57,0.48,0.36,0.26,0.19,0.16,0.14,0.12,0.10]
     private var watchTitle: String {
         let condition = weather.condition.lowercased()
