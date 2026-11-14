@@ -421,7 +421,7 @@ struct RadarMapView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(windStatus).font(.system(size: 13, weight: .semibold)).foregroundStyle(.white)
                             if let sample = windSamples.first(where: { $0.id == 4 }) {
-                                Text("\\(windLayer == .gust ? "Byvind" : "Vind") vid \\(place): \\(String(format: "%.1f", windLayer == .gust ? sample.gust : sample.speed)) m/s • \\(Int(sample.direction.rounded()))°")
+                                Text("\(windLayer == .gust ? "Byvind" : "Vind") vid \(place): \(String(format: "%.1f", windLayer == .gust ? sample.gust : sample.speed)) m/s • \(Int(sample.direction.rounded()))°")
                                     .font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.82))
                             }
                             HStack(spacing: 10) {
