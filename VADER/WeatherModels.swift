@@ -21,19 +21,7 @@ struct WeatherSnapshot: Codable {
     var daylightMinutes: Int = 0
     var daylightChangeMinutes: Int = 0
 
-    static let demo = WeatherSnapshot(
-        place: "Din plats",
-        condition: "Regn och kylig vind",
-        temperature: 3,
-        feelsLike: 0,
-        wind: 3.0,
-        windGust: 5.6,
-        windDirectionDegrees: 315,
-        windDirectionText: "NV",
-        humidity: 98,
-        uvIndex: 0,
-        precipitationToday: 6.9
-    )
+
 }
 
 struct HourForecast: Identifiable, Codable {
