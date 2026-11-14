@@ -160,10 +160,12 @@ enum WeatherNotificationScheduler {
         let alreadyAlertedForCurrentFrostToday = lastCurrentFrostAlertDay.map {
             Calendar.current.isDate($0, inSameDayAs: now)
         } ?? false
-        if currentFrost && !alreadyAlertedForCurrentFrostToday {
-            // Seed the transition detector so a continuous frost period does not
-            // also create a second, redundant future alert for the same episode.
+        if currentFrost {
+            // Seed the transition detector even when today's immediate alert was
+            // already delivered, so the same continuous frost episode is not re-armed.
             previousTypes.insert("frost")
+        }
+        if currentFrost && !alreadyAlertedForCurrentFrostToday {
             result.append(Event(
                 type: "frost",
                 title: "Frostrisk just nu",
