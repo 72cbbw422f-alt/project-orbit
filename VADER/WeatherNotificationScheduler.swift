@@ -109,7 +109,13 @@ enum WeatherNotificationScheduler {
         let pending = await center.pendingNotificationRequests()
         let delivered = await center.deliveredNotifications()
         let desiredIDs = Set(selected.map(\.identifier))
-        let oldIDs = pending.map(\.identifier).filter { $0.hasPrefix(prefix) && !desiredIDs.contains($0) }
+        let preserveCurrentFrost = currentTemperature == nil
+            && (defaults.object(forKey: "Regnvakt.notifications.frost") as? Bool ?? true)
+        let oldIDs = pending.map(\.identifier).filter { identifier in
+            guard identifier.hasPrefix(prefix), !desiredIDs.contains(identifier) else { return false }
+            if preserveCurrentFrost && identifier.contains(".frost.current.") { return false }
+            return true
+        }
         center.removePendingNotificationRequests(withIdentifiers: oldIDs)
         let existingIDs = Set(pending.map(\.identifier)).union(delivered.map { $0.request.identifier })
         for request in selected where !existingIDs.contains(request.identifier) {
