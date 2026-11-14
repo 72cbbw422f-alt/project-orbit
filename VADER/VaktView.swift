@@ -364,7 +364,7 @@ struct ActiveWatchSummary: View {
     @AppStorage("Regnvakt.notifications.frost") private var frostEnabled = true
     @AppStorage("Regnvakt.notifications.smhi") private var smhiEnabled = true
 
-    private var activeTitles: [(String, String)] {
+    private var activeTitles: [(String, String, Bool)] {
         let text = hours.map { $0.condition.lowercased() }.joined(separator: " ")
         var result: [(String, String)] = []
         let snowRisk = hours.contains { $0.condition.localizedCaseInsensitiveContains("snö") && ($0.precipitationChance >= 40 || $0.precipitation >= 0.2) }
@@ -373,13 +373,13 @@ struct ActiveWatchSummary: View {
             let isRain = condition.contains("regn") || condition.contains("duggregn") || condition.contains("skur")
             return isRain && ($0.precipitationChance >= 40 || $0.precipitation >= 0.3)
         }
-        if snowRisk && snowEnabled { result.append(("SNÖVAKTEN", "cloud.snow.fill")) }
-        if rainRisk && rainEnabled { result.append(("REGNVAKTEN", "cloud.rain.fill")) }
-        if text.contains("åska") && thunderEnabled { result.append(("ÅSKVAKTEN", "cloud.bolt.rain.fill")) }
+        if snowRisk { result.append(("SNÖVAKTEN", "cloud.snow.fill", snowEnabled)) }
+        if rainRisk { result.append(("REGNVAKTEN", "cloud.rain.fill", rainEnabled)) }
+        if text.contains("åska") { result.append(("ÅSKVAKTEN", "cloud.bolt.rain.fill", thunderEnabled)) }
 
         let gust = max(weather.windGust, hours.map(\.gust).max() ?? days.first?.gust ?? 0)
-        if windEnabled && (gust >= 17 || max(weather.wind, hours.map(\.wind).max() ?? 0) >= 11) {
-            result.append(("VINDVAKTEN", "wind"))
+        if gust >= 17 || max(weather.wind, hours.map(\.wind).max() ?? 0) >= 11 {
+            result.append(("VINDVAKTEN", "wind", windEnabled))
         }
 
         let formatter = DateFormatter()
@@ -395,10 +395,10 @@ struct ActiveWatchSummary: View {
             let threshold = (hourOfDay >= 18 || hourOfDay < 9) ? 1 : 0
             return hour.temperature <= threshold
         }
-        if frostEnabled && (currentFrost || forecastFrost) {
-            result.append(("FROSTVAKTEN", "thermometer.snowflake"))
+        if currentFrost || forecastFrost {
+            result.append(("FROSTVAKTEN", "thermometer.snowflake", frostEnabled))
         }
-        if smhiActive && smhiEnabled { result.append(("SMHI-VARNING", "exclamationmark.triangle.fill")) }
+        if smhiActive { result.append(("SMHI-VARNING", "exclamationmark.triangle.fill", smhiEnabled)) }
         return result
     }
 
@@ -427,9 +427,12 @@ struct ActiveWatchSummary: View {
                 LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], alignment: .leading, spacing: 7) {
                     ForEach(Array(activeTitles.enumerated()), id: \.offset) { _, item in
                         HStack(spacing: 6) {
-                            Image(systemName: item.1).foregroundStyle(WatchPalette.cyan)
+                            Image(systemName: item.1).foregroundStyle(item.2 ? WatchPalette.cyan : WatchPalette.muted)
                             Text(item.0).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.78)
                             Spacer(minLength: 0)
+                            Text(item.2 ? "PÅ" : "AV")
+                                .font(.system(size: 9, weight: .heavy))
+                                .foregroundStyle(item.2 ? WatchPalette.cyan : WatchPalette.muted)
                         }
                         .font(.system(size: 11, weight: .heavy))
                         .padding(.horizontal, 9).padding(.vertical, 9)
