@@ -2,7 +2,7 @@ name: Build Regnvakt iOS
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/wind-radar]
   workflow_dispatch:
 
 permissions:
