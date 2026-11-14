@@ -168,6 +168,74 @@ private enum RadarService {
     }
 }
 
+
+private struct WindSample: Identifiable {
+    let id: Int
+    let latitude: Double
+    let longitude: Double
+    let speed: Double
+    let direction: Double
+    let gust: Double
+}
+
+private enum WindLayer: String, CaseIterable {
+    case speed = "Vind"
+    case gust = "Byvind"
+}
+
+private struct WindFieldOverlay: View {
+    let samples: [WindSample]
+    let show: Bool
+    let gustMode: Bool
+
+    private func tint(_ speed: Double) -> Color {
+        switch speed {
+        case ..<4: return Color(red: 0.25, green: 0.82, blue: 0.92)
+        case ..<8: return Color(red: 0.25, green: 0.86, blue: 0.58)
+        case ..<12: return Color(red: 0.98, green: 0.82, blue: 0.28)
+        case ..<17: return Color(red: 1.0, green: 0.48, blue: 0.22)
+        default: return Color(red: 0.98, green: 0.25, blue: 0.30)
+        }
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            Canvas { context, size in
+                guard show, !samples.isEmpty else { return }
+                let columns = 5
+                let rows = 5
+                for row in 0..<rows {
+                    for column in 0..<columns {
+                        let index = min(samples.count - 1, (row * columns + column) * samples.count / (rows * columns))
+                        let sample = samples[index]
+                        let speed = gustMode ? sample.gust : sample.speed
+                        let angle = (sample.direction + 180) * .pi / 180
+                        let length = min(25, max(11, speed * 1.2))
+                        let center = CGPoint(x: (CGFloat(column) + 0.5) * size.width / CGFloat(columns),
+                                             y: (CGFloat(row) + 0.5) * size.height / CGFloat(rows))
+                        let end = CGPoint(x: center.x + CGFloat(cos(angle)) * length,
+                                          y: center.y - CGFloat(sin(angle)) * length)
+                        var path = Path()
+                        path.move(to: center)
+                        path.addLine(to: end)
+                        let headAngle = atan2(end.y - center.y, end.x - center.x)
+                        let head = length * 0.35
+                        let left = CGPoint(x: end.x - CGFloat(cos(headAngle - 0.55)) * head,
+                                           y: end.y - CGFloat(sin(headAngle - 0.55)) * head)
+                        let right = CGPoint(x: end.x - CGFloat(cos(headAngle + 0.55)) * head,
+                                            y: end.y - CGFloat(sin(headAngle + 0.55)) * head)
+                        path.move(to: left); path.addLine(to: end); path.addLine(to: right)
+                        context.stroke(path, with: .color(tint(speed)), style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                        let dot = Path(ellipseIn: CGRect(x: center.x - 2.5, y: center.y - 2.5, width: 5, height: 5))
+                        context.fill(dot, with: .color(.white.opacity(0.85)))
+                    }
+                }
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
 private enum SWEREF99 {
     static func toWGS84(easting: Double, northing: Double) -> CLLocationCoordinate2D {
         let a = 6378137.0
@@ -263,7 +331,7 @@ struct RadarMapView: View {
                             .font(.system(size: 12, weight: .heavy, design: .rounded))
                             .tracking(2.2)
                             .foregroundStyle(Color(red: 0.98, green: 0.58, blue: 0.40))
-                        Text("Nederbördsradar")
+                        Text(showWind ? "Vindradar" : "Nederbördsradar")
                             .font(.system(size: 25, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
                         Text(place)
@@ -271,7 +339,11 @@ struct RadarMapView: View {
                             .foregroundStyle(.white.opacity(0.72))
                     }
                     Spacer()
-                    Button { showRadar.toggle() } label: {
+                    Button {
+                        showWind.toggle()
+                        showRadar = !showWind
+                        if showWind && windSamples.isEmpty { Task { await refreshWindField() } }
+                    } label: {
                         Image(systemName: showRadar ? "cloud.rain.fill" : "cloud")
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundStyle(showRadar ? Color(red: 0.98, green: 0.58, blue: 0.40) : .white.opacity(0.75))
@@ -638,6 +710,50 @@ struct RadarMapView: View {
             nowcastPoints = []
             nowcastStatus = "Kunde inte hämta MET Norways närprognos."
         }
+    }
+
+
+    @MainActor
+    private func refreshWindField() async {
+        windStatus = "Hämtar vinddata över området…"
+        let center = mapCoordinate
+        let offsets: [(Double, Double)] = [
+            (-0.20, -0.28), (-0.20, 0), (-0.20, 0.28),
+            (0, -0.28), (0, 0), (0, 0.28),
+            (0.20, -0.28), (0.20, 0), (0.20, 0.28)
+        ]
+        var results: [WindSample] = []
+        await withTaskGroup(of: WindSample?.self) { group in
+            for (index, offset) in offsets.enumerated() {
+                let lat = center.latitude + offset.0
+                let lon = center.longitude + offset.1
+                group.addTask {
+                    var components = URLComponents(string: "https://api.open-meteo.com/v1/forecast")!
+                    components.queryItems = [
+                        URLQueryItem(name: "latitude", value: String(lat)),
+                        URLQueryItem(name: "longitude", value: String(lon)),
+                        URLQueryItem(name: "current", value: "wind_speed_10m,wind_direction_10m,wind_gusts_10m"),
+                        URLQueryItem(name: "wind_speed_unit", value: "ms"),
+                        URLQueryItem(name: "timezone", value: "auto")
+                    ]
+                    guard let url = components.url,
+                          let (data, response) = try? await URLSession.shared.data(from: url),
+                          (response as? HTTPURLResponse)?.statusCode == 200,
+                          let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                          let current = root["current"] as? [String: Any],
+                          let speed = (current["wind_speed_10m"] as? NSNumber)?.doubleValue,
+                          let direction = (current["wind_direction_10m"] as? NSNumber)?.doubleValue,
+                          let gust = (current["wind_gusts_10m"] as? NSNumber)?.doubleValue else { return nil }
+                    return WindSample(id: index, latitude: lat, longitude: lon, speed: speed, direction: direction, gust: gust)
+                }
+            }
+            for await sample in group { if let sample { results.append(sample) } }
+        }
+        windSamples = results.sorted { $0.id < $1.id }
+        windUpdated = Date()
+        windStatus = results.count == offsets.count
+            ? "Vindfält • 9 modellpunkter runt \(place)"
+            : "Vindfält delvis tillgängligt • \(results.count) av 9 punkter"
     }
 
     private static func precipitationName(code: Int, temperature: Double) -> String {
