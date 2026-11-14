@@ -172,7 +172,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                         currentTemperature: forecast.current.temperature
                     )
                 } catch {
-                    status = "Kunde inte uppdatera bevakningen för \\(place.name)."
+                    status = "Kunde inte uppdatera bevakningen för \(place.name)."
                 }
             }
         } else {
@@ -183,7 +183,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
     }
 
     private func persistMonitoredPlaces() {
-        UserDefaults.standard.set(monitoredPlaceIDs.map(\\.uuidString), forKey: monitoredPlacesKey)
+        UserDefaults.standard.set(monitoredPlaceIDs.map(\.uuidString), forKey: monitoredPlacesKey)
     }
 
     func removePlace(_ place: SavedWeatherPlace) {
