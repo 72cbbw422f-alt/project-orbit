@@ -210,7 +210,7 @@ enum WeatherNotificationScheduler {
                     let dayOffset = calendar.dateComponents([.day], from: today, to: eventDay).day ?? 99
                     let currentHour = calendar.component(.hour, from: Date())
                     let isTonight = (dayOffset == 0 && (localHour >= 18 || (currentHour < 9 && localHour < 9)))
-                        || (dayOffset == 1 && localHour < 9)
+                        || (dayOffset == 1 && currentHour >= 9 && localHour < 9)
                     let dateLabel = date.formatted(date: .abbreviated, time: .omitted)
                     active.append(Event(
                         type: "frost",
