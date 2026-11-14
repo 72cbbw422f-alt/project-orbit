@@ -241,7 +241,9 @@ private struct WindFieldOverlay: View {
                 }
 
                 let now = timeline.date.timeIntervalSinceReferenceDate
-                let particleCount = 420
+                // Fewer, longer-lived trails create a calmer visual field and
+                // leave more rendering headroom on older iPhones.
+                let particleCount = 320
                 for index in 0..<particleCount {
                     // Deterministic pseudo-random seed points; particles drift continuously
                     // through the interpolated Open-Meteo wind field and then respawn.
@@ -290,21 +292,43 @@ private struct WindFieldOverlay: View {
 
                     guard let head = trail.last else { continue }
                     let color = tint(localSpeed)
-                    if trail.count > 1 {
-                        let first = max(0, trail.count - 22)
-                        for segment in first..<trail.count - 1 {
-                            var path = Path()
-                            path.move(to: trail[segment])
-                            path.addLine(to: trail[segment + 1])
-                            let opacity = Double(segment - first + 1) / Double(trail.count - first)
-                            context.stroke(path, with: .color(color.opacity(0.12 + opacity * 0.58)),
-                                           style: StrokeStyle(lineWidth: 1.2 + opacity * 1.5, lineCap: .round))
+                    if trail.count > 2 {
+                        let visibleTrail = Array(trail.suffix(24))
+                        var smoothPath = Path()
+                        smoothPath.move(to: visibleTrail[0])
+                        if visibleTrail.count > 2 {
+                            for index in 1..<(visibleTrail.count - 1) {
+                                let midpoint = CGPoint(
+                                    x: (visibleTrail[index].x + visibleTrail[index + 1].x) * 0.5,
+                                    y: (visibleTrail[index].y + visibleTrail[index + 1].y) * 0.5
+                                )
+                                smoothPath.addQuadCurve(to: midpoint, control: visibleTrail[index])
+                            }
                         }
+                        if let last = visibleTrail.last {
+                            smoothPath.addLine(to: last)
+                        }
+                        // Soft halo plus a fine luminous core gives the trails
+                        // the continuous, fluid appearance expected from a wind map.
+                        context.stroke(smoothPath, with: .color(color.opacity(0.13)),
+                                       style: StrokeStyle(lineWidth: 5.0, lineCap: .round, lineJoin: .round))
+                        context.stroke(
+                            smoothPath,
+                            with: .linearGradient(
+                                Gradient(colors: [color.opacity(0.08), color.opacity(0.88)]),
+                                startPoint: visibleTrail[0],
+                                endPoint: head
+                            ),
+                            style: StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round)
+                        )
                     }
-                    let radius: CGFloat = 1.25 + CGFloat(min(localSpeed, 20)) * 0.055
+                    let radius: CGFloat = 1.2 + CGFloat(min(localSpeed, 20)) * 0.05
+                    let halo = Path(ellipseIn: CGRect(x: head.x - radius * 2.2, y: head.y - radius * 2.2,
+                                                      width: radius * 4.4, height: radius * 4.4))
+                    context.fill(halo, with: .color(color.opacity(0.16)))
                     let particle = Path(ellipseIn: CGRect(x: head.x - radius, y: head.y - radius,
                                                           width: radius * 2, height: radius * 2))
-                    context.fill(particle, with: .color(color.opacity(0.98)))
+                    context.fill(particle, with: .color(color.opacity(0.96)))
                 }
             }
         }
