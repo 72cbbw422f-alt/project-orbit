@@ -401,7 +401,7 @@ struct RadarMapView: View {
 
                 VStack(spacing: 13) {
                     HStack(spacing: 8) {
-                        ForEach(WindLayer.allCases, id: \\.self) { layer in
+                        ForEach(WindLayer.allCases, id: \.self) { layer in
                             Button {
                                 windLayer = layer
                                 if !showWind { showWind = true; showRadar = false }
@@ -425,7 +425,7 @@ struct RadarMapView: View {
                                     .font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.82))
                             }
                             HStack(spacing: 10) {
-                                ForEach([("0–4", Color.cyan), ("4–8", Color.green), ("8–12", Color.yellow), ("12–17", Color.orange), ("17+", Color.red)], id: \\.0) { item in
+                                ForEach([("0–4", Color.cyan), ("4–8", Color.green), ("8–12", Color.yellow), ("12–17", Color.orange), ("17+", Color.red)], id: \.0) { item in
                                     HStack(spacing: 4) { Circle().fill(item.1).frame(width: 7, height: 7); Text(item.0).font(.system(size: 10, weight: .semibold)).foregroundStyle(.white.opacity(0.75)) }
                                 }
                             }
