@@ -223,8 +223,32 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                 days = result.days
                 hours = result.hours
                 WeatherNotificationScheduler.refresh(place: placeName, latitude: latitude, longitude: longitude, hours: result.hours, currentTemperature: updatedSnapshot.temperature)
+
+                // Every saved place is monitored independently. Selecting one city
+                // no longer replaces the pending alerts belonging to another city.
+                let otherPlaces = savedPlaces.filter {
+                    abs($0.latitude - latitude) > 0.015 || abs($0.longitude - longitude) > 0.015
+                }
+                for savedPlace in otherPlaces {
+                    do {
+                        let placeForecast = try await OpenMeteoService.fetch(
+                            latitude: savedPlace.latitude,
+                            longitude: savedPlace.longitude
+                        )
+                        WeatherNotificationScheduler.refresh(
+                            place: savedPlace.name,
+                            latitude: savedPlace.latitude,
+                            longitude: savedPlace.longitude,
+                            hours: placeForecast.hours,
+                            currentTemperature: placeForecast.current.temperature
+                        )
+                    } catch {
+                        // Keep the last valid schedule for this place if a refresh fails.
+                    }
+                }
+
                 Task { await SMHIWarningService.checkAndNotify(at: CLLocationCoordinate2D(latitude: latitude, longitude: longitude)) }
-                status = "Liveprognos • Open-Meteo"
+                status = "Liveprognos • Open-Meteo • \(savedPlaces.count) sparade platser bevakas"
             } catch {
                 guard requestID == weatherRequestID else { return }
                 status = "Kunde inte hämta väderdata. Försök igen."
