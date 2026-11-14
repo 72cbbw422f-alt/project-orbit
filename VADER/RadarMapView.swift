@@ -465,7 +465,7 @@ struct RadarMapView: View {
                 }
                 .padding(.horizontal, 12)
                 .frame(maxWidth: .infinity)
-                .frame(height: 300)
+                .frame(height: 390)
 
                 VStack(spacing: 13) {
                     HStack(spacing: 10) {
@@ -520,7 +520,7 @@ struct RadarMapView: View {
                     if showWind {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(windStatus).font(.system(size: 13, weight: .semibold)).foregroundStyle(.white)
-                            if let sample = windSamples.first(where: { $0.id == 4 }) {
+                            if let sample = windSamples.first(where: { $0.id == 12 }) {
                                 Text("\(windLayer == .gust ? "Byvind" : "Vind") vid \(place): \(String(format: "%.1f", windLayer == .gust ? sample.gust : sample.speed)) m/s • \(Int(sample.direction.rounded()))°")
                                     .font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.82))
                             }
