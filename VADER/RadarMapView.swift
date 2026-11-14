@@ -179,27 +179,7 @@ private struct WindSample: Identifiable {
     let cloudCover: Double
 }
 
-private struct CloudFieldOverlay: View {
-    let samples: [WindSample]
-    let show: Bool
 
-    var body: some View {
-        Canvas { context, size in
-            guard show, samples.count >= 9 else { return }
-            let center = samples.first(where: { $0.id == 12 }) ?? samples[samples.count / 2]
-            for sample in samples {
-                let x = size.width * (0.5 + (sample.longitude - center.longitude) / 0.90)
-                let y = size.height * (0.5 - (sample.latitude - center.latitude) / 0.80)
-                let radius = min(size.width, size.height) * 0.19
-                let rect = CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2)
-                let intensity = min(1, max(0, sample.cloudCover / 100))
-                let gradient = Gradient(colors: [Color.white.opacity(intensity * 0.24), Color(red: 0.66, green: 0.78, blue: 0.90).opacity(intensity * 0.16), .clear])
-                context.fill(Path(ellipseIn: rect), with: .radialGradient(gradient, center: CGPoint(x: x, y: y), startRadius: 2, endRadius: radius))
-            }
-        }
-        .allowsHitTesting(false)
-    }
-}
 
 private enum WindLayer: String, CaseIterable {
     case speed = "Vind"
@@ -525,17 +505,17 @@ struct RadarMapView: View {
                         radarImage: showRadar && provider == .smhi ? selectedImage : nil,
                         radarTileURL: radarTileURL,
                         locationTitle: place,
+                        cloudSamples: windSamples,
+                        showClouds: showClouds,
                         onRegionChange: { center in
                             windMapCenter = center
-                            if showWind {
+                            if showWind || showClouds {
                                 Task { await refreshWindField(center: center) }
                             }
                         }
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     WindFieldOverlay(samples: windSamples, show: showWind, gustMode: windLayer == .gust)
-                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    CloudFieldOverlay(samples: windSamples, show: showClouds)
                         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     HStack(spacing: 7) {
                         Circle().fill(Color(red: 0.35, green: 0.88, blue: 0.83)).frame(width: 7, height: 7)
@@ -1048,6 +1028,8 @@ private struct RegnvaktMapView: UIViewRepresentable {
     let radarImage: UIImage?
     let radarTileURL: String?
     let locationTitle: String
+    let cloudSamples: [WindSample]
+    let showClouds: Bool
     let onRegionChange: (CLLocationCoordinate2D) -> Void
     private let styleURL = URL(string: "https://tiles.openfreemap.org/styles/fiord")!
 
@@ -1069,6 +1051,8 @@ private struct RegnvaktMapView: UIViewRepresentable {
         context.coordinator.lastCoordinate = coordinate
         context.coordinator.latestImage = radarImage
         context.coordinator.latestTileURL = radarTileURL
+        context.coordinator.latestCloudSamples = cloudSamples
+        context.coordinator.cloudsVisible = showClouds
         context.coordinator.onRegionChange = onRegionChange
         context.coordinator.updateLocationMarker(on: map, coordinate: coordinate, title: locationTitle)
         return map
@@ -1077,9 +1061,12 @@ private struct RegnvaktMapView: UIViewRepresentable {
     func updateUIView(_ map: MLNMapView, context: Context) {
         context.coordinator.latestImage = radarImage
         context.coordinator.latestTileURL = radarTileURL
+        context.coordinator.latestCloudSamples = cloudSamples
+        context.coordinator.cloudsVisible = showClouds
         context.coordinator.onRegionChange = onRegionChange
         context.coordinator.updateLocationMarker(on: map, coordinate: coordinate, title: locationTitle)
         context.coordinator.applyRadarIfReady()
+        context.coordinator.applyCloudsIfReady()
         // Deliberately do not recenter when GPS/model state changes.
         // The initial camera is set once in makeUIView; the location marker can move independently.
     }
@@ -1094,6 +1081,8 @@ private struct RegnvaktMapView: UIViewRepresentable {
         weak var mapView: MLNMapView?
         var latestImage: UIImage?
         var latestTileURL: String?
+        var latestCloudSamples: [WindSample] = []
+        var cloudsVisible = false
         var lastCoordinate: CLLocationCoordinate2D?
         private var styleReady = false
         private var appliedIdentity: String?
@@ -1141,6 +1130,30 @@ private struct RegnvaktMapView: UIViewRepresentable {
             styleReady = true
             appliedIdentity = nil
             applyRadarIfReady()
+            applyCloudsIfReady()
+        }
+
+        func applyCloudsIfReady() {
+            guard styleReady, let style = mapView?.style else { return }
+            if let layer = style.layer(withIdentifier: "regnvakt-cloud-layer") { style.removeLayer(layer) }
+            if let source = style.source(withIdentifier: "regnvakt-cloud-source") { style.removeSource(source) }
+            guard cloudsVisible, !latestCloudSamples.isEmpty else { return }
+
+            let features: [MLNPointFeature] = latestCloudSamples.map { sample in
+                let feature = MLNPointFeature()
+                feature.coordinate = CLLocationCoordinate2D(latitude: sample.latitude, longitude: sample.longitude)
+                feature.attributes = ["cloudCover": NSNumber(value: sample.cloudCover)]
+                return feature
+            }
+            let collection = MLNShapeCollectionFeature(shapes: features)
+            let source = MLNShapeSource(identifier: "regnvakt-cloud-source", shape: collection, options: nil)
+            let layer = MLNCircleStyleLayer(identifier: "regnvakt-cloud-layer", source: source)
+            layer.circleRadius = NSExpression(forConstantValue: 58)
+            layer.circleBlur = NSExpression(forConstantValue: 0.92)
+            layer.circleColor = NSExpression(forConstantValue: UIColor(red: 0.78, green: 0.87, blue: 0.96, alpha: 1))
+            layer.circleOpacity = NSExpression(format: "cloudCover / 100.0 * 0.42")
+            style.addSource(source)
+            style.addLayer(layer)
         }
 
         func applyRadarIfReady() {
@@ -1172,6 +1185,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
                 style.addSource(source)
                 style.addLayer(layer)
             }
+            applyCloudsIfReady()
         }
     }
 }
