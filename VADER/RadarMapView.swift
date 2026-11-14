@@ -190,11 +190,11 @@ private struct WindFieldOverlay: View {
 
     private func tint(_ speed: Double) -> Color {
         switch speed {
-        case ..<4: return Color(red: 0.25, green: 0.82, blue: 0.96)
-        case ..<8: return Color(red: 0.20, green: 0.88, blue: 0.56)
-        case ..<12: return Color(red: 1.0, green: 0.82, blue: 0.18)
-        case ..<17: return Color(red: 1.0, green: 0.48, blue: 0.18)
-        default: return Color(red: 0.98, green: 0.20, blue: 0.28)
+        case ..<4: return Color(red: 0.34, green: 0.76, blue: 0.88)
+        case ..<8: return Color(red: 0.34, green: 0.78, blue: 0.58)
+        case ..<12: return Color(red: 0.88, green: 0.73, blue: 0.30)
+        case ..<17: return Color(red: 0.88, green: 0.52, blue: 0.32)
+        default: return Color(red: 0.86, green: 0.36, blue: 0.40)
         }
     }
 
@@ -243,14 +243,14 @@ private struct WindFieldOverlay: View {
                 let now = timeline.date.timeIntervalSinceReferenceDate
                 // Fewer, longer-lived trails create a calmer visual field and
                 // leave more rendering headroom on older iPhones.
-                let particleCount = 320
+                let particleCount = 168
                 for index in 0..<particleCount {
                     // Deterministic pseudo-random seed points; particles drift continuously
                     // through the interpolated Open-Meteo wind field and then respawn.
-                    let seedX = CGFloat((index * 73 + 19) % 997) / 997.0
-                    let seedY = CGFloat((index * 193 + 47) % 991) / 991.0
+                    let seedX = CGFloat((index * 377 + 113) % 997) / 997.0
+                    let seedY = CGFloat((index * 613 + 271) % 991) / 991.0
                     let seed = CGPoint(x: seedX * size.width, y: seedY * size.height)
-                    let duration = 5.2 + Double(index % 9) * 0.48
+                    let duration = 4.8 + Double((index * 7) % 13) * 0.43
                     let phase = (now / duration + Double(index) * 0.137).truncatingRemainder(dividingBy: 1.0)
                     let progress = phase * 42.0
                     let steps = Int(progress)
@@ -293,7 +293,7 @@ private struct WindFieldOverlay: View {
                     guard let head = trail.last else { continue }
                     let color = tint(localSpeed)
                     if trail.count > 2 {
-                        let visibleTrail = Array(trail.suffix(24))
+                        let visibleTrail = Array(trail.suffix(18))
                         var smoothPath = Path()
                         smoothPath.move(to: visibleTrail[0])
                         if visibleTrail.count > 2 {
@@ -310,19 +310,19 @@ private struct WindFieldOverlay: View {
                         }
                         // Soft halo plus a fine luminous core gives the trails
                         // the continuous, fluid appearance expected from a wind map.
-                        context.stroke(smoothPath, with: .color(color.opacity(0.13)),
-                                       style: StrokeStyle(lineWidth: 5.0, lineCap: .round, lineJoin: .round))
+                        context.stroke(smoothPath, with: .color(color.opacity(0.075)),
+                                       style: StrokeStyle(lineWidth: 4.0, lineCap: .round, lineJoin: .round))
                         context.stroke(
                             smoothPath,
                             with: .linearGradient(
-                                Gradient(colors: [color.opacity(0.08), color.opacity(0.88)]),
+                                Gradient(colors: [color.opacity(0.015), color.opacity(0.62)]),
                                 startPoint: visibleTrail[0],
                                 endPoint: head
                             ),
-                            style: StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round)
+                            style: StrokeStyle(lineWidth: 1.35, lineCap: .round, lineJoin: .round)
                         )
                     }
-                    let radius: CGFloat = 1.2 + CGFloat(min(localSpeed, 20)) * 0.05
+                    let radius: CGFloat = 0.9 + CGFloat(min(localSpeed, 20)) * 0.035
                     let halo = Path(ellipseIn: CGRect(x: head.x - radius * 2.2, y: head.y - radius * 2.2,
                                                       width: radius * 4.4, height: radius * 4.4))
                     context.fill(halo, with: .color(color.opacity(0.16)))
