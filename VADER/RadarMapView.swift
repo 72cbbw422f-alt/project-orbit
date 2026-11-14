@@ -437,9 +437,10 @@ struct RadarMapView: View {
                         radarTileURL: radarTileURL,
                         locationTitle: place,
                         onRegionChange: { center in
-                            guard showWind else { return }
                             windMapCenter = center
-                            Task { await refreshWindField(center: center) }
+                            if showWind {
+                                Task { await refreshWindField(center: center) }
+                            }
                         }
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
