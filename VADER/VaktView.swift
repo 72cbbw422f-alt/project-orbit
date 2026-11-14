@@ -25,6 +25,12 @@ struct VaktDashboard: View {
     @AppStorage("Regnvakt.smhi.summary") private var smhiSummary = "Hämtar officiella varningar från SMHI…"
     @AppStorage("Regnvakt.smhi.level") private var smhiLevel = ""
     @AppStorage("Regnvakt.smhi.updated") private var smhiUpdated = ""
+    @AppStorage("Regnvakt.notifications.rain") private var rainEnabled = true
+    @AppStorage("Regnvakt.notifications.snow") private var snowEnabled = true
+    @AppStorage("Regnvakt.notifications.wind") private var windEnabled = true
+    @AppStorage("Regnvakt.notifications.thunder") private var thunderEnabled = true
+    @AppStorage("Regnvakt.notifications.frost") private var frostEnabled = true
+    @AppStorage("Regnvakt.notifications.smhi") private var smhiNotificationsEnabled = true
     let weather: WeatherSnapshot
     let days: [DayForecast]
     let hours: [HourForecast]
@@ -90,11 +96,11 @@ struct VaktDashboard: View {
                 : rain ? "Regn når aviseringsgränsen i timprognosen"
                 : "Ingen nederbörd når aviseringsgränsen kommande timmar")
         return [
-            WatchItem(id: "precipitation", title: precipitationTitle, subtitle: "Nederbörd · regn · snö · duggregn", symbol: snow ? "cloud.snow.fill" : "cloud.rain.fill", active: rain || snow, detail: precipitationDetail, level: rain || snow ? "BEVAKAR" : "LUGNT", tint: WatchPalette.cyan),
-            WatchItem(id: "thunder", title: "ÅSKVAKTEN", subtitle: "Åska · blixtar · åskrisk", symbol: "cloud.bolt.rain.fill", active: thunder, detail: thunder ? "Åska förekommer i prognosen" : "Ingen åska identifierad i prognosen", level: thunder ? "RISK I PROGNOS" : "LUGNT", tint: Color.orange),
-            WatchItem(id: "wind", title: "VINDVAKTEN", subtitle: "Vindstyrka · hårda vindbyar", symbol: "wind", active: wind, detail: String(format: "Vind upp till %.1f m/s • byvind %.1f m/s", maxWind, maxGust), level: wind ? "FÖRHÖJD VIND" : "LUGNT", tint: Color(red: 0.54, green: 0.72, blue: 1.0)),
-            WatchItem(id: "frost", title: "FROSTVAKTEN", subtitle: "Frostbildning · temperatur · separat halkrisk", symbol: "thermometer.snowflake", active: frost, detail: wetNearFreeze.map { "Fukt/nederbörd och cirka \($0.temperature)° omkring kl. \($0.time) – risk för halka" } ?? (currentFrost ? "Frostrisk just nu: cirka \(weather.temperature)°. Frost kan bildas även utan nederbörd." : frostHour.map { "Frostrisk: cirka \($0.temperature)° kl. \($0.time). Frost kan bildas även utan nederbörd." } ?? "Ingen tydlig frostrisk i timprognosen"), level: wetNearFreeze != nil ? "HALKRISK" : frost ? "FROSTRISK" : "LUGNT", tint: Color.cyan),
-            WatchItem(id: "official", title: "SMHI:S VÄDERVARNINGAR", subtitle: "Officiella vädervarningar för Gävleborgs län", symbol: "exclamationmark.triangle.fill", active: smhiActive, detail: smhiSummary + (smhiUpdated.isEmpty ? "" : " • Uppdaterad " + smhiUpdated), level: smhiActive ? (smhiLevel.isEmpty ? "AKTIV VARNING" : smhiLevel + " VARNING") : "INGEN AKTIV VARNING", tint: Color.yellow)
+            WatchItem(id: "precipitation", title: precipitationTitle, subtitle: "Nederbörd · regn · snö · duggregn", symbol: snow ? "cloud.snow.fill" : "cloud.rain.fill", active: (rain && rainEnabled) || (snow && snowEnabled), detail: precipitationDetail, level: !(rainEnabled || snowEnabled) ? "AVSTÄNGD" : (rain && rainEnabled) || (snow && snowEnabled) ? "RISK I PROGNOS" : "LUGNT", tint: WatchPalette.cyan),
+            WatchItem(id: "thunder", title: "ÅSKVAKTEN", subtitle: "Åska · blixtar · åskrisk", symbol: "cloud.bolt.rain.fill", active: thunder && thunderEnabled, detail: thunder ? "Åska förekommer i prognosen" : "Ingen åska identifierad i prognosen", level: !thunderEnabled ? "AVSTÄNGD" : thunder ? "RISK I PROGNOS" : "LUGNT", tint: Color.orange),
+            WatchItem(id: "wind", title: "VINDVAKTEN", subtitle: "Vindstyrka · hårda vindbyar", symbol: "wind", active: wind && windEnabled, detail: String(format: "Vind upp till %.1f m/s • byvind %.1f m/s", maxWind, maxGust), level: !windEnabled ? "AVSTÄNGD" : wind ? "FÖRHÖJD VIND" : "LUGNT", tint: Color(red: 0.54, green: 0.72, blue: 1.0)),
+            WatchItem(id: "frost", title: "FROSTVAKTEN", subtitle: "Frostbildning · temperatur · separat halkrisk", symbol: "thermometer.snowflake", active: frost && frostEnabled, detail: wetNearFreeze.map { "Fukt/nederbörd och cirka \($0.temperature)° omkring kl. \($0.time) – risk för halka" } ?? (currentFrost ? "Frostrisk just nu: cirka \(weather.temperature)°. Frost kan bildas även utan nederbörd." : frostHour.map { "Frostrisk: cirka \($0.temperature)° kl. \($0.time). Frost kan bildas även utan nederbörd." } ?? "Ingen tydlig frostrisk i timprognosen"), level: !frostEnabled ? "AVSTÄNGD" : wetNearFreeze != nil ? "HALKRISK" : frost ? "FROSTRISK" : "LUGNT", tint: Color.cyan),
+            WatchItem(id: "official", title: "SMHI:S VÄDERVARNINGAR", subtitle: "Officiella vädervarningar för Gävleborgs län", symbol: "exclamationmark.triangle.fill", active: smhiActive && smhiNotificationsEnabled, detail: smhiSummary + (smhiUpdated.isEmpty ? "" : " • Uppdaterad " + smhiUpdated), level: !smhiNotificationsEnabled ? "AVSTÄNGD" : smhiActive ? (smhiLevel.isEmpty ? "AKTIV VARNING" : smhiLevel + " VARNING") : "INGEN AKTIV VARNING", tint: Color.yellow)
         ]
     }
 
@@ -329,6 +335,12 @@ struct ActiveWatchSummary: View {
     let days: [DayForecast]
     let hours: [HourForecast]
     @AppStorage("Regnvakt.smhi.active") private var smhiActive = false
+    @AppStorage("Regnvakt.notifications.rain") private var rainEnabled = true
+    @AppStorage("Regnvakt.notifications.snow") private var snowEnabled = true
+    @AppStorage("Regnvakt.notifications.wind") private var windEnabled = true
+    @AppStorage("Regnvakt.notifications.thunder") private var thunderEnabled = true
+    @AppStorage("Regnvakt.notifications.frost") private var frostEnabled = true
+    @AppStorage("Regnvakt.notifications.smhi") private var smhiEnabled = true
 
     private var activeTitles: [(String, String)] {
         let text = hours.map { $0.condition.lowercased() }.joined(separator: " ")
@@ -339,12 +351,12 @@ struct ActiveWatchSummary: View {
             let isRain = condition.contains("regn") || condition.contains("duggregn") || condition.contains("skur")
             return isRain && ($0.precipitationChance >= 40 || $0.precipitation >= 0.3)
         }
-        if snowRisk { result.append(("SNÖVAKTEN", "cloud.snow.fill")) }
-        else if rainRisk { result.append(("REGNVAKTEN", "cloud.rain.fill")) }
-        if text.contains("åska") { result.append(("ÅSKVAKTEN", "cloud.bolt.rain.fill")) }
+        if snowRisk && snowEnabled { result.append(("SNÖVAKTEN", "cloud.snow.fill")) }
+        else if rainRisk && rainEnabled { result.append(("REGNVAKTEN", "cloud.rain.fill")) }
+        if text.contains("åska") && thunderEnabled { result.append(("ÅSKVAKTEN", "cloud.bolt.rain.fill")) }
 
         let gust = max(weather.windGust, hours.map(\.gust).max() ?? days.first?.gust ?? 0)
-        if gust >= 17 || max(weather.wind, hours.map(\.wind).max() ?? 0) >= 11 {
+        if windEnabled && (gust >= 17 || max(weather.wind, hours.map(\.wind).max() ?? 0) >= 11) {
             result.append(("VINDVAKTEN", "wind"))
         }
 
@@ -361,10 +373,10 @@ struct ActiveWatchSummary: View {
             let threshold = (hourOfDay >= 18 || hourOfDay < 9) ? 1 : 0
             return hour.temperature <= threshold
         }
-        if currentFrost || forecastFrost {
+        if frostEnabled && (currentFrost || forecastFrost) {
             result.append(("FROSTVAKTEN", "thermometer.snowflake"))
         }
-        if smhiActive { result.append(("SMHI-VARNING", "exclamationmark.triangle.fill")) }
+        if smhiActive && smhiEnabled { result.append(("SMHI-VARNING", "exclamationmark.triangle.fill")) }
         return result
     }
 
@@ -378,7 +390,7 @@ struct ActiveWatchSummary: View {
                     .font(.system(size: 13, weight: .heavy)).foregroundStyle(WatchPalette.cyan)
             }
             if activeTitles.isEmpty {
-                Text("Inga förhöjda risker i prognosen just nu. Vädervakterna är igång.")
+                Text("Inga aktiverade vädervakter visar förhöjd risk just nu.")
                     .font(.system(size: 12, weight: .medium)).foregroundStyle(WatchPalette.muted)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
