@@ -366,7 +366,7 @@ struct ActiveWatchSummary: View {
 
     private var activeTitles: [(String, String, Bool)] {
         let text = hours.map { $0.condition.lowercased() }.joined(separator: " ")
-        var result: [(String, String)] = []
+        var result: [(String, String, Bool)] = []
         let snowRisk = hours.contains { $0.condition.localizedCaseInsensitiveContains("snö") && ($0.precipitationChance >= 40 || $0.precipitation >= 0.2) }
         let rainRisk = hours.contains {
             let condition = $0.condition.lowercased()
