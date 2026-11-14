@@ -450,6 +450,7 @@ struct RadarMapView: View {
     @State private var windSamples: [WindSample] = []
     @State private var windLayer: WindLayer = .speed
     @State private var showWind = false
+    @State private var showClouds = false
     @State private var windStatus = "Hämtar vindfält…"
     @State private var windUpdated: Date?
     @State private var windMapCenter: CLLocationCoordinate2D?
