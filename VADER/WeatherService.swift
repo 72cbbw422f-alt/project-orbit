@@ -28,7 +28,9 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
     @Published var placeSearchStatus = ""
     @Published var isSearchingPlaces = false
     @Published private(set) var savedPlaces: [SavedWeatherPlace] = []
+    @Published private(set) var monitoredPlaceIDs: Set<UUID> = []
     private let savedPlacesKey = "Regnvakt.savedPlaces.v1"
+    private let monitoredPlacesKey = "Regnvakt.monitoredPlaces.v1"
     private let cachedForecastKey = "Regnvakt.cachedForecast.v1"
 
     private struct CachedForecast: Codable {
@@ -47,6 +49,9 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
         if let data = UserDefaults.standard.data(forKey: savedPlacesKey),
            let places = try? JSONDecoder().decode([SavedWeatherPlace].self, from: data) {
             savedPlaces = places
+        }
+        if let ids = UserDefaults.standard.array(forKey: monitoredPlacesKey) as? [String] {
+            monitoredPlaceIDs = Set(ids.compactMap(UUID.init(uuidString:)))
         }
         if let data = UserDefaults.standard.data(forKey: cachedForecastKey),
            let cached = try? JSONDecoder().decode(CachedForecast.self, from: data) {
@@ -148,7 +153,43 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
         persistSavedPlaces()
     }
 
+    func isMonitored(_ place: SavedWeatherPlace) -> Bool {
+        monitoredPlaceIDs.contains(place.id)
+    }
+
+    func setMonitoring(_ place: SavedWeatherPlace, enabled: Bool) {
+        if enabled {
+            monitoredPlaceIDs.insert(place.id)
+            persistMonitoredPlaces()
+            Task {
+                do {
+                    let forecast = try await OpenMeteoService.fetch(latitude: place.latitude, longitude: place.longitude)
+                    WeatherNotificationScheduler.refresh(
+                        place: place.name,
+                        latitude: place.latitude,
+                        longitude: place.longitude,
+                        hours: forecast.hours,
+                        currentTemperature: forecast.current.temperature
+                    )
+                } catch {
+                    status = "Kunde inte uppdatera bevakningen för \\(place.name)."
+                }
+            }
+        } else {
+            monitoredPlaceIDs.remove(place.id)
+            persistMonitoredPlaces()
+            WeatherNotificationScheduler.removeNotifications(latitude: place.latitude, longitude: place.longitude)
+        }
+    }
+
+    private func persistMonitoredPlaces() {
+        UserDefaults.standard.set(monitoredPlaceIDs.map(\\.uuidString), forKey: monitoredPlacesKey)
+    }
+
     func removePlace(_ place: SavedWeatherPlace) {
+        monitoredPlaceIDs.remove(place.id)
+        persistMonitoredPlaces()
+        WeatherNotificationScheduler.removeNotifications(latitude: place.latitude, longitude: place.longitude)
         savedPlaces.removeAll { $0.id == place.id }
         if !savedPlaces.contains(where: \.isFavorite), let first = savedPlaces.first,
            let index = savedPlaces.firstIndex(where: { $0.id == first.id }) {
@@ -222,12 +263,17 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                 lastUpdated = updateTime
                 days = result.days
                 hours = result.hours
-                WeatherNotificationScheduler.refresh(place: placeName, latitude: latitude, longitude: longitude, hours: result.hours, currentTemperature: updatedSnapshot.temperature)
+                let selectedPlace = savedPlaces.first {
+                    abs($0.latitude - latitude) < 0.015 && abs($0.longitude - longitude) < 0.015
+                }
+                if let selectedPlace, monitoredPlaceIDs.contains(selectedPlace.id) {
+                    WeatherNotificationScheduler.refresh(place: placeName, latitude: latitude, longitude: longitude, hours: result.hours, currentTemperature: updatedSnapshot.temperature)
+                }
 
-                // Every saved place is monitored independently. Selecting one city
-                // no longer replaces the pending alerts belonging to another city.
+                // Only explicitly enabled places receive notifications.
                 let otherPlaces = savedPlaces.filter {
-                    abs($0.latitude - latitude) > 0.015 || abs($0.longitude - longitude) > 0.015
+                    monitoredPlaceIDs.contains($0.id) &&
+                    (abs($0.latitude - latitude) > 0.015 || abs($0.longitude - longitude) > 0.015)
                 }
                 for savedPlace in otherPlaces.prefix(5) {
                     do {
