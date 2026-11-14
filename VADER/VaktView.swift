@@ -290,8 +290,14 @@ struct ActiveWatchSummary: View {
     private var activeTitles: [(String, String)] {
         let text = hours.map { $0.condition.lowercased() }.joined(separator: " ")
         var result: [(String, String)] = []
-        if text.contains("snö") { result.append(("SNÖVAKTEN", "cloud.snow.fill")) }
-        else if text.contains("regn") || text.contains("skur") || text.contains("duggregn") { result.append(("REGNVAKTEN", "cloud.rain.fill")) }
+        let snowRisk = hours.contains { $0.condition.localizedCaseInsensitiveContains("snö") && ($0.precipitationChance >= 40 || $0.precipitation >= 0.2) }
+        let rainRisk = hours.contains {
+            let condition = $0.condition.lowercased()
+            let isRain = condition.contains("regn") || condition.contains("duggregn") || condition.contains("skur")
+            return isRain && ($0.precipitationChance >= 40 || $0.precipitation >= 0.3)
+        }
+        if snowRisk { result.append(("SNÖVAKTEN", "cloud.snow.fill")) }
+        else if rainRisk { result.append(("REGNVAKTEN", "cloud.rain.fill")) }
         if text.contains("åska") { result.append(("ÅSKVAKTEN", "cloud.bolt.rain.fill")) }
 
         let gust = max(weather.windGust, hours.map(\.gust).max() ?? days.first?.gust ?? 0)
