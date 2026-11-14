@@ -255,7 +255,8 @@ struct RadarMapView: View {
     var body: some View {
         ZStack {
             Color(red: 0.035, green: 0.055, blue: 0.085).ignoresSafeArea()
-            VStack(spacing: 0) {
+            ScrollView(showsIndicators: false) {
+              VStack(spacing: 0) {
                 HStack(alignment: .center, spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("REGNVAKT")
@@ -316,7 +317,8 @@ struct RadarMapView: View {
                     .padding(12)
                 }
                 .padding(.horizontal, 12)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity)
+                .frame(height: 300)
 
                 VStack(spacing: 13) {
                     HStack(spacing: 9) {
@@ -400,20 +402,31 @@ struct RadarMapView: View {
                                 .font(.system(size: 11, weight: .semibold).monospacedDigit()).foregroundStyle(.white.opacity(0.55))
                         }
                         Text(nowcastStatus)
-                            .font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.78))
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.88))
+                            .lineLimit(3)
+                            .fixedSize(horizontal: false, vertical: true)
                         if !nowcastPoints.isEmpty {
-                            HStack(alignment: .bottom, spacing: 5) {
-                                ForEach(nowcastPoints.prefix(8)) { point in
-                                    VStack(spacing: 4) {
-                                        RoundedRectangle(cornerRadius: 3)
-                                            .fill(Color.cyan.opacity(0.85))
-                                            .frame(height: max(4, min(28, CGFloat(point.precipitationRate ?? 0) * 12)))
-                                        Text(point.time.formatted(date: .omitted, time: .shortened))
-                                            .font(.system(size: 9, weight: .medium).monospacedDigit())
-                                            .foregroundStyle(.white.opacity(0.65))
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(alignment: .bottom, spacing: 9) {
+                                    ForEach(nowcastPoints.prefix(12)) { point in
+                                        VStack(spacing: 5) {
+                                            Text(String(format: "%.1f", point.precipitationRate ?? 0))
+                                                .font(.system(size: 11, weight: .bold).monospacedDigit())
+                                                .foregroundStyle(.white)
+                                            RoundedRectangle(cornerRadius: 4)
+                                                .fill(Color.cyan.opacity(0.9))
+                                                .frame(width: 34, height: max(5, min(42, CGFloat(point.precipitationRate ?? 0) * 18)))
+                                            Text(point.time.formatted(date: .omitted, time: .shortened))
+                                                .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                                                .foregroundStyle(.white.opacity(0.82))
+                                        }
+                                        .frame(width: 42, height: 76, alignment: .bottom)
+                                        .accessibilityElement(children: .combine)
+                                        .accessibilityLabel("\(point.time.formatted(date: .omitted, time: .shortened)), \(String(format: "%.1f", point.precipitationRate ?? 0)) millimeter per hour")
                                     }
-                                    .frame(maxWidth: .infinity)
                                 }
+                                .padding(.vertical, 2)
                             }
                         }
                     }
@@ -437,6 +450,8 @@ struct RadarMapView: View {
                 )
                 .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.white.opacity(0.08), lineWidth: 1))
                 .padding(12)
+              }
+              .padding(.bottom, 20)
             }
         }
         .task {
