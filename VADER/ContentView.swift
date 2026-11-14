@@ -24,6 +24,10 @@ struct ContentView: View {
     @AppStorage("Regnvakt.notifications.snow") private var snowWatchEnabled = true
     @AppStorage("Regnvakt.notifications.wind") private var windWatchEnabled = true
     @AppStorage("Regnvakt.notifications.frost") private var frostWatchEnabled = true
+    @AppStorage("Regnvakt.notifications.rain") private var rainWatchEnabled = true
+    @AppStorage("Regnvakt.notifications.snow") private var snowWatchEnabled = true
+    @AppStorage("Regnvakt.notifications.wind") private var windWatchEnabled = true
+    @AppStorage("Regnvakt.notifications.frost") private var frostWatchEnabled = true
     @StateObject private var weatherModel = WeatherViewModel()
 
     var body: some View {
