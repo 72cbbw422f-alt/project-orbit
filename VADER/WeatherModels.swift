@@ -1,6 +1,6 @@
 import Foundation
 
-struct WeatherSnapshot {
+struct WeatherSnapshot: Codable {
     let place: String
     let condition: String
     let temperature: Int
@@ -48,7 +48,7 @@ struct HourForecast: Identifiable, Codable {
     let gust: Double
 }
 
-struct DayForecast: Identifiable {
+struct DayForecast: Identifiable, Codable {
     let id = UUID()
     let date: Date
     let day: String
