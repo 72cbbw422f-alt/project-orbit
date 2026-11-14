@@ -14,6 +14,7 @@ private struct WatchItem: Identifiable {
     let subtitle: String
     let symbol: String
     let active: Bool
+    let riskDetected: Bool
     let detail: String
     let level: String
     let tint: Color
@@ -96,15 +97,16 @@ struct VaktDashboard: View {
                 : rain ? "Regn når aviseringsgränsen i timprognosen"
                 : "Ingen nederbörd når aviseringsgränsen kommande timmar")
         return [
-            WatchItem(id: "precipitation", title: precipitationTitle, subtitle: "Nederbörd · regn · snö · duggregn", symbol: snow ? "cloud.snow.fill" : "cloud.rain.fill", active: (rain && rainEnabled) || (snow && snowEnabled), detail: precipitationDetail, level: !(rainEnabled || snowEnabled) ? "AVSTÄNGD" : (rain && rainEnabled) || (snow && snowEnabled) ? "RISK I PROGNOS" : "LUGNT", tint: WatchPalette.cyan),
-            WatchItem(id: "thunder", title: "ÅSKVAKTEN", subtitle: "Åska · blixtar · åskrisk", symbol: "cloud.bolt.rain.fill", active: thunder && thunderEnabled, detail: thunder ? "Åska förekommer i prognosen" : "Ingen åska identifierad i prognosen", level: !thunderEnabled ? "AVSTÄNGD" : thunder ? "RISK I PROGNOS" : "LUGNT", tint: Color.orange),
-            WatchItem(id: "wind", title: "VINDVAKTEN", subtitle: "Vindstyrka · hårda vindbyar", symbol: "wind", active: wind && windEnabled, detail: String(format: "Vind upp till %.1f m/s • byvind %.1f m/s", maxWind, maxGust), level: !windEnabled ? "AVSTÄNGD" : wind ? "FÖRHÖJD VIND" : "LUGNT", tint: Color(red: 0.54, green: 0.72, blue: 1.0)),
-            WatchItem(id: "frost", title: "FROSTVAKTEN", subtitle: "Frostbildning · temperatur · separat halkrisk", symbol: "thermometer.snowflake", active: frost && frostEnabled, detail: wetNearFreeze.map { "Fukt/nederbörd och cirka \($0.temperature)° omkring kl. \($0.time) – risk för halka" } ?? (currentFrost ? "Frostrisk just nu: cirka \(weather.temperature)°. Frost kan bildas även utan nederbörd." : frostHour.map { "Frostrisk: cirka \($0.temperature)° kl. \($0.time). Frost kan bildas även utan nederbörd." } ?? "Ingen tydlig frostrisk i timprognosen"), level: !frostEnabled ? "AVSTÄNGD" : wetNearFreeze != nil ? "HALKRISK" : frost ? "FROSTRISK" : "LUGNT", tint: Color.cyan),
-            WatchItem(id: "official", title: "SMHI:S VÄDERVARNINGAR", subtitle: "Officiella vädervarningar för Gävleborgs län", symbol: "exclamationmark.triangle.fill", active: smhiActive && smhiNotificationsEnabled, detail: smhiSummary + (smhiUpdated.isEmpty ? "" : " • Uppdaterad " + smhiUpdated), level: !smhiNotificationsEnabled ? "AVSTÄNGD" : smhiActive ? (smhiLevel.isEmpty ? "AKTIV VARNING" : smhiLevel + " VARNING") : "INGEN AKTIV VARNING", tint: Color.yellow)
+            WatchItem(id: "precipitation", title: precipitationTitle, subtitle: "Nederbörd · regn · snö · duggregn", symbol: snow ? "cloud.snow.fill" : "cloud.rain.fill", active: (rain && rainEnabled) || (snow && snowEnabled), riskDetected: rain || snow, detail: precipitationDetail, level: !(rainEnabled || snowEnabled) ? "AVSTÄNGD" : (rain && rainEnabled) || (snow && snowEnabled) ? "RISK I PROGNOS" : "LUGNT", tint: WatchPalette.cyan),
+            WatchItem(id: "thunder", title: "ÅSKVAKTEN", subtitle: "Åska · blixtar · åskrisk", symbol: "cloud.bolt.rain.fill", active: thunder && thunderEnabled, riskDetected: thunder, detail: thunder ? "Åska förekommer i prognosen" : "Ingen åska identifierad i prognosen", level: !thunderEnabled ? "AVSTÄNGD" : thunder ? "RISK I PROGNOS" : "LUGNT", tint: Color.orange),
+            WatchItem(id: "wind", title: "VINDVAKTEN", subtitle: "Vindstyrka · hårda vindbyar", symbol: "wind", active: wind && windEnabled, riskDetected: wind, detail: String(format: "Vind upp till %.1f m/s • byvind %.1f m/s", maxWind, maxGust), level: !windEnabled ? "AVSTÄNGD" : wind ? "FÖRHÖJD VIND" : "LUGNT", tint: Color(red: 0.54, green: 0.72, blue: 1.0)),
+            WatchItem(id: "frost", title: "FROSTVAKTEN", subtitle: "Frostbildning · temperatur · separat halkrisk", symbol: "thermometer.snowflake", active: frost && frostEnabled, riskDetected: frost, detail: wetNearFreeze.map { "Fukt/nederbörd och cirka \($0.temperature)° omkring kl. \($0.time) – risk för halka" } ?? (currentFrost ? "Frostrisk just nu: cirka \(weather.temperature)°. Frost kan bildas även utan nederbörd." : frostHour.map { "Frostrisk: cirka \($0.temperature)° kl. \($0.time). Frost kan bildas även utan nederbörd." } ?? "Ingen tydlig frostrisk i timprognosen"), level: !frostEnabled ? "AVSTÄNGD" : wetNearFreeze != nil ? "HALKRISK" : frost ? "FROSTRISK" : "LUGNT", tint: Color.cyan),
+            WatchItem(id: "official", title: "SMHI:S VÄDERVARNINGAR", subtitle: "Officiella vädervarningar för Gävleborgs län", symbol: "exclamationmark.triangle.fill", active: smhiActive && smhiNotificationsEnabled, riskDetected: smhiActive, detail: smhiSummary + (smhiUpdated.isEmpty ? "" : " • Uppdaterad " + smhiUpdated), level: !smhiNotificationsEnabled ? "AVSTÄNGD" : smhiActive ? (smhiLevel.isEmpty ? "AKTIV VARNING" : smhiLevel + " VARNING") : "INGEN AKTIV VARNING", tint: Color.yellow)
         ]
     }
 
     private var activeWatches: [WatchItem] { watches.filter(\.active) }
+    private var riskWatches: [WatchItem] { watches.filter(\.riskDetected) }
     private var enabledWatchCount: Int {
         [rainEnabled, snowEnabled, thunderEnabled, windEnabled, frostEnabled, smhiNotificationsEnabled]
             .filter { $0 }.count
@@ -123,15 +125,15 @@ struct VaktDashboard: View {
                 }
                 HStack(alignment: .center, spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(activeWatches.isEmpty ? "Inga aktiva risker i prognosen" : "Risker i prognosen")
+                        Text(riskWatches.isEmpty ? "Inga förhöjda risker i prognosen" : "Risker i prognosen")
                             .font(.system(size: 15, weight: .bold)).foregroundStyle(.white)
                         Text("Väderläge för \(weather.place)")
                             .font(.system(size: 12, weight: .medium)).foregroundStyle(WatchPalette.muted)
                     }
                     Spacer(minLength: 8)
                     VStack(alignment: .trailing, spacing: 3) {
-                        Text("\(activeWatches.count) \(activeWatches.count == 1 ? "risk" : "risker")")
-                            .font(.system(size: 16, weight: .heavy, design: .rounded)).foregroundStyle(activeWatches.isEmpty ? WatchPalette.muted : WatchPalette.cyan)
+                        Text("\(riskWatches.count) \(riskWatches.count == 1 ? "risk" : "risker")")
+                            .font(.system(size: 16, weight: .heavy, design: .rounded)).foregroundStyle(riskWatches.isEmpty ? WatchPalette.muted : WatchPalette.cyan)
                         Text("\(enabledWatchCount) BEVAKNINGAR PÅ")
                             .font(.system(size: 10, weight: .heavy)).tracking(0.6).foregroundStyle(WatchPalette.muted)
                     }
