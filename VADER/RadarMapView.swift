@@ -389,7 +389,7 @@ struct RadarMapView: View {
                             .font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.7))
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    VStack(alignment: .leading, spacing: 9) {
+                    VStack(alignment: .leading, spacing: 6) {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("NÄRPROGNOS")
@@ -407,28 +407,29 @@ struct RadarMapView: View {
                             .lineLimit(3)
                             .fixedSize(horizontal: false, vertical: true)
                         if !nowcastPoints.isEmpty {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(alignment: .bottom, spacing: 9) {
-                                    ForEach(nowcastPoints.prefix(12)) { point in
-                                        VStack(spacing: 4) {
-                                            Text(String(format: "%.1f", point.precipitationRate ?? 0))
-                                                .font(.system(size: 11, weight: .bold).monospacedDigit())
-                                                .foregroundStyle(.white)
-                                            RoundedRectangle(cornerRadius: 4)
-                                                .fill(Color.cyan.opacity(0.9))
-                                                .frame(width: 34, height: max(4, min(42, CGFloat(point.precipitationRate ?? 0) * 18)))
-                                            Text(point.time.formatted(date: .omitted, time: .shortened))
-                                                .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                                                .foregroundStyle(.white.opacity(0.82))
-                                        }
-                                        .frame(width: 42, height: 70, alignment: .bottom)
-                                        .accessibilityElement(children: .combine)
-                                        .accessibilityLabel("\(point.time.formatted(date: .omitted, time: .shortened)), \(String(format: "%.1f", point.precipitationRate ?? 0)) millimeter per hour")
+                            HStack(alignment: .bottom, spacing: 5) {
+                                ForEach(nowcastPoints.prefix(6)) { point in
+                                    VStack(spacing: 4) {
+                                        Text(String(format: "%.1f", point.precipitationRate ?? 0))
+                                            .font(.system(size: 11, weight: .bold).monospacedDigit())
+                                            .foregroundStyle(.white)
+                                        Capsule()
+                                            .fill(Color.cyan.opacity(0.9))
+                                            .frame(maxWidth: 38)
+                                            .frame(height: max(4, min(36, CGFloat(point.precipitationRate ?? 0) * 18)))
+                                        Text(point.time.formatted(date: .omitted, time: .shortened))
+                                            .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                                            .foregroundStyle(.white.opacity(0.82))
+                                            .lineLimit(1)
+                                            .minimumScaleFactor(0.8)
                                     }
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 68, alignment: .bottom)
+                                    .accessibilityElement(children: .combine)
+                                    .accessibilityLabel("\(point.time.formatted(date: .omitted, time: .shortened)), \(String(format: "%.1f", point.precipitationRate ?? 0)) millimeter per hour")
                                 }
-                                .padding(.vertical, 2)
                             }
-                            .frame(height: 76, alignment: .top)
+                            .frame(height: 70)
                         }
                     }
                     .padding(12)
