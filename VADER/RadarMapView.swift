@@ -484,7 +484,7 @@ struct RadarMapView: View {
                             .font(.system(size: 12, weight: .heavy, design: .rounded))
                             .tracking(2.2)
                             .foregroundStyle(Color(red: 0.98, green: 0.58, blue: 0.40))
-                        Text(showWind ? "Vindradar" : "Nederbördsradar")
+                        Text(showWind ? "Vindradar" : (showClouds ? "Molntäcke" : "Nederbördsradar"))
                             .font(.system(size: 25, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
                         Text(place)
@@ -691,7 +691,7 @@ struct RadarMapView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
-                    if !showWind {
+                    if !showWind && !showClouds {
                     if let selectedFrame {
                         HStack(alignment: .firstTextBaseline) {
                             VStack(alignment: .leading, spacing: 2) {
