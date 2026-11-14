@@ -30,14 +30,15 @@ enum WeatherNotificationScheduler {
 
     static func refreshFromStoredForecast() {
         let defaults = UserDefaults.standard
-        guard let data = defaults.data(forKey: forecastKey),
-              let hours = try? JSONDecoder().decode([HourForecast].self, from: data),
-              let place = defaults.string(forKey: placeKey) else {
-            defaults.set("Väntar på en aktuell prognos", forKey: scheduleStatusKey)
-            defaults.set(0, forKey: scheduledCountKey)
-            return
+        if let data = defaults.data(forKey: forecastKey),
+           let hours = try? JSONDecoder().decode([HourForecast].self, from: data) {
+            let place = defaults.string(forKey: placeKey) ?? "vald plats"
+            Task { await schedule(place: place, hours: hours, currentTemperature: nil) }
+        } else {
+            // Reconcile even without a cached forecast so turning a watch off
+            // cannot leave stale pending notifications armed.
+            Task { await schedule(place: "vald plats", hours: [], currentTemperature: nil) }
         }
-        Task { await schedule(place: place, hours: hours, currentTemperature: nil) }
     }
 
     static func removeAll() {
