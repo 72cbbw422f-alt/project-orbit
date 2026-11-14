@@ -975,7 +975,9 @@ struct RadarMapView: View {
         windStatus = "Hämtar vinddata över området…"
         let center = requestedCenter ?? windMapCenter ?? mapCoordinate
         windMapCenter = center
-        let grid = [-0.40, -0.20, 0.0, 0.20, 0.40]
+        // A denser 7×7 field reduces visible gaps between model samples.
+        // The same geographic coordinates drive the map-anchored cloud layer.
+        let grid = [-0.45, -0.30, -0.15, 0.0, 0.15, 0.30, 0.45]
         let offsets: [(Double, Double)] = grid.flatMap { lat in
             grid.map { lon in (lat, lon) }
         }
@@ -1010,8 +1012,8 @@ struct RadarMapView: View {
         windSamples = results.sorted { $0.id < $1.id }
         windUpdated = Date()
         windStatus = results.count == offsets.count
-            ? (showClouds ? "Molntäcke • 25 geografiskt placerade modellpunkter" : "Vindfält • 25 modellpunkter runt kartans mittpunkt")
-            : (showClouds ? "Molntäcke delvis tillgängligt • \(results.count) av 25 punkter" : "Vindfält delvis tillgängligt • \(results.count) av 25 punkter")
+            ? (showClouds ? "Molntäcke • 49 geografiskt placerade modellpunkter" : "Vindfält • 49 modellpunkter runt kartans mittpunkt")
+            : (showClouds ? "Molntäcke delvis tillgängligt • \(results.count) av 49 punkter" : "Vindfält delvis tillgängligt • \(results.count) av 25 punkter")
     }
 
     private static func precipitationName(code: Int, temperature: Double) -> String {
@@ -1151,10 +1153,12 @@ private struct RegnvaktMapView: UIViewRepresentable {
             let collection = MLNShapeCollectionFeature(shapes: features)
             let source = MLNShapeSource(identifier: "regnvakt-cloud-source", shape: collection, options: nil)
             let layer = MLNCircleStyleLayer(identifier: "regnvakt-cloud-layer", source: source)
-            layer.circleRadius = NSExpression(forConstantValue: 58)
-            layer.circleBlur = NSExpression(forConstantValue: 0.92)
+            // Soft, overlapping map-anchored fields blend neighboring observations
+            // without creating the bright isolated bullseyes seen in the 5×5 version.
+            layer.circleRadius = NSExpression(forConstantValue: 64)
+            layer.circleBlur = NSExpression(forConstantValue: 0.88)
             layer.circleColor = NSExpression(forConstantValue: UIColor(red: 0.78, green: 0.87, blue: 0.96, alpha: 1))
-            layer.circleOpacity = NSExpression(format: "cloudCover / 100.0 * 0.42")
+            layer.circleOpacity = NSExpression(format: "cloudCover / 100.0 * 0.30")
             style.addSource(source)
             style.addLayer(layer)
         }
