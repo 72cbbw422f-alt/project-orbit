@@ -372,7 +372,7 @@ struct ActiveWatchSummary: View {
             return isRain && ($0.precipitationChance >= 40 || $0.precipitation >= 0.3)
         }
         if snowRisk && snowEnabled { result.append(("SNÖVAKTEN", "cloud.snow.fill")) }
-        else if rainRisk && rainEnabled { result.append(("REGNVAKTEN", "cloud.rain.fill")) }
+        if rainRisk && rainEnabled { result.append(("REGNVAKTEN", "cloud.rain.fill")) }
         if text.contains("åska") && thunderEnabled { result.append(("ÅSKVAKTEN", "cloud.bolt.rain.fill")) }
 
         let gust = max(weather.windGust, hours.map(\.gust).max() ?? days.first?.gust ?? 0)
@@ -400,14 +400,22 @@ struct ActiveWatchSummary: View {
         return result
     }
 
+    private var enabledCount: Int {
+        [rainEnabled, snowEnabled, thunderEnabled, windEnabled, frostEnabled, smhiEnabled].filter { $0 }.count
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             HStack {
                 Label("VÄDERVAKTER", systemImage: "shield.lefthalf.filled")
                     .font(.system(size: 13, weight: .heavy)).foregroundStyle(.white)
                 Spacer()
-                Text("\(activeTitles.count) \(activeTitles.count == 1 ? "aktiv" : "aktiva")")
-                    .font(.system(size: 13, weight: .heavy)).foregroundStyle(WatchPalette.cyan)
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("\(activeTitles.count) \(activeTitles.count == 1 ? "risk" : "risker")")
+                        .font(.system(size: 13, weight: .heavy)).foregroundStyle(WatchPalette.cyan)
+                    Text("\(enabledCount) BEVAKNINGAR PÅ")
+                        .font(.system(size: 9, weight: .heavy)).tracking(0.5).foregroundStyle(WatchPalette.muted)
+                }
             }
             if activeTitles.isEmpty {
                 Text("Inga aktiverade vädervakter visar förhöjd risk just nu.")
