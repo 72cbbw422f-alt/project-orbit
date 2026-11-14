@@ -105,7 +105,8 @@ enum WeatherNotificationScheduler {
         }
 
         
-        let events = makeEvents(hours: hours, currentTemperature: currentTemperature, defaults: defaults)
+        let frostDayKey = currentFrostAlertDayKey + "." + locationID.replacingOccurrences(of: ",", with: "_")
+        let events = makeEvents(hours: hours, currentTemperature: currentTemperature, defaults: defaults, frostDayKey: frostDayKey)
         let lead = defaults.object(forKey: "Regnvakt.notifications.leadMinutes") == nil
             ? 30 : max(0, defaults.integer(forKey: "Regnvakt.notifications.leadMinutes"))
         let quietSetting = defaults.string(forKey: "Regnvakt.notifications.quietHours") ?? "22–07"
@@ -128,7 +129,18 @@ enum WeatherNotificationScheduler {
             case "ice": weatherIcon = "🧊"
             default: weatherIcon = "🌦️"
             }
-            let riskLabel = event.safetyCritical ? " • Varning" : " • Prognos"
+            let probabilityText = event.body.components(separatedBy: "Sannolikhet ").last?.components(separatedBy: "%").first
+            let probability = probabilityText.flatMap { Int($0) }
+            let riskLabel: String
+            if event.safetyCritical {
+                riskLabel = " • Hög risk"
+            } else if let probability, probability >= 70 {
+                riskLabel = " • Hög sannolikhet"
+            } else if let probability, probability >= 50 {
+                riskLabel = " • Medelhög sannolikhet"
+            } else {
+                riskLabel = " • Risk i prognosen"
+            }
             content.title = "\(weatherIcon) \(event.title)\(riskLabel)"
             content.body = "\(event.body) • \(place)"
             content.sound = .default
@@ -188,14 +200,14 @@ enum WeatherNotificationScheduler {
             let isImmediate = (request.content.userInfo["immediate"] as? Bool) ?? false
             if existingIDs.contains(request.identifier) {
                 if isImmediate, let alertDay = request.content.userInfo["alertDay"] as? Date {
-                    defaults.set(alertDay, forKey: currentFrostAlertDayKey)
+                    defaults.set(alertDay, forKey: frostDayKey)
                 }
                 continue
             }
             do {
                 try await center.add(request)
                 if isImmediate, let alertDay = request.content.userInfo["alertDay"] as? Date {
-                    defaults.set(alertDay, forKey: currentFrostAlertDayKey)
+                    defaults.set(alertDay, forKey: frostDayKey)
                 }
             } catch {
                 defaults.set("Fel vid schemaläggning: \(error.localizedDescription)", forKey: scheduleStatusKey)
@@ -212,7 +224,7 @@ enum WeatherNotificationScheduler {
         }
     }
 
-    private static func makeEvents(hours: [HourForecast], currentTemperature: Int?, defaults: UserDefaults) -> [Event] {
+    private static func makeEvents(hours: [HourForecast], currentTemperature: Int?, defaults: UserDefaults, frostDayKey: String) -> [Event] {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = .current
@@ -230,7 +242,7 @@ enum WeatherNotificationScheduler {
         let currentThreshold = currentOvernight ? 1 : 0
         let currentFrost = (defaults.object(forKey: "Regnvakt.notifications.frost") as? Bool ?? true)
             && (currentTemperature.map { $0 <= currentThreshold } ?? false)
-        let lastCurrentFrostAlertDay = defaults.object(forKey: currentFrostAlertDayKey) as? Date
+        let lastCurrentFrostAlertDay = defaults.object(forKey: frostDayKey) as? Date
         let alreadyAlertedForCurrentFrostToday = lastCurrentFrostAlertDay.map {
             Calendar.current.isDate($0, inSameDayAs: now)
         } ?? false
