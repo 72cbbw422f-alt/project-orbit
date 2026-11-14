@@ -32,11 +32,19 @@ struct VaktDashboard: View {
     private var watches: [WatchItem] {
         let upcoming = hours
         let conditions = upcoming.map { $0.condition.lowercased() }
-        let rain = conditions.contains { $0.contains("regn") || $0.contains("duggregn") || $0.contains("skur") }
-        let snow = conditions.contains { $0.contains("snö") }
+        let rain = upcoming.contains { hour in
+            let condition = hour.condition.lowercased()
+            let isRain = condition.contains("regn") || condition.contains("duggregn") || condition.contains("skur")
+            return isRain && (hour.precipitationChance >= 40 || hour.precipitation >= 0.3)
+        }
+        let snow = upcoming.contains { hour in
+            hour.condition.localizedCaseInsensitiveContains("snö")
+                && (hour.precipitationChance >= 40 || hour.precipitation >= 0.2)
+        }
         let thunder = conditions.contains { $0.contains("åska") }
         let maxGust = max(weather.windGust, upcoming.map(\.gust).max() ?? days.first?.gust ?? 0)
-        let wind = maxGust >= 14
+        let maxWind = max(weather.wind, upcoming.map(\.wind).max() ?? 0)
+        let wind = maxGust >= 17 || maxWind >= 11
         let dateFormatter = DateFormatter()
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
         dateFormatter.timeZone = .current
@@ -64,15 +72,28 @@ struct VaktDashboard: View {
             }
             return wetNow || recentWet || condition.contains("underkylt")
         }?.element
-        let frost = frostHour != nil || wetNearFreeze != nil
+        let currentHourOfDay = Calendar.current.component(.hour, from: Date())
+        let currentFrostThreshold = (currentHourOfDay >= 18 || currentHourOfDay < 9) ? 1 : 0
+        let currentFrost = weather.temperature <= currentFrostThreshold
+        let frost = currentFrost || frostHour != nil || wetNearFreeze != nil
         let precipitationTitle = snow ? "SNÖVAKTEN" : "REGNVAKTEN"
-        let firstPrecipitation = upcoming.first { $0.condition.localizedCaseInsensitiveContains("regn") || $0.condition.localizedCaseInsensitiveContains("snö") || $0.condition.localizedCaseInsensitiveContains("skur") }
-        let precipitationDetail = firstPrecipitation.map { "\($0.condition) väntas kl. \($0.time)" } ?? (snow && rain ? "Snö och regn finns i timprognosen" : snow ? "Snöfall finns i timprognosen" : rain ? "Regn finns i timprognosen" : "Ingen nederbörd identifierad kommande timmar")
+        let firstPrecipitation = upcoming.first { hour in
+            let condition = hour.condition.lowercased()
+            let isSnow = condition.contains("snö")
+            let isRain = condition.contains("regn") || condition.contains("duggregn") || condition.contains("skur")
+            return (isSnow && (hour.precipitationChance >= 40 || hour.precipitation >= 0.2))
+                || (isRain && (hour.precipitationChance >= 40 || hour.precipitation >= 0.3))
+        }
+        let precipitationDetail = firstPrecipitation.map { "\($0.condition) väntas kl. \($0.time)" }
+            ?? (snow && rain ? "Snö och regn når aviseringsgränsen i timprognosen"
+                : snow ? "Snöfall når aviseringsgränsen i timprognosen"
+                : rain ? "Regn når aviseringsgränsen i timprognosen"
+                : "Ingen nederbörd når aviseringsgränsen kommande timmar")
         return [
             WatchItem(id: "precipitation", title: precipitationTitle, subtitle: "Nederbörd · regn · snö · duggregn", symbol: snow ? "cloud.snow.fill" : "cloud.rain.fill", active: rain || snow, detail: precipitationDetail, level: rain || snow ? "BEVAKAR" : "LUGNT", tint: WatchPalette.cyan),
             WatchItem(id: "thunder", title: "ÅSKVAKTEN", subtitle: "Åska · blixtar · åskrisk", symbol: "cloud.bolt.rain.fill", active: thunder, detail: thunder ? "Åska förekommer i prognosen" : "Ingen åska identifierad i prognosen", level: thunder ? "RISK I PROGNOS" : "LUGNT", tint: Color.orange),
-            WatchItem(id: "wind", title: "VINDVAKTEN", subtitle: "Vindstyrka · hårda vindbyar", symbol: "wind", active: wind, detail: String(format: "Högsta prognostiserade byvind %.1f m/s", maxGust), level: wind ? "FÖRHÖJD VIND" : "LUGNT", tint: Color(red: 0.54, green: 0.72, blue: 1.0)),
-            WatchItem(id: "frost", title: "FROSTVAKTEN", subtitle: "Frostbildning · temperatur · separat halkrisk", symbol: "thermometer.snowflake", active: frost, detail: wetNearFreeze.map { "Fukt/nederbörd och cirka \($0.temperature)° omkring kl. \($0.time) – risk för halka" } ?? frostHour.map { "Frostrisk: cirka \($0.temperature)° kl. \($0.time). Frost kan bildas även utan nederbörd." } ?? "Ingen tydlig frostrisk i timprognosen", level: wetNearFreeze != nil ? "HALKRISK" : frost ? "FROSTRISK" : "LUGNT", tint: Color.cyan),
+            WatchItem(id: "wind", title: "VINDVAKTEN", subtitle: "Vindstyrka · hårda vindbyar", symbol: "wind", active: wind, detail: String(format: "Vind upp till %.1f m/s • byvind %.1f m/s", maxWind, maxGust), level: wind ? "FÖRHÖJD VIND" : "LUGNT", tint: Color(red: 0.54, green: 0.72, blue: 1.0)),
+            WatchItem(id: "frost", title: "FROSTVAKTEN", subtitle: "Frostbildning · temperatur · separat halkrisk", symbol: "thermometer.snowflake", active: frost, detail: wetNearFreeze.map { "Fukt/nederbörd och cirka \($0.temperature)° omkring kl. \($0.time) – risk för halka" } ?? (currentFrost ? "Frostrisk just nu: cirka \(weather.temperature)°. Frost kan bildas även utan nederbörd." : frostHour.map { "Frostrisk: cirka \($0.temperature)° kl. \($0.time). Frost kan bildas även utan nederbörd." } ?? "Ingen tydlig frostrisk i timprognosen"), level: wetNearFreeze != nil ? "HALKRISK" : frost ? "FROSTRISK" : "LUGNT", tint: Color.cyan),
             WatchItem(id: "official", title: "SMHI:S VÄDERVARNINGAR", subtitle: "Officiella vädervarningar för Gävleborgs län", symbol: "exclamationmark.triangle.fill", active: smhiActive, detail: smhiSummary + (smhiUpdated.isEmpty ? "" : " • Uppdaterad " + smhiUpdated), level: smhiActive ? (smhiLevel.isEmpty ? "AKTIV VARNING" : smhiLevel + " VARNING") : "INGEN AKTIV VARNING", tint: Color.yellow)
         ]
     }
@@ -90,13 +111,24 @@ struct VaktDashboard: View {
                     Spacer()
                     Image(systemName: "shield.lefthalf.filled").font(.system(size: 29)).foregroundStyle(WatchPalette.cyan)
                 }
-                HStack(spacing: 8) {
-                    Circle().fill(activeWatches.isEmpty ? Color.green : Color.orange).frame(width: 7, height: 7)
-                    Text(activeWatches.isEmpty ? "Inga förhöjda risker i prognosen" : "\(activeWatches.count) aktiva bevakningar i prognosen")
-                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
-                    Spacer()
-                    Text("PROGNOSBASERAT").font(.system(size: 11, weight: .heavy)).tracking(0.4).foregroundStyle(WatchPalette.cyan).lineLimit(1).fixedSize(horizontal: true, vertical: false)
-                }.padding(12).background(WatchPalette.panel, in: RoundedRectangle(cornerRadius: 15)).overlay(RoundedRectangle(cornerRadius: 15).stroke(WatchPalette.line, lineWidth: 1))
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(activeWatches.isEmpty ? "Inga förhöjda risker" : "Risker i prognosen")
+                            .font(.system(size: 15, weight: .bold)).foregroundStyle(.white)
+                        Text("Väderläge för \(weather.place)")
+                            .font(.system(size: 12, weight: .medium)).foregroundStyle(WatchPalette.muted)
+                    }
+                    Spacer(minLength: 8)
+                    VStack(alignment: .trailing, spacing: 3) {
+                        Text("\(activeWatches.count) \(activeWatches.count == 1 ? "aktiv" : "aktiva")")
+                            .font(.system(size: 16, weight: .heavy, design: .rounded)).foregroundStyle(activeWatches.isEmpty ? WatchPalette.muted : WatchPalette.cyan)
+                        Text("PROGNOS")
+                            .font(.system(size: 10, weight: .heavy)).tracking(0.8).foregroundStyle(WatchPalette.cyan.opacity(0.85))
+                    }
+                }
+                .padding(.horizontal, 14).padding(.vertical, 13)
+                .background(WatchPalette.panel, in: RoundedRectangle(cornerRadius: 15))
+                .overlay(RoundedRectangle(cornerRadius: 15).stroke(WatchPalette.line, lineWidth: 1))
 
                 ForEach(watches) { watch in
                     watchCard(watch)
@@ -256,39 +288,77 @@ struct ActiveWatchSummary: View {
     let weather: WeatherSnapshot
     let days: [DayForecast]
     let hours: [HourForecast]
+    @AppStorage("Regnvakt.smhi.active") private var smhiActive = false
 
     private var activeTitles: [(String, String)] {
         let text = hours.map { $0.condition.lowercased() }.joined(separator: " ")
         var result: [(String, String)] = []
-        if text.contains("snö") { result.append(("SNÖVAKTEN", "cloud.snow.fill")) }
-        else if text.contains("regn") || text.contains("skur") || text.contains("duggregn") { result.append(("REGNVAKTEN", "cloud.rain.fill")) }
+        let snowRisk = hours.contains { $0.condition.localizedCaseInsensitiveContains("snö") && ($0.precipitationChance >= 40 || $0.precipitation >= 0.2) }
+        let rainRisk = hours.contains {
+            let condition = $0.condition.lowercased()
+            let isRain = condition.contains("regn") || condition.contains("duggregn") || condition.contains("skur")
+            return isRain && ($0.precipitationChance >= 40 || $0.precipitation >= 0.3)
+        }
+        if snowRisk { result.append(("SNÖVAKTEN", "cloud.snow.fill")) }
+        else if rainRisk { result.append(("REGNVAKTEN", "cloud.rain.fill")) }
         if text.contains("åska") { result.append(("ÅSKVAKTEN", "cloud.bolt.rain.fill")) }
+
         let gust = max(weather.windGust, hours.map(\.gust).max() ?? days.first?.gust ?? 0)
-        if gust >= 17 || max(weather.wind, hours.map(\.wind).max() ?? 0) >= 11 { result.append(("VINDVAKTEN", "wind")) }
+        if gust >= 17 || max(weather.wind, hours.map(\.wind).max() ?? 0) >= 11 {
+            result.append(("VINDVAKTEN", "wind"))
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        let nowHour = Calendar.current.component(.hour, from: Date())
+        let currentThreshold = (nowHour >= 18 || nowHour < 9) ? 1 : 0
+        let currentFrost = weather.temperature <= currentThreshold
+        let forecastFrost = hours.contains { hour in
+            guard let date = formatter.date(from: hour.id) else { return false }
+            let hourOfDay = Calendar.current.component(.hour, from: date)
+            let threshold = (hourOfDay >= 18 || hourOfDay < 9) ? 1 : 0
+            return hour.temperature <= threshold
+        }
+        if currentFrost || forecastFrost {
+            result.append(("FROSTVAKTEN", "thermometer.snowflake"))
+        }
+        if smhiActive { result.append(("SMHI-VARNING", "exclamationmark.triangle.fill")) }
         return result
     }
 
     var body: some View {
-        if !activeTitles.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Label("AKTIVA VÄDERVAKTER", systemImage: "shield.lefthalf.filled")
-                        .font(.system(size: 13, weight: .heavy)).foregroundStyle(.white)
-                    Spacer()
-                    Text("\(activeTitles.count) AKTIVA").font(.system(size: 13, weight: .heavy)).foregroundStyle(WatchPalette.cyan)
-                }
-                HStack(spacing: 7) {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack {
+                Label("VÄDERVAKTER", systemImage: "shield.lefthalf.filled")
+                    .font(.system(size: 13, weight: .heavy)).foregroundStyle(.white)
+                Spacer()
+                Text("\(activeTitles.count) \(activeTitles.count == 1 ? "aktiv" : "aktiva")")
+                    .font(.system(size: 13, weight: .heavy)).foregroundStyle(WatchPalette.cyan)
+            }
+            if activeTitles.isEmpty {
+                Text("Inga förhöjda risker i prognosen just nu. Vädervakterna är igång.")
+                    .font(.system(size: 12, weight: .medium)).foregroundStyle(WatchPalette.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], alignment: .leading, spacing: 7) {
                     ForEach(Array(activeTitles.enumerated()), id: \.offset) { _, item in
-                        HStack(spacing: 5) {
+                        HStack(spacing: 6) {
                             Image(systemName: item.1).foregroundStyle(WatchPalette.cyan)
-                            Text(item.0).foregroundStyle(.white)
-                        }.font(.system(size: 13, weight: .heavy)).padding(.horizontal, 9).padding(.vertical, 8)
-                            .background(.white.opacity(0.06), in: Capsule())
-                            .overlay(Capsule().stroke(WatchPalette.line, lineWidth: 1))
+                            Text(item.0).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.78)
+                            Spacer(minLength: 0)
+                        }
+                        .font(.system(size: 11, weight: .heavy))
+                        .padding(.horizontal, 9).padding(.vertical, 9)
+                        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(WatchPalette.line, lineWidth: 1))
                     }
-                    Spacer(minLength: 0)
                 }
-            }.padding(11).background(WatchPalette.panel, in: RoundedRectangle(cornerRadius: 16)).overlay(RoundedRectangle(cornerRadius: 16).stroke(WatchPalette.line, lineWidth: 1))
+            }
         }
+        .padding(12)
+        .background(WatchPalette.panel, in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(WatchPalette.line, lineWidth: 1))
     }
 }

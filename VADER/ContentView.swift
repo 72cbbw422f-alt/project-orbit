@@ -206,6 +206,7 @@ private struct ReferenceWeatherHome: View {
                     locationHeader
                     currentConditions
                     mainCards(width: geo.size.width - 28)
+                    ActiveWatchSummary(weather: weather, days: days, hours: hours)
                     precipitationCard
                     todayDetailsButton
                     moonMetric

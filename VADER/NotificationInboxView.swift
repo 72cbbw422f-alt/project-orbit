@@ -234,10 +234,11 @@ struct NotificationInboxView: View {
                         }.padding(13).background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 15)).overlay(RoundedRectangle(cornerRadius: 15).stroke(warning.color.opacity(0.5), lineWidth: 1))
                     }
                     Text("SCHEMALAGDA AVISERINGAR").font(.system(size: 16, weight: .heavy)).tracking(1).foregroundStyle(cyan).padding(.top, 4)
-                    Text("Här visas förvarningar som iPhone har schemalagt. Tiden för förvarningen är inte samma sak som tiden då väderhändelsen eventuellt kan inträffa. Prognoser är osäkra och beskriver möjliga förhållanden.").font(.system(size: 16)).foregroundStyle(.white.opacity(0.65)).fixedSize(horizontal: false, vertical: true)
+                    Text("Här visas aviseringar som iPhone har schemalagt. Direktaviseringar gäller risker som redan pågår. Förvarningar skickas före en möjlig väderhändelse och har därför en annan tid än själva händelsen.").font(.system(size: 16)).foregroundStyle(.white.opacity(0.65)).fixedSize(horizontal: false, vertical: true)
                     if pending.isEmpty { emptyCard("Inga kommande vädernotiser är schemalagda just nu.", icon: "calendar.badge.clock") }
                     ForEach(pending, id: \.identifier) { item in
                         let watch = (item.content.userInfo["watch"] as? String) ?? watchNameFromIdentifier(item.identifier)
+                        let isImmediate = (item.content.userInfo["immediate"] as? Bool) ?? false
                         let fireDate = (item.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate()
                             ?? (item.trigger as? UNTimeIntervalNotificationTrigger).map { Date().addingTimeInterval($0.timeInterval) }
                         VStack(alignment: .leading, spacing: 6) {
@@ -246,7 +247,7 @@ struct NotificationInboxView: View {
                             Text(item.content.body).font(.system(size: 15)).foregroundStyle(.white.opacity(0.78))
                             if let fireDate {
                                 Label {
-                                    Text("Förvarning: " + fireDate.formatted(
+                                    Text((isImmediate ? "Avisering: " : "Förvarning: ") + fireDate.formatted(
                                         .dateTime.day().month(.abbreviated).hour().minute()
                                             .locale(Locale(identifier: "sv_SE"))
                                     ))

@@ -7,6 +7,7 @@ enum WeatherNotificationScheduler {
     private static let prefix = "regnvakt.weather."
     private static let forecastKey = "Regnvakt.notifications.lastForecast.v1"
     private static let placeKey = "Regnvakt.notifications.lastPlace.v1"
+    private static let currentFrostAlertDayKey = "Regnvakt.notifications.currentFrostAlertDay.v1"
 
     private struct Event {
         let type: String
@@ -14,13 +15,14 @@ enum WeatherNotificationScheduler {
         let body: String
         let date: Date
         let safetyCritical: Bool
+        var immediate: Bool = false
     }
 
-    static func refresh(place: String, hours: [HourForecast]) {
+    static func refresh(place: String, hours: [HourForecast], currentTemperature: Int? = nil) {
         guard let data = try? JSONEncoder().encode(hours) else { return }
         UserDefaults.standard.set(data, forKey: forecastKey)
         UserDefaults.standard.set(place, forKey: placeKey)
-        Task { await schedule(place: place, hours: hours) }
+        Task { await schedule(place: place, hours: hours, currentTemperature: currentTemperature) }
     }
 
     static func refreshFromStoredForecast() {
@@ -28,7 +30,7 @@ enum WeatherNotificationScheduler {
         guard let data = defaults.data(forKey: forecastKey),
               let hours = try? JSONDecoder().decode([HourForecast].self, from: data),
               let place = defaults.string(forKey: placeKey) else { return }
-        Task { await schedule(place: place, hours: hours) }
+        Task { await schedule(place: place, hours: hours, currentTemperature: nil) }
     }
 
     static func removeAll() {
@@ -38,7 +40,7 @@ enum WeatherNotificationScheduler {
         }
     }
 
-    private static func schedule(place: String, hours: [HourForecast]) async {
+    private static func schedule(place: String, hours: [HourForecast], currentTemperature: Int?) async {
         let defaults = UserDefaults.standard
         guard defaults.object(forKey: "Regnvakt.notifications.enabled") as? Bool ?? true else {
             removeAll()
@@ -55,15 +57,15 @@ enum WeatherNotificationScheduler {
             return
         }
 
-        let events = makeEvents(hours: hours, defaults: defaults)
+        let events = makeEvents(hours: hours, currentTemperature: currentTemperature, defaults: defaults)
         let lead = defaults.object(forKey: "Regnvakt.notifications.leadMinutes") == nil
             ? 30 : max(0, defaults.integer(forKey: "Regnvakt.notifications.leadMinutes"))
         let quietSetting = defaults.string(forKey: "Regnvakt.notifications.quietHours") ?? "22–07"
 
         var requests: [UNNotificationRequest] = []
         for event in events {
-            let fireDate = event.date.addingTimeInterval(-Double(lead) * 60)
-            guard fireDate > Date().addingTimeInterval(30) else { continue }
+            let fireDate = event.immediate ? Date().addingTimeInterval(2) : event.date.addingTimeInterval(-Double(lead) * 60)
+            guard event.immediate || fireDate > Date().addingTimeInterval(30) else { continue }
             // Frost and ice alerts are safety-critical and intentionally bypass quiet hours.
             guard event.safetyCritical || !isQuietTime(fireDate, setting: quietSetting) else { continue }
 
@@ -71,20 +73,37 @@ enum WeatherNotificationScheduler {
             content.title = event.title
             content.body = "\(event.body) • \(place)"
             content.sound = .default
-            content.userInfo = ["watch": event.type, "place": place, "safetyCritical": event.safetyCritical, "forecastEventDate": event.date.timeIntervalSince1970, "leadMinutes": lead]
+            content.userInfo = ["watch": event.type, "place": place, "safetyCritical": event.safetyCritical, "immediate": event.immediate, "alertDay": Calendar.current.startOfDay(for: event.date), "forecastEventDate": event.date.timeIntervalSince1970, "leadMinutes": lead]
             let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
-            let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
-            let stamp = Int(event.date.timeIntervalSince1970)
-            let identifier = prefix + event.type + "." + String(stamp)
+            let trigger: UNNotificationTrigger
+            if event.immediate {
+                trigger = UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false)
+            } else {
+                trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+            }
+            let stamp: String
+            if event.immediate {
+                let day = DateFormatter()
+                day.calendar = Calendar.current
+                day.timeZone = .current
+                day.dateFormat = "yyyyMMdd"
+                stamp = day.string(from: Date())
+            } else {
+                stamp = String(Int(event.date.timeIntervalSince1970))
+            }
+            let identifier = prefix + event.type + (event.immediate ? ".current." : ".") + stamp
             requests.append(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
         }
 
         // Keep well below iOS's pending local-notification limit and prioritize
         // safety-critical frost/ice alerts before ordinary weather notices.
         requests.sort {
-            let left = ($0.content.userInfo["safetyCritical"] as? Bool) ?? false
-            let right = ($1.content.userInfo["safetyCritical"] as? Bool) ?? false
-            if left != right { return left && !right }
+            let leftImmediate = ($0.content.userInfo["immediate"] as? Bool) ?? false
+            let rightImmediate = ($1.content.userInfo["immediate"] as? Bool) ?? false
+            if leftImmediate != rightImmediate { return leftImmediate && !rightImmediate }
+            let leftSafetyCritical = ($0.content.userInfo["safetyCritical"] as? Bool) ?? false
+            let rightSafetyCritical = ($1.content.userInfo["safetyCritical"] as? Bool) ?? false
+            if leftSafetyCritical != rightSafetyCritical { return leftSafetyCritical && !rightSafetyCritical }
             let leftDate = ($0.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() ?? .distantFuture
             let rightDate = ($1.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() ?? .distantFuture
             return leftDate < rightDate
@@ -92,16 +111,37 @@ enum WeatherNotificationScheduler {
         let selected = Array(requests.prefix(48))
 
         let pending = await center.pendingNotificationRequests()
-        let oldIDs = pending.map(\.identifier).filter { $0.hasPrefix(prefix) }
+        let delivered = await center.deliveredNotifications()
+        let desiredIDs = Set(selected.map(\.identifier))
+        let preserveCurrentFrost = currentTemperature == nil
+            && (defaults.object(forKey: "Regnvakt.notifications.frost") as? Bool ?? true)
+        let oldIDs = pending.map(\.identifier).filter { identifier in
+            guard identifier.hasPrefix(prefix), !desiredIDs.contains(identifier) else { return false }
+            if preserveCurrentFrost && identifier.contains(".frost.current.") { return false }
+            return true
+        }
         center.removePendingNotificationRequests(withIdentifiers: oldIDs)
+        let existingIDs = Set(pending.map(\.identifier)).union(delivered.map { $0.request.identifier })
         for request in selected {
-            do { try await center.add(request) } catch {
+            let isImmediate = (request.content.userInfo["immediate"] as? Bool) ?? false
+            if existingIDs.contains(request.identifier) {
+                if isImmediate, let alertDay = request.content.userInfo["alertDay"] as? Date {
+                    defaults.set(alertDay, forKey: currentFrostAlertDayKey)
+                }
+                continue
+            }
+            do {
+                try await center.add(request)
+                if isImmediate, let alertDay = request.content.userInfo["alertDay"] as? Date {
+                    defaults.set(alertDay, forKey: currentFrostAlertDayKey)
+                }
+            } catch {
                 // A later successful forecast refresh will retry scheduling.
             }
         }
     }
 
-    private static func makeEvents(hours: [HourForecast], defaults: UserDefaults) -> [Event] {
+    private static func makeEvents(hours: [HourForecast], currentTemperature: Int?, defaults: UserDefaults) -> [Event] {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = .current
@@ -110,6 +150,34 @@ enum WeatherNotificationScheduler {
         var result: [Event] = []
         var previousTypes = Set<String>()
         var lastWetForecastDate: Date?
+
+        // Current frost is a separate, immediate safety alert. It is deduplicated
+        // by a stable daily identifier and remains armed across forecast refreshes.
+        let now = Date()
+        let currentHour = Calendar.current.component(.hour, from: now)
+        let currentOvernight = currentHour >= 18 || currentHour < 9
+        let currentThreshold = currentOvernight ? 1 : 0
+        let currentFrost = (defaults.object(forKey: "Regnvakt.notifications.frost") as? Bool ?? true)
+            && (currentTemperature.map { $0 <= currentThreshold } ?? false)
+        let lastCurrentFrostAlertDay = defaults.object(forKey: currentFrostAlertDayKey) as? Date
+        let alreadyAlertedForCurrentFrostToday = lastCurrentFrostAlertDay.map {
+            Calendar.current.isDate($0, inSameDayAs: now)
+        } ?? false
+        if currentFrost {
+            // Seed the transition detector even when today's immediate alert was
+            // already delivered, so the same continuous frost episode is not re-armed.
+            previousTypes.insert("frost")
+        }
+        if currentFrost && !alreadyAlertedForCurrentFrostToday {
+            result.append(Event(
+                type: "frost",
+                title: "Frostrisk just nu",
+                body: "Den aktuella temperaturen är omkring \(currentTemperature ?? 0)°. Frost kan bildas även utan nederbörd. Detta är en riskbedömning.",
+                date: now,
+                safetyCritical: true,
+                immediate: true
+            ))
+        }
 
         for hour in hours {
             guard let date = formatter.date(from: hour.id), date > Date() else { continue }
@@ -164,10 +232,18 @@ enum WeatherNotificationScheduler {
                 let frostThreshold = overnight ? 1 : 0
 
                 if hour.temperature <= frostThreshold {
+                    let calendar = Calendar.current
+                    let today = calendar.startOfDay(for: Date())
+                    let eventDay = calendar.startOfDay(for: date)
+                    let dayOffset = calendar.dateComponents([.day], from: today, to: eventDay).day ?? 99
+                    let currentHour = calendar.component(.hour, from: Date())
+                    let isTonight = (dayOffset == 0 && (localHour >= 18 || (currentHour < 9 && localHour < 9)))
+                        || (dayOffset == 1 && currentHour >= 9 && localHour < 9)
+                    let dateLabel = date.formatted(date: .abbreviated, time: .omitted)
                     active.append(Event(
                         type: "frost",
-                        title: overnight ? "Möjlig frostrisk i natt" : "Möjlig frostrisk",
-                        body: "Prognosen visar att temperaturen kan sjunka till omkring \(hour.temperature)° runt kl. \(hour.time). Frost kan bildas även utan nederbörd. Detta är en riskprognos, inte en säker händelse.",
+                        title: isTonight ? "Möjlig frostrisk i natt" : "Möjlig frostrisk",
+                        body: "Prognosen visar omkring \(hour.temperature)° den \(dateLabel) kl. \(hour.time). Frost kan bildas även utan nederbörd. Detta är en riskprognos, inte en säker händelse.",
                         date: date,
                         safetyCritical: true
                     ))
