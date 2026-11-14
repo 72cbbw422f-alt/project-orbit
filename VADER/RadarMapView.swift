@@ -177,6 +177,8 @@ private struct WindSample: Identifiable {
     let direction: Double
     let gust: Double
     let cloudCover: Double
+    let precipitationType: Int
+    let precipitation: Double
 }
 
 
@@ -431,6 +433,7 @@ struct RadarMapView: View {
     @State private var windLayer: WindLayer = .speed
     @State private var showWind = false
     @State private var showClouds = false
+    @State private var showPrecipitationTypes = false
     @State private var windStatus = "Hämtar vindfält…"
     @State private var windUpdated: Date?
     @State private var windMapCenter: CLLocationCoordinate2D?
@@ -507,9 +510,10 @@ struct RadarMapView: View {
                         locationTitle: place,
                         cloudSamples: windSamples,
                         showClouds: showClouds,
+                        showPrecipitationTypes: showPrecipitationTypes,
                         onRegionChange: { center in
                             windMapCenter = center
-                            if showWind || showClouds {
+                            if showWind || showClouds || showPrecipitationTypes {
                                 Task { await refreshWindField(center: center) }
                             }
                         }
@@ -542,6 +546,7 @@ struct RadarMapView: View {
                         Button {
                             showWind = false
                             showClouds = false
+                            showPrecipitationTypes = false
                             showRadar = true
                         } label: {
                             Label("Regn", systemImage: "cloud.rain.fill")
@@ -555,6 +560,7 @@ struct RadarMapView: View {
                         Button {
                             showWind = true
                             showClouds = false
+                            showPrecipitationTypes = false
                             showRadar = false
                             if windSamples.isEmpty { Task { await refreshWindField() } }
                         } label: {
@@ -569,6 +575,7 @@ struct RadarMapView: View {
                         Button {
                             showWind = false
                             showClouds = true
+                            showPrecipitationTypes = false
                             showRadar = false
                             // Always load a fresh cloud field for the map's current
                             // geographic center; existing wind samples may belong to
@@ -581,6 +588,20 @@ struct RadarMapView: View {
                                 .foregroundStyle(showClouds ? Color(red: 0.05, green: 0.12, blue: 0.15) : .white)
                                 .background(showClouds ? Color(red: 0.72, green: 0.82, blue: 0.92) : Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 13))
                                 .overlay(RoundedRectangle(cornerRadius: 13).stroke(showClouds ? Color.white.opacity(0.38) : Color.white.opacity(0.16), lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                        Button {
+                            showWind = false
+                            showClouds = false
+                            showPrecipitationTypes = true
+                            showRadar = true
+                            Task { await refreshWindField(center: windMapCenter ?? mapCoordinate) }
+                        } label: {
+                            Label("Typ", systemImage: "cloud.snow.fill")
+                                .font(.system(size: 15, weight: .bold))
+                                .frame(maxWidth: .infinity).frame(height: 48)
+                                .foregroundStyle(showPrecipitationTypes ? Color(red: 0.05, green: 0.12, blue: 0.15) : .white)
+                                .background(showPrecipitationTypes ? Color(red: 0.72, green: 0.84, blue: 0.96) : Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 13))
                         }
                         .buttonStyle(.plain)
                     }
@@ -991,7 +1012,7 @@ struct RadarMapView: View {
                     components.queryItems = [
                         URLQueryItem(name: "latitude", value: String(lat)),
                         URLQueryItem(name: "longitude", value: String(lon)),
-                        URLQueryItem(name: "current", value: "wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover"),
+                        URLQueryItem(name: "current", value: "wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,precipitation,rain,showers,snowfall,weather_code"),
                         URLQueryItem(name: "wind_speed_unit", value: "ms"),
                         URLQueryItem(name: "timezone", value: "auto")
                     ]
@@ -1004,7 +1025,17 @@ struct RadarMapView: View {
                           let direction = (current["wind_direction_10m"] as? NSNumber)?.doubleValue,
                           let gust = (current["wind_gusts_10m"] as? NSNumber)?.doubleValue else { return nil }
                     let cloud = (current["cloud_cover"] as? NSNumber)?.doubleValue ?? 0
-                    return WindSample(id: index, latitude: lat, longitude: lon, speed: speed, direction: direction, gust: gust, cloudCover: cloud)
+                    let rain = (current["rain"] as? NSNumber)?.doubleValue ?? 0
+                    let showers = (current["showers"] as? NSNumber)?.doubleValue ?? 0
+                    let snow = (current["snowfall"] as? NSNumber)?.doubleValue ?? 0
+                    let precipitation = (current["precipitation"] as? NSNumber)?.doubleValue ?? max(rain + showers, snow)
+                    let code = (current["weather_code"] as? NSNumber)?.intValue ?? 0
+                    let type: Int
+                    if snow > 0.02 && rain + showers > 0.02 { type = 3 }
+                    else if snow > 0.02 || (71...86).contains(code) { type = 2 }
+                    else if rain + showers > 0.02 || (51...67).contains(code) || (80...82).contains(code) { type = 1 }
+                    else { type = 0 }
+                    return WindSample(id: index, latitude: lat, longitude: lon, speed: speed, direction: direction, gust: gust, cloudCover: cloud, precipitationType: type, precipitation: precipitation)
                 }
             }
             for await sample in group { if let sample { results.append(sample) } }
@@ -1035,6 +1066,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
     let locationTitle: String
     let cloudSamples: [WindSample]
     let showClouds: Bool
+    let showPrecipitationTypes: Bool
     let onRegionChange: (CLLocationCoordinate2D) -> Void
     private let styleURL = URL(string: "https://tiles.openfreemap.org/styles/fiord")!
 
@@ -1058,6 +1090,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
         context.coordinator.latestTileURL = radarTileURL
         context.coordinator.latestCloudSamples = cloudSamples
         context.coordinator.cloudsVisible = showClouds
+        context.coordinator.precipitationTypesVisible = showPrecipitationTypes
         context.coordinator.onRegionChange = onRegionChange
         context.coordinator.updateLocationMarker(on: map, coordinate: coordinate, title: locationTitle)
         return map
@@ -1072,6 +1105,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
         context.coordinator.updateLocationMarker(on: map, coordinate: coordinate, title: locationTitle)
         context.coordinator.applyRadarIfReady()
         context.coordinator.applyCloudsIfReady()
+        context.coordinator.applyPrecipitationTypesIfReady()
         // Deliberately do not recenter when GPS/model state changes.
         // The initial camera is set once in makeUIView; the location marker can move independently.
     }
@@ -1088,6 +1122,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
         var latestTileURL: String?
         var latestCloudSamples: [WindSample] = []
         var cloudsVisible = false
+        var precipitationTypesVisible = false
         var lastCoordinate: CLLocationCoordinate2D?
         private var styleReady = false
         private var appliedIdentity: String?
@@ -1136,6 +1171,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
             appliedIdentity = nil
             applyRadarIfReady()
             applyCloudsIfReady()
+            applyPrecipitationTypesIfReady()
         }
 
         func applyCloudsIfReady() {
@@ -1159,6 +1195,29 @@ private struct RegnvaktMapView: UIViewRepresentable {
             layer.circleBlur = NSExpression(forConstantValue: 0.88)
             layer.circleColor = NSExpression(forConstantValue: UIColor(red: 0.78, green: 0.87, blue: 0.96, alpha: 1))
             layer.circleOpacity = NSExpression(format: "cloudCover / 100.0 * 0.30")
+            style.addSource(source)
+            style.addLayer(layer)
+        }
+
+        func applyPrecipitationTypesIfReady() {
+            guard styleReady, let style = mapView?.style else { return }
+            if let layer = style.layer(withIdentifier: "regnvakt-precip-type-layer") { style.removeLayer(layer) }
+            if let source = style.source(withIdentifier: "regnvakt-precip-type-source") { style.removeSource(source) }
+            guard precipitationTypesVisible else { return }
+            let features: [MLNPointFeature] = latestCloudSamples.compactMap { sample in
+                guard sample.precipitationType > 0, sample.precipitation >= 0.05 else { return nil }
+                let feature = MLNPointFeature()
+                feature.coordinate = CLLocationCoordinate2D(latitude: sample.latitude, longitude: sample.longitude)
+                feature.attributes = ["precipType": NSNumber(value: sample.precipitationType), "intensity": NSNumber(value: sample.precipitation)]
+                return feature
+            }
+            guard !features.isEmpty else { return }
+            let source = MLNShapeSource(identifier: "regnvakt-precip-type-source", shape: MLNShapeCollectionFeature(shapes: features), options: nil)
+            let layer = MLNCircleStyleLayer(identifier: "regnvakt-precip-type-layer", source: source)
+            layer.circleRadius = NSExpression(forConstantValue: 42)
+            layer.circleBlur = NSExpression(forConstantValue: 0.72)
+            layer.circleColor = NSExpression(format: "TERNARY(precipType == 3, %@, TERNARY(precipType == 2, %@, %@))", UIColor(red: 0.68, green: 0.42, blue: 0.88, alpha: 1), UIColor(red: 0.82, green: 0.92, blue: 1.0, alpha: 1), UIColor(red: 0.18, green: 0.58, blue: 0.96, alpha: 1))
+            layer.circleOpacity = NSExpression(format: "MIN(0.82, 0.28 + intensity * 0.18)")
             style.addSource(source)
             style.addLayer(layer)
         }
