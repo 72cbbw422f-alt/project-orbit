@@ -15,7 +15,7 @@ enum WeatherNotificationScheduler {
         let body: String
         let date: Date
         let safetyCritical: Bool
-        let immediate: Bool = false
+        var immediate: Bool = false
     }
 
     static func refresh(place: String, hours: [HourForecast], currentTemperature: Int? = nil) {
