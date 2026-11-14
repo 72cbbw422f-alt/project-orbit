@@ -948,6 +948,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
     func updateUIView(_ map: MLNMapView, context: Context) {
         context.coordinator.latestImage = radarImage
         context.coordinator.latestTileURL = radarTileURL
+        context.coordinator.onRegionChange = onRegionChange
         context.coordinator.updateLocationMarker(on: map, coordinate: coordinate, title: locationTitle)
         context.coordinator.applyRadarIfReady()
         // Deliberately do not recenter when GPS/model state changes.
