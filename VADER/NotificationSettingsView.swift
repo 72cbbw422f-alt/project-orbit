@@ -14,6 +14,9 @@ struct NotificationSettingsView: View {
     @State private var permissionStatus = "Kontrollerar behörighet…"
     @State private var requestingPermission = false
     @State private var testNotificationMessage = ""
+    @AppStorage("Regnvakt.notifications.scheduleStatus.v1") private var scheduleStatus = "Kontrollerar schemaläggning…"
+    @AppStorage("Regnvakt.notifications.scheduledCount.v1") private var scheduledCount = 0
+    @AppStorage("Regnvakt.notifications.scheduleUpdated.v1") private var scheduleUpdated: Date = .distantPast
 
     private let cyan = Color(red: 0.04, green: 0.78, blue: 0.98)
     private let muted = Color(red: 0.69, green: 0.78, blue: 0.88)
@@ -111,6 +114,20 @@ struct NotificationSettingsView: View {
                         Text(testNotificationMessage)
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(muted)
+                    }
+                    Divider().overlay(line)
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: scheduledCount > 0 ? "bell.badge.fill" : "bell.slash")
+                            .foregroundStyle(scheduledCount > 0 ? cyan : muted)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("SCHEMALAGDA VÄDERAVISERINGAR")
+                                .font(.system(size: 11, weight: .heavy)).tracking(0.7).foregroundStyle(cyan)
+                            Text(scheduleStatus)
+                                .font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text("\(scheduledCount) väntande i iPhone" + (scheduleUpdated == .distantPast ? "" : " • Kontrollerat \(scheduleUpdated.formatted(date: .omitted, time: .shortened))"))
+                                .font(.system(size: 11, weight: .medium)).foregroundStyle(muted)
+                        }
                     }
                 }
                 .padding(14).background(panel, in: RoundedRectangle(cornerRadius: 18))
