@@ -300,6 +300,11 @@ struct RadarMapView: View {
     @State private var nowcastPoints: [NowcastPoint] = []
     @State private var nowcastStatus = "Hämtar närprognos…"
     @State private var nowcastUpdated: Date?
+    @State private var windSamples: [WindSample] = []
+    @State private var windLayer: WindLayer = .speed
+    @State private var showWind = false
+    @State private var windStatus = "Hämtar vindfält…"
+    @State private var windUpdated: Date?
 
     private let playback = Timer.publish(every: 0.75, on: .main, in: .common).autoconnect()
 
@@ -372,6 +377,8 @@ struct RadarMapView: View {
                         locationTitle: place
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    WindFieldOverlay(samples: windSamples, show: showWind, gustMode: windLayer == .gust)
+                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     HStack(spacing: 7) {
                         Circle().fill(Color(red: 0.35, green: 0.88, blue: 0.83)).frame(width: 7, height: 7)
                         Text("RADAR • \(provider.rawValue.uppercased())")
@@ -393,6 +400,39 @@ struct RadarMapView: View {
                 .frame(height: 300)
 
                 VStack(spacing: 13) {
+                    HStack(spacing: 8) {
+                        ForEach(WindLayer.allCases, id: \\.self) { layer in
+                            Button {
+                                windLayer = layer
+                                if !showWind { showWind = true; showRadar = false }
+                                if windSamples.isEmpty { Task { await refreshWindField() } }
+                            } label: {
+                                Text(layer.rawValue).font(.system(size: 13, weight: .bold))
+                                    .foregroundStyle(windLayer == layer && showWind ? Color(red: 0.04, green: 0.09, blue: 0.13) : .white.opacity(0.85))
+                                    .padding(.horizontal, 16).padding(.vertical, 9)
+                                    .background(windLayer == layer && showWind ? Color.cyan : Color.white.opacity(0.10), in: Capsule())
+                            }
+                        }
+                        Spacer()
+                        Text(showWind ? windUpdated?.formatted(date: .omitted, time: .shortened) ?? "—" : "Radar")
+                            .font(.system(size: 11, weight: .semibold).monospacedDigit()).foregroundStyle(.white.opacity(0.55))
+                    }
+                    if showWind {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(windStatus).font(.system(size: 13, weight: .semibold)).foregroundStyle(.white)
+                            if let sample = windSamples.first(where: { $0.id == 4 }) {
+                                Text("\\(windLayer == .gust ? "Byvind" : "Vind") vid \\(place): \\(String(format: "%.1f", windLayer == .gust ? sample.gust : sample.speed)) m/s • \\(Int(sample.direction.rounded()))°")
+                                    .font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.82))
+                            }
+                            HStack(spacing: 10) {
+                                ForEach([("0–4", Color.cyan), ("4–8", Color.green), ("8–12", Color.yellow), ("12–17", Color.orange), ("17+", Color.red)], id: \\.0) { item in
+                                    HStack(spacing: 4) { Circle().fill(item.1).frame(width: 7, height: 7); Text(item.0).font(.system(size: 10, weight: .semibold)).foregroundStyle(.white.opacity(0.75)) }
+                                }
+                            }
+                        }
+                        .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(red: 0.12, green: 0.16, blue: 0.21), in: RoundedRectangle(cornerRadius: 15))
+                    }
                     HStack(spacing: 9) {
                         Image(systemName: precipitationSymbol)
                             .font(.system(size: 19, weight: .semibold))
@@ -532,6 +572,7 @@ struct RadarMapView: View {
             await refreshRadar()
             await refreshPrecipitationType()
             await refreshNowcast()
+            await refreshWindField()
         }
         .onChange(of: selectedIndex) { _, _ in
             Task {
