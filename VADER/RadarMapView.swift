@@ -366,6 +366,7 @@ struct RadarMapView: View {
     @State private var showWind = false
     @State private var windStatus = "Hämtar vindfält…"
     @State private var windUpdated: Date?
+    @State private var windMapCenter: CLLocationCoordinate2D?
 
     private let playback = Timer.publish(every: 0.75, on: .main, in: .common).autoconnect()
 
