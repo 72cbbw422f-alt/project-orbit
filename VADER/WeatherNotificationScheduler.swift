@@ -11,6 +11,8 @@ enum WeatherNotificationScheduler {
     private static let scheduleStatusKey = "Regnvakt.notifications.scheduleStatus.v1"
     private static let scheduledCountKey = "Regnvakt.notifications.scheduledCount.v1"
     private static let scheduleUpdatedKey = "Regnvakt.notifications.scheduleUpdated.v1"
+    private static let currentTemperatureKey = "Regnvakt.notifications.lastCurrentTemperature.v1"
+    private static let currentTemperatureUpdatedKey = "Regnvakt.notifications.lastCurrentTemperatureUpdated.v1"
 
     private struct Event {
         let type: String
@@ -25,6 +27,10 @@ enum WeatherNotificationScheduler {
         guard let data = try? JSONEncoder().encode(hours) else { return }
         UserDefaults.standard.set(data, forKey: forecastKey)
         UserDefaults.standard.set(place, forKey: placeKey)
+        if let currentTemperature {
+            UserDefaults.standard.set(currentTemperature, forKey: currentTemperatureKey)
+            UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: currentTemperatureUpdatedKey)
+        }
         Task { await schedule(place: place, hours: hours, currentTemperature: currentTemperature) }
     }
 
@@ -33,7 +39,11 @@ enum WeatherNotificationScheduler {
         if let data = defaults.data(forKey: forecastKey),
            let hours = try? JSONDecoder().decode([HourForecast].self, from: data) {
             let place = defaults.string(forKey: placeKey) ?? "vald plats"
-            Task { await schedule(place: place, hours: hours, currentTemperature: nil) }
+            let temperatureAge = Date().timeIntervalSince1970 - defaults.double(forKey: currentTemperatureUpdatedKey)
+            let recentTemperature = temperatureAge >= 0 && temperatureAge <= 2 * 60 * 60
+                ? defaults.object(forKey: currentTemperatureKey) as? Int
+                : nil
+            Task { await schedule(place: place, hours: hours, currentTemperature: recentTemperature) }
         } else {
             // Reconcile even without a cached forecast so turning a watch off
             // cannot leave stale pending notifications armed.
