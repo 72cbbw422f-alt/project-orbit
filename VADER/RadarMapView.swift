@@ -410,24 +410,25 @@ struct RadarMapView: View {
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(alignment: .bottom, spacing: 9) {
                                     ForEach(nowcastPoints.prefix(12)) { point in
-                                        VStack(spacing: 5) {
+                                        VStack(spacing: 4) {
                                             Text(String(format: "%.1f", point.precipitationRate ?? 0))
                                                 .font(.system(size: 11, weight: .bold).monospacedDigit())
                                                 .foregroundStyle(.white)
                                             RoundedRectangle(cornerRadius: 4)
                                                 .fill(Color.cyan.opacity(0.9))
-                                                .frame(width: 34, height: max(5, min(42, CGFloat(point.precipitationRate ?? 0) * 18)))
+                                                .frame(width: 34, height: max(4, min(42, CGFloat(point.precipitationRate ?? 0) * 18)))
                                             Text(point.time.formatted(date: .omitted, time: .shortened))
                                                 .font(.system(size: 11, weight: .semibold).monospacedDigit())
                                                 .foregroundStyle(.white.opacity(0.82))
                                         }
-                                        .frame(width: 42, height: 76, alignment: .bottom)
+                                        .frame(width: 42, height: 70, alignment: .bottom)
                                         .accessibilityElement(children: .combine)
                                         .accessibilityLabel("\(point.time.formatted(date: .omitted, time: .shortened)), \(String(format: "%.1f", point.precipitationRate ?? 0)) millimeter per hour")
                                     }
                                 }
                                 .padding(.vertical, 2)
                             }
+                            .frame(height: 76, alignment: .top)
                         }
                     }
                     .padding(12)
@@ -451,7 +452,7 @@ struct RadarMapView: View {
                 .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.white.opacity(0.08), lineWidth: 1))
                 .padding(12)
               }
-              .padding(.bottom, 20)
+              .padding(.bottom, 112)
             }
         }
         .task {
@@ -617,7 +618,10 @@ struct RadarMapView: View {
             nowcastUpdated = Date()
 
             if coverage == "ok" {
-                nowcastStatus = "Radarbaserad korttidsprognos. Staplarna visar nederbördsintensitet (mm/h)."
+                let hasPrecipitation = parsed.contains { ($0.precipitationRate ?? 0) >= 0.1 }
+                nowcastStatus = hasPrecipitation
+                    ? "Radarbaserad korttidsprognos. Staplarna visar nederbördsintensitet (mm/h)."
+                    : "Ingen nederbörd väntas de närmaste prognostimmarna. Värdena visas i mm/h."
             } else if coverage == "temporarily unavailable" {
                 nowcastStatus = "MET Norways radartäckning är tillfälligt ur funktion här."
                 nowcastPoints = []
