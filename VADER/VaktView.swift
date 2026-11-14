@@ -179,6 +179,12 @@ private struct WatchDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var notificationStatus = "Kontrollerar schemalagda aviseringar…"
     @State private var testStatus = ""
+    @AppStorage("Regnvakt.notifications.rain") private var rainEnabled = true
+    @AppStorage("Regnvakt.notifications.snow") private var snowEnabled = true
+    @AppStorage("Regnvakt.notifications.wind") private var windEnabled = true
+    @AppStorage("Regnvakt.notifications.thunder") private var thunderEnabled = true
+    @AppStorage("Regnvakt.notifications.frost") private var frostEnabled = true
+    @AppStorage("Regnvakt.notifications.smhi") private var smhiEnabled = true
 
     private var relevantHours: [HourForecast] {
         if watch.id == "frost" { return hours.filter { $0.temperature <= 1 } }
@@ -205,6 +211,11 @@ private struct WatchDetailSheet: View {
                         }
                         Spacer()
                     }
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("BEVAKNING").font(.system(size: 13, weight: .heavy)).tracking(1).foregroundStyle(WatchPalette.cyan)
+                        watchEnableControl
+                    }
+                    .padding(13).background(WatchPalette.panel, in: RoundedRectangle(cornerRadius: 15))
                     Text(watch.detail).font(.system(size: 14, weight: .medium)).foregroundStyle(.white)
                         .padding(14).frame(maxWidth: .infinity, alignment: .leading)
                         .background(WatchPalette.panel, in: RoundedRectangle(cornerRadius: 15))
@@ -248,6 +259,35 @@ private struct WatchDetailSheet: View {
             .navigationTitle("Bevakningsdetaljer").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Stäng") { dismiss() }.foregroundStyle(WatchPalette.cyan) } }
             .task { await loadPendingNotifications() }
+        }
+    }
+
+    @ViewBuilder private var watchEnableControl: some View {
+        switch watch.id {
+        case "precipitation":
+            VStack(spacing: 10) {
+                Toggle("Regnvakten", isOn: $rainEnabled).tint(WatchPalette.cyan)
+                Toggle("Snövakten", isOn: $snowEnabled).tint(WatchPalette.cyan)
+            }
+            .onChange(of: rainEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
+            .onChange(of: snowEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
+        case "thunder":
+            Toggle("Aktivera Åskvakten", isOn: $thunderEnabled).tint(WatchPalette.cyan)
+                .onChange(of: thunderEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
+        case "wind":
+            Toggle("Aktivera Vindvakten", isOn: $windEnabled).tint(WatchPalette.cyan)
+                .onChange(of: windEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
+        case "frost":
+            Toggle("Aktivera Frostvakten", isOn: $frostEnabled).tint(WatchPalette.cyan)
+                .onChange(of: frostEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
+        case "official":
+            Toggle("Aktivera SMHI-varningar", isOn: $smhiEnabled).tint(WatchPalette.cyan)
+                .onChange(of: smhiEnabled) { _, enabled in
+                    if !enabled { SMHIWarningService.clearPendingNotifications() }
+                }
+        default:
+            Text("Ingen separat inställning finns för den här bevakningen.")
+                .font(.system(size: 13, weight: .medium)).foregroundStyle(WatchPalette.muted)
         }
     }
 
