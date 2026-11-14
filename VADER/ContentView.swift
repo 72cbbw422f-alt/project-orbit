@@ -117,6 +117,7 @@ struct ContentView: View {
         }
         .preferredColorScheme(.dark)
         .tint(RTheme.cyan)
+        .transaction { transaction in transaction.animation = nil }
     }
 }
 
@@ -264,6 +265,9 @@ private struct ReferenceWeatherHome: View {
                 Text(status)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(RTheme.muted)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(height: 15, alignment: .leading)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 5) {
