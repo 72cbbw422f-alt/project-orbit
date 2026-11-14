@@ -228,6 +228,7 @@ private struct ReferenceWeatherHome: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.top, 5)
+                .padding(.bottom, 112)
             }
             .frame(maxWidth: .infinity, minHeight: geo.size.height, alignment: .top)
             .frame(maxWidth: .infinity)
@@ -582,27 +583,37 @@ private struct ReferenceWeatherHome: View {
             } else {
                 let forecast = Array(hours.prefix(8))
                 let maximum = max(forecast.map(\.precipitation).max() ?? 0.1, 0.1)
-                HStack(alignment: .bottom, spacing: 5) {
-                    ForEach(forecast) { hour in
-                        VStack(spacing: 5) {
-                            Text(String(format: "%.1f", hour.precipitation))
-                                .font(.system(size: 12, weight: .semibold)).foregroundStyle(RTheme.muted)
-                                .lineLimit(1).minimumScaleFactor(0.7)
-                            GeometryReader { proxy in
-                                VStack {
-                                    Spacer(minLength: 0)
-                                    RoundedRectangle(cornerRadius: 4)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .bottom, spacing: 8) {
+                        ForEach(forecast) { hour in
+                            VStack(spacing: 6) {
+                                Text(String(format: "%.1f", hour.precipitation))
+                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(.white)
+                                    .monospacedDigit()
+                                ZStack(alignment: .bottom) {
+                                    Capsule().fill(RTheme.line.opacity(0.35))
+                                    Capsule()
                                         .fill(LinearGradient(colors: [RTheme.cyan, RTheme.blue], startPoint: .top, endPoint: .bottom))
-                                        .frame(height: max(3, proxy.size.height * CGFloat(hour.precipitation / maximum)))
+                                        .frame(height: max(4, 58 * CGFloat(hour.precipitation / maximum)))
+                                        .opacity(hour.precipitation > 0 ? 1 : 0.28)
                                 }
+                                .frame(width: 22, height: 58)
+                                Text(hour.time)
+                                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(RTheme.muted)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
                             }
-                            .frame(height: 66)
-                            Text(hour.time)
-                                .font(.system(size: 12, weight: .medium)).foregroundStyle(RTheme.muted)
+                            .frame(width: 42)
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel("\(hour.time), \(String(format: "%.1f", hour.precipitation)) millimeter nederbörd")
                         }
-                        .frame(maxWidth: .infinity)
                     }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 3)
                 }
+                .scrollIndicators(.hidden)
                 Text("Prognostiserad nederbörd per timme, mm.")
                     .font(.system(size: 12)).foregroundStyle(RTheme.muted.opacity(0.85))
             }
