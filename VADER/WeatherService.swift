@@ -229,7 +229,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                 let otherPlaces = savedPlaces.filter {
                     abs($0.latitude - latitude) > 0.015 || abs($0.longitude - longitude) > 0.015
                 }
-                for savedPlace in otherPlaces {
+                for savedPlace in otherPlaces.prefix(5) {
                     do {
                         let placeForecast = try await OpenMeteoService.fetch(
                             latitude: savedPlace.latitude,
