@@ -355,7 +355,7 @@ struct RadarMapView: View {
                             .frame(width: 44, height: 44)
                             .background(Color.white.opacity(0.09), in: Circle())
                     }
-                    .accessibilityLabel(showRadar ? "Dölj radar" : "Visa radar")
+                    .accessibilityLabel(showRadar ? "Byt till vind" : "Byt till nederbördsradar")
                     Button { Task { await refreshRadar() } } label: {
                         Image(systemName: "arrow.clockwise")
                             .font(.system(size: 16, weight: .semibold))
@@ -381,7 +381,7 @@ struct RadarMapView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     HStack(spacing: 7) {
                         Circle().fill(Color(red: 0.35, green: 0.88, blue: 0.83)).frame(width: 7, height: 7)
-                        Text("RADAR • \(provider.rawValue.uppercased())")
+                        Text(showWind ? "VIND • OPEN-METEO" : "RADAR • \(provider.rawValue.uppercased())")
                             .font(.system(size: 12, weight: .heavy))
                             .tracking(0.8)
                             .foregroundStyle(.white)
@@ -400,22 +400,54 @@ struct RadarMapView: View {
                 .frame(height: 300)
 
                 VStack(spacing: 13) {
-                    HStack(spacing: 8) {
-                        ForEach(WindLayer.allCases, id: \.self) { layer in
-                            Button {
-                                windLayer = layer
-                                if !showWind { showWind = true; showRadar = false }
-                                if windSamples.isEmpty { Task { await refreshWindField() } }
-                            } label: {
-                                Text(layer.rawValue).font(.system(size: 13, weight: .bold))
-                                    .foregroundStyle(windLayer == layer && showWind ? Color(red: 0.04, green: 0.09, blue: 0.13) : .white.opacity(0.85))
-                                    .padding(.horizontal, 16).padding(.vertical, 9)
-                                    .background(windLayer == layer && showWind ? Color.cyan : Color.white.opacity(0.10), in: Capsule())
-                            }
+                    HStack(spacing: 10) {
+                        Button {
+                            showWind = false
+                            showRadar = true
+                        } label: {
+                            Label("Regn", systemImage: "cloud.rain.fill")
+                                .font(.system(size: 15, weight: .bold))
+                                .frame(maxWidth: .infinity).frame(height: 48)
+                                .foregroundStyle(!showWind ? Color(red: 0.10, green: 0.13, blue: 0.17) : .white)
+                                .background(!showWind ? Color(red: 0.98, green: 0.62, blue: 0.43) : Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 13))
+                                .overlay(RoundedRectangle(cornerRadius: 13).stroke(!showWind ? Color.white.opacity(0.35) : Color.white.opacity(0.16), lineWidth: 1))
                         }
-                        Spacer()
-                        Text(showWind ? windUpdated?.formatted(date: .omitted, time: .shortened) ?? "—" : "Radar")
-                            .font(.system(size: 11, weight: .semibold).monospacedDigit()).foregroundStyle(.white.opacity(0.55))
+                        .buttonStyle(.plain)
+                        Button {
+                            showWind = true
+                            showRadar = false
+                            if windSamples.isEmpty { Task { await refreshWindField() } }
+                        } label: {
+                            Label("Vind", systemImage: "wind")
+                                .font(.system(size: 15, weight: .bold))
+                                .frame(maxWidth: .infinity).frame(height: 48)
+                                .foregroundStyle(showWind ? Color(red: 0.05, green: 0.12, blue: 0.15) : .white)
+                                .background(showWind ? Color.cyan : Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 13))
+                                .overlay(RoundedRectangle(cornerRadius: 13).stroke(showWind ? Color.white.opacity(0.38) : Color.white.opacity(0.16), lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    if showWind {
+                        HStack(spacing: 10) {
+                            ForEach(WindLayer.allCases, id: \.self) { layer in
+                                Button {
+                                    windLayer = layer
+                                    if windSamples.isEmpty { Task { await refreshWindField() } }
+                                } label: {
+                                    Text(layer.rawValue)
+                                        .font(.system(size: 13, weight: .bold))
+                                        .frame(maxWidth: .infinity).frame(height: 38)
+                                        .foregroundStyle(windLayer == layer ? Color.white : .white.opacity(0.72))
+                                        .background(windLayer == layer ? Color(red: 0.10, green: 0.47, blue: 0.62) : Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+                                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(windLayer == layer ? Color.cyan.opacity(0.9) : Color.white.opacity(0.14), lineWidth: 1))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            Spacer(minLength: 0)
+                            Text(windUpdated?.formatted(date: .omitted, time: .shortened) ?? "—")
+                                .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                                .foregroundStyle(.white.opacity(0.55))
+                        }
                     }
                     if showWind {
                         VStack(alignment: .leading, spacing: 8) {
