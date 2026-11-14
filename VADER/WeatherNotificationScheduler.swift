@@ -204,10 +204,18 @@ enum WeatherNotificationScheduler {
                 let frostThreshold = overnight ? 1 : 0
 
                 if hour.temperature <= frostThreshold {
+                    let calendar = Calendar.current
+                    let today = calendar.startOfDay(for: Date())
+                    let eventDay = calendar.startOfDay(for: date)
+                    let dayOffset = calendar.dateComponents([.day], from: today, to: eventDay).day ?? 99
+                    let currentHour = calendar.component(.hour, from: Date())
+                    let isTonight = (dayOffset == 0 && (localHour >= 18 || (currentHour < 9 && localHour < 9)))
+                        || (dayOffset == 1 && localHour < 9)
+                    let dateLabel = date.formatted(date: .abbreviated, time: .omitted)
                     active.append(Event(
                         type: "frost",
-                        title: overnight ? "Möjlig frostrisk i natt" : "Möjlig frostrisk",
-                        body: "Prognosen visar att temperaturen kan sjunka till omkring \(hour.temperature)° runt kl. \(hour.time). Frost kan bildas även utan nederbörd. Detta är en riskprognos, inte en säker händelse.",
+                        title: isTonight ? "Möjlig frostrisk i natt" : "Möjlig frostrisk",
+                        body: "Prognosen visar omkring \(hour.temperature)° den \(dateLabel) kl. \(hour.time). Frost kan bildas även utan nederbörd. Detta är en riskprognos, inte en säker händelse.",
                         date: date,
                         safetyCritical: true
                     ))
