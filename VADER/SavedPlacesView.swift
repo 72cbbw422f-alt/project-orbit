@@ -29,6 +29,10 @@ struct SavedPlacesView: View {
                     Text("Dina sparade väderplatser")
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(PlacesPalette.cyan)
+                    Text("Sparade platser bevakas automatiskt parallellt – upp till sex platser åt gången.")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(PlacesPalette.muted)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
                 Button(action: onAddPlace) {
