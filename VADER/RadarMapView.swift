@@ -1249,13 +1249,14 @@ private struct RegnvaktMapView: UIViewRepresentable {
             }
             let collection = MLNShapeCollectionFeature(shapes: features)
             let source = MLNShapeSource(identifier: "regnvakt-cloud-source", shape: collection, options: nil)
-            let layer = MLNCircleStyleLayer(identifier: "regnvakt-cloud-layer", source: source)
-            // Soft, overlapping map-anchored fields blend neighboring observations
-            // without creating the bright isolated bullseyes seen in the 5×5 version.
-            layer.circleRadius = NSExpression(forConstantValue: 42)
-            layer.circleBlur = NSExpression(forConstantValue: 0.68)
-            layer.circleColor = NSExpression(forConstantValue: UIColor(red: 0.78, green: 0.87, blue: 0.96, alpha: 1))
-            layer.circleOpacity = NSExpression(format: "cloudCover / 100.0 * 0.24")
+            let layer = MLNHeatmapStyleLayer(identifier: "regnvakt-cloud-layer", source: source)
+            // A heatmap interpolates the sampled cloud-cover values into one
+            // continuous field instead of drawing a separate blurred disk per point.
+            layer.heatmapWeight = NSExpression(format: "cloudCover / 100.0")
+            layer.heatmapIntensity = NSExpression(forConstantValue: 0.9)
+            layer.heatmapRadius = NSExpression(forConstantValue: 105)
+            layer.heatmapOpacity = NSExpression(forConstantValue: 0.46)
+            layer.heatmapColor = NSExpression(forConstantValue: UIColor(red: 0.72, green: 0.84, blue: 0.96, alpha: 1))
             style.addSource(source)
             style.addLayer(layer)
         }
@@ -1300,11 +1301,14 @@ private struct RegnvaktMapView: UIViewRepresentable {
                     shape: MLNShapeCollectionFeature(shapes: features),
                     options: nil
                 )
-                let layer = MLNCircleStyleLayer(identifier: layerID, source: source)
-                layer.circleRadius = NSExpression(forConstantValue: 27)
-                layer.circleBlur = NSExpression(forConstantValue: 0.38)
-                layer.circleColor = NSExpression(forConstantValue: definition.color)
-                layer.circleOpacity = NSExpression(forConstantValue: 0.78)
+                let layer = MLNHeatmapStyleLayer(identifier: layerID, source: source)
+                // Categorical precipitation points are blended into regional
+                // patches; this avoids the oversized individual point markers.
+                layer.heatmapWeight = NSExpression(forConstantValue: 1.0)
+                layer.heatmapIntensity = NSExpression(forConstantValue: 0.85)
+                layer.heatmapRadius = NSExpression(forConstantValue: 78)
+                layer.heatmapOpacity = NSExpression(forConstantValue: 0.62)
+                layer.heatmapColor = NSExpression(forConstantValue: definition.color)
                 style.addSource(source)
                 style.addLayer(layer)
             }
