@@ -55,19 +55,25 @@ enum SMHIWarningService {
                 let featureProperties = feature["properties"] as? [String: Any] ?? [:]
                 let areaName = (area["areaName"] as? [String: Any])?["sv"] as? String ?? "Berört område"
                 let areaCode = featureProperties["code"] as? String ?? ""
-                let affectedAreas = area["affectedAreas"] as? [[String: Any]] ?? []
-                let affectedAreaIDs = Set(affectedAreas.compactMap { $0["id"] as? Int })
-                let marineNames = ["Bottenhavet", "Bottenviken", "Kvarken", "Östersjön", "Ålands hav", "Finska viken", "Rigabukten", "Kattegatt", "Skagerrak", "Vänern"]
+                // The GeoJSON area code is the authoritative geographic type.
+                // Affected-area IDs are not a safe way to classify all Swedish
+                // sea districts (for example, Skagerrak has a different ID range).
                 let isMarineArea = areaCode == "SWE_SEA_DISTRICTS" ||
-                    (41...50).contains(where: { affectedAreaIDs.contains($0) }) ||
-                    marineNames.contains(where: { areaName.localizedCaseInsensitiveContains($0) })
+                    areaName.localizedCaseInsensitiveContains("Bottenhavet") ||
+                    areaName.localizedCaseInsensitiveContains("Bottenviken") ||
+                    areaName.localizedCaseInsensitiveContains("Skagerrak") ||
+                    areaName.localizedCaseInsensitiveContains("Kattegatt") ||
+                    areaName.localizedCaseInsensitiveContains("Östersjön") ||
+                    areaName.localizedCaseInsensitiveContains("Kvarken") ||
+                    areaName.localizedCaseInsensitiveContains("Ålands hav") ||
+                    areaName.localizedCaseInsensitiveContains("Rigabukten")
                 if let coordinate,
                    !contains(coordinate, geometryType: type, coordinates: coordinates),
                    !isWithinDistance(
                        coordinate,
                        geometryType: type,
                        coordinates: coordinates,
-                       maximumDistanceMeters: isMarineArea ? 200_000 : 50_000
+                       maximumDistanceMeters: isMarineArea ? 50_000 : 5_000
                    ) {
                     continue
                 }
@@ -197,9 +203,9 @@ enum SMHIWarningService {
         return polygons.contains { pointInRing(point, ring: $0) }
     }
 
-    // Marine warning polygons can sit well offshore from the coastal towns
-    // they affect. The caller uses a wider 200 km catchment for named sea
-    // districts; land warnings retain a tighter 50 km catchment.
+    // Marine warning polygons can sit offshore from the coast. Apply a
+    // 50 km coastal catchment to sea districts nationwide, while land warning
+    // polygons use only a 5 km GPS/border tolerance to avoid false positives.
     private static func isWithinDistance(
         _ point: CLLocationCoordinate2D,
         geometryType: String,
