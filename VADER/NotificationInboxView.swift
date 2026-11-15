@@ -53,15 +53,22 @@ enum SMHIWarningService {
                       let type = geometry["type"] as? String,
                       let coordinates = geometry["coordinates"] else { continue }
                 let featureProperties = feature["properties"] as? [String: Any] ?? [:]
-                let isMarineArea = (featureProperties["code"] as? String) == "SWE_SEA_DISTRICTS"
+                let areaName = (area["areaName"] as? [String: Any])?["sv"] as? String ?? "Berört område"
+                let areaCode = featureProperties["code"] as? String ?? ""
+                let marineNames = ["Bottenhavet", "Bottenviken", "Kvarken", "Östersjön", "Ålands hav", "Finska viken", "Rigabukten", "Kattegatt", "Skagerrak", "Vänern"]
+                let isMarineArea = areaCode == "SWE_SEA_DISTRICTS" || marineNames.contains(where: { areaName.localizedCaseInsensitiveContains($0) })
                 if let coordinate,
                    !contains(coordinate, geometryType: type, coordinates: coordinates),
-                   !(isMarineArea && isWithinDistance(coordinate, geometryType: type, coordinates: coordinates, maximumDistanceMeters: 50_000)) {
+                   !isWithinDistance(
+                       coordinate,
+                       geometryType: type,
+                       coordinates: coordinates,
+                       maximumDistanceMeters: isMarineArea ? 150_000 : 50_000
+                   ) {
                     continue
                 }
                 let levelObject = area["warningLevel"] as? [String: Any] ?? [:]
                 let level = levelObject["sv"] as? String ?? "Meddelande"
-                let areaName = (area["areaName"] as? [String: Any])?["sv"] as? String ?? "Berört område"
                 let eventDescription = (area["eventDescription"] as? [String: Any])?["sv"] as? String ?? eventName
                 let details = area["descriptions"] as? [[String: Any]] ?? (item["descriptions"] as? [[String: Any]] ?? [])
                 func text(for code: String) -> String {
@@ -92,46 +99,48 @@ enum SMHIWarningService {
 
     static func checkAndNotify(at coordinate: CLLocationCoordinate2D) async {
         let defaults = UserDefaults.standard
-        guard (defaults.object(forKey: "Regnvakt.notifications.enabled") as? Bool ?? true),
-              (defaults.object(forKey: "Regnvakt.notifications.smhi") as? Bool ?? true) else { return }
-        let center = UNUserNotificationCenter.current()
-        let authorization = await center.notificationSettings()
-        guard authorization.authorizationStatus == .authorized ||
-              authorization.authorizationStatus == .provisional ||
-              authorization.authorizationStatus == .ephemeral else { return }
 
+        // Always refresh the visible official-warning status, independently of
+        // notification permissions and the user's notification toggle.
         do {
             let current = try await warnings(at: coordinate)
             defaults.set(!current.isEmpty, forKey: "Regnvakt.smhi.active")
-            let summary = current.prefix(3).map { warning in "\(warning.title) – \(warning.area)" }.joined(separator: " • ")
-            defaults.set(current.isEmpty ? "Inga aktiva SMHI-varningar nära din plats" : summary, forKey: "Regnvakt.smhi.summary")
+            let summary = current.prefix(3).map { "\($0.title) – \($0.area)" }.joined(separator: " • ")
+            defaults.set(current.isEmpty ? "Inga aktiva SMHI-varningar nära din plats" : summary,
+                         forKey: "Regnvakt.smhi.summary")
             defaults.set(current.first?.level.uppercased() ?? "", forKey: "Regnvakt.smhi.level")
+
             let updateFormatter = DateFormatter()
             updateFormatter.locale = Locale(identifier: "sv_SE")
             updateFormatter.timeZone = .current
             updateFormatter.dateFormat = "HH:mm"
             defaults.set(updateFormatter.string(from: Date()), forKey: "Regnvakt.smhi.updated")
-            let national = try await nationwideWarnings()
-            let signatures = Set(current.map { $0.id + "|" + $0.level + "|" + $0.title })
-            let nationalSignatures = Set(national.map { $0.id + "|" + $0.level + "|" + $0.title })
-            let nationalKey = "Regnvakt.smhi.nationalSignatures.v1"
-            let previousNational = Set(defaults.stringArray(forKey: nationalKey) ?? [])
-            if nationalSignatures.contains(where: { !previousNational.contains($0) }) {
-                defaults.set(true, forKey: "Regnvakt.smhi.hasNewNationalWarnings")
-            }
-            defaults.set(Array(nationalSignatures), forKey: nationalKey)
 
-            // Treat the first successful check as a baseline too: active warnings
-            // must not be silently ignored just because the app has never checked before.
+            // Notification delivery is a separate concern. Never mark a warning
+            // as handled until iOS confirms that the request was accepted.
+            guard (defaults.object(forKey: "Regnvakt.notifications.enabled") as? Bool ?? true),
+                  (defaults.object(forKey: "Regnvakt.notifications.smhi") as? Bool ?? true) else { return }
+
+            let center = UNUserNotificationCenter.current()
+            let authorization = await center.notificationSettings()
+            guard authorization.authorizationStatus == .authorized ||
+                  authorization.authorizationStatus == .provisional ||
+                  authorization.authorizationStatus == .ephemeral else { return }
+
             let key = "Regnvakt.smhi.warningSignatures.v1"
-            let previous = Set(defaults.stringArray(forKey: key) ?? [])
-            for warning in current where !previous.contains(warning.id + "|" + warning.level + "|" + warning.title) {
+            var scheduled = Set(defaults.stringArray(forKey: key) ?? [])
+            for warning in current {
+                let signature = warning.id + "|" + warning.level + "|" + warning.title
+                guard !scheduled.contains(signature) else { continue }
+
                 let content = UNMutableNotificationContent()
                 content.title = "SMHI: \(warning.level)"
                 content.body = "\(warning.title) – \(warning.area)"
                 content.sound = .default
                 content.userInfo = ["watch": "smhi", "warningID": warning.id, "area": warning.area]
-                let safeID = warning.id.replacingOccurrences(of: "[^A-Za-z0-9.-]", with: "-", options: .regularExpression)
+                let safeID = warning.id.replacingOccurrences(
+                    of: "[^A-Za-z0-9.-]", with: "-", options: .regularExpression
+                )
                 let request = UNNotificationRequest(
                     identifier: "smhi.\(safeID).\(warning.level)",
                     content: content,
@@ -139,15 +148,28 @@ enum SMHIWarningService {
                 )
                 do {
                     try await center.add(request)
+                    scheduled.insert(signature)
+                    defaults.set(Array(scheduled), forKey: key)
                     defaults.set(true, forKey: "Regnvakt.notifications.hasUnread")
                 } catch {
-                    // A later weather refresh retries while the warning remains active.
+                    // Leave the signature uncommitted so the next check retries.
                 }
             }
-            defaults.set(Array(signatures), forKey: key)
+
+            // Keep the nationwide warning snapshot for the national warning view,
+            // but do not use it to suppress or replace local coastal notifications.
+            let national = try await nationwideWarnings()
+            let nationalSignatures = Set(national.map { $0.id + "|" + $0.level + "|" + $0.title })
+            let nationalKey = "Regnvakt.smhi.nationalSignatures.v1"
+            let previousNational = Set(defaults.stringArray(forKey: nationalKey) ?? [])
+            if nationalSignatures.contains(where: { !previousNational.contains($0) }) {
+                defaults.set(true, forKey: "Regnvakt.smhi.hasNewNationalWarnings")
+            }
+            defaults.set(Array(nationalSignatures), forKey: nationalKey)
         } catch {
-            defaults.set("Kunde inte uppdatera SMHI – senast kända status visas", forKey: "Regnvakt.smhi.summary")
-            // Preserve previous signatures so failed requests do not erase alert history.
+            defaults.set("Kunde inte uppdatera SMHI – senast kända status visas",
+                         forKey: "Regnvakt.smhi.summary")
+            // Preserve previous active state and signatures on fetch failure.
         }
     }
     private static func rank(_ level: String) -> Int {
