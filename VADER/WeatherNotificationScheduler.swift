@@ -302,7 +302,7 @@ enum WeatherNotificationScheduler {
         let now = Date()
         // Only schedule forecast-driven alerts inside the rolling 6-hour window.
         // The current-temperature frost check above remains immediate and separate.
-        let forecastHorizon = now.addingTimeInterval(6 * 60 * 60)
+        let forecastHorizon = WeatherWatchRules.forecastHorizon(from: now)
         let currentHour = Calendar.current.component(.hour, from: now)
         let currentOvernight = currentHour >= 18 || currentHour < 9
         let currentThreshold = currentOvernight ? 1 : 0
@@ -364,7 +364,7 @@ enum WeatherNotificationScheduler {
             }
             // Wind: consider both sustained wind and gusts; gusts carry the higher threshold.
             if defaults.object(forKey: "Regnvakt.notifications.wind") as? Bool ?? true,
-               hour.gust >= 15 || hour.wind >= 11 {
+               hour.gust >= WeatherWatchRules.windGustThreshold || hour.wind >= 11 {
                 active.append(Event(type: "wind", title: "Kraftig vind väntas",
                     body: String(format: "Vind cirka %.0f m/s med byar upp mot %.0f m/s omkring %@.", hour.wind, hour.gust, hour.time),
                     date: date, safetyCritical: false))
