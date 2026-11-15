@@ -398,9 +398,15 @@ private struct ReferenceWeatherHome: View {
     }
 
     private var watchEvent: (title: String, detail: String, symbol: String, level: String, tint: Color) {
+        let nearTermFormatter = DateFormatter()
+        nearTermFormatter.locale = Locale(identifier: "en_US_POSIX")
+        nearTermFormatter.timeZone = .current
+        nearTermFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        let now = Date()
+        let nearTermHorizon = now.addingTimeInterval(6 * 60 * 60)
         let nearTermHours = hours.filter { hour in
-            guard let date = ISO8601DateFormatter().date(from: hour.id) else { return false }
-            return date >= Date() && date <= Date().addingTimeInterval(6 * 60 * 60)
+            guard let date = nearTermFormatter.date(from: hour.id) else { return false }
+            return date >= now && date <= nearTermHorizon
         }
         guard !nearTermHours.isEmpty else {
             return ("Inväntar prognos", "Vädervakten analyserar kommande timmar när prognosen har hämtats.", "hourglass", "AVVAKTAR", RTheme.muted)
