@@ -10,6 +10,7 @@ private enum RTheme {
 }
 
 struct ContentView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab: WeatherTab = .weather
     @State private var showingSevenDayForecast = false
     @State private var showingWeatherDetails = false
@@ -67,6 +68,11 @@ struct ContentView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(RTheme.bg.ignoresSafeArea())
+        .onChange(of: scenePhase) { phase in
+            if phase == .active {
+                weatherModel.refreshSMHIWarnings()
+            }
+        }
         // Keep interactive content inside the iPhone safe area. Only the
         // background paints edge-to-edge; system status and home areas stay usable.
         .safeAreaInset(edge: .bottom, spacing: 0) {
