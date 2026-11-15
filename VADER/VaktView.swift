@@ -42,7 +42,7 @@ struct VaktDashboard: View {
         formatter.timeZone = .current
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
         let now = Date()
-        let horizon = now.addingTimeInterval(6 * 60 * 60)
+        let horizon = WeatherWatchRules.forecastHorizon(from: now)
         return hours.filter { hour in
             guard let date = formatter.date(from: hour.id) else { return false }
             return date >= now && date <= horizon
@@ -64,7 +64,7 @@ struct VaktDashboard: View {
         let thunder = conditions.contains { $0.contains("åska") }
         let maxGust = max(weather.windGust, upcoming.map(\.gust).max() ?? 0)
         let maxWind = max(weather.wind, upcoming.map(\.wind).max() ?? 0)
-        let wind = maxGust >= 15 || maxWind >= 11
+        let wind = maxGust >= WeatherWatchRules.windGustThreshold || maxWind >= 11
         let dateFormatter = DateFormatter()
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
         dateFormatter.timeZone = .current
@@ -233,7 +233,7 @@ private struct WatchDetailSheet: View {
         formatter.timeZone = .current
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
         let now = Date()
-        let horizon = now.addingTimeInterval(6 * 60 * 60)
+        let horizon = WeatherWatchRules.forecastHorizon(from: now)
         return hours.filter { hour in
             guard let date = formatter.date(from: hour.id) else { return false }
             return date >= now && date <= horizon
@@ -243,7 +243,7 @@ private struct WatchDetailSheet: View {
     private var relevantHours: [HourForecast] {
         if watch.id == "frost" { return nearTermHours.filter { $0.temperature <= 1 } }
         if watch.id == "precipitation" { return nearTermHours.filter { let c = $0.condition.lowercased(); return c.contains("regn") || c.contains("snö") || c.contains("dugg") || c.contains("skur") } }
-        if watch.id == "wind" { return nearTermHours.filter { $0.gust >= 17 || $0.wind >= 11 } }
+        if watch.id == "wind" { return nearTermHours.filter { $0.gust >= WeatherWatchRules.windGustThreshold || $0.wind >= 11 } }
         if watch.id == "thunder" { return nearTermHours.filter { $0.condition.localizedCaseInsensitiveContains("åska") } }
         return nearTermHours.filter {
             let c = $0.condition.lowercased()
@@ -396,7 +396,7 @@ struct ActiveWatchSummary: View {
         formatter.timeZone = .current
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
         let now = Date()
-        let horizon = now.addingTimeInterval(6 * 60 * 60)
+        let horizon = WeatherWatchRules.forecastHorizon(from: now)
         let nearTermHours = hours.filter { hour in
             guard let date = formatter.date(from: hour.id) else { return false }
             return date >= now && date <= horizon
@@ -414,7 +414,7 @@ struct ActiveWatchSummary: View {
         if text.contains("åska") { result.append(("ÅSKVAKTEN", "cloud.bolt.rain.fill", thunderEnabled)) }
 
         let gust = max(weather.windGust, nearTermHours.map(\.gust).max() ?? 0)
-        if gust >= 17 || max(weather.wind, nearTermHours.map(\.wind).max() ?? 0) >= 11 {
+        if gust >= WeatherWatchRules.windGustThreshold || max(weather.wind, nearTermHours.map(\.wind).max() ?? 0) >= 11 {
             result.append(("VINDVAKTEN", "wind", windEnabled))
         }
 
