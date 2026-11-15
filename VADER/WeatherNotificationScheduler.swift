@@ -61,6 +61,7 @@ enum WeatherNotificationScheduler {
             // Reconcile even without a cached forecast so turning a watch off
             // cannot leave stale pending notifications armed.
             let token = UUID().uuidString
+            let globalToken = defaults.string(forKey: globalScheduleTokenKey) ?? "initial"
             let storedLocationID = defaults.string(forKey: locationKey) ?? "unknown"
             defaults.set(token, forKey: scheduleTokenKey + "." + storedLocationID.replacingOccurrences(of: ",", with: "_"))
             Task { await schedule(place: "vald plats", hours: [], currentTemperature: nil, token: token, globalToken: globalToken, locationID: storedLocationID) }
