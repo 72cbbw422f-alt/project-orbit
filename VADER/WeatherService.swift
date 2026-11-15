@@ -244,8 +244,26 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
     }
 
     func refreshSMHIWarnings() {
-        guard let coordinate = currentCoordinate else { return }
-        Task { await SMHIWarningService.checkAndNotify(at: coordinate) }
+        // Check the currently selected place plus every explicitly monitored
+        // saved place. This keeps SMHI coverage nationwide rather than tying
+        // alerts only to the phone's current GPS position.
+        var coordinates: [CLLocationCoordinate2D] = []
+        if let currentCoordinate { coordinates.append(currentCoordinate) }
+        let monitoredPlaces = savedPlaces.filter { monitoredPlaceIDs.contains($0.id) }
+        for place in monitoredPlaces {
+            let coordinate = CLLocationCoordinate2D(latitude: place.latitude, longitude: place.longitude)
+            let isDuplicate = coordinates.contains {
+                abs($0.latitude - coordinate.latitude) < 0.015 &&
+                abs($0.longitude - coordinate.longitude) < 0.015
+            }
+            if !isDuplicate { coordinates.append(coordinate) }
+        }
+        guard !coordinates.isEmpty else { return }
+        Task {
+            for coordinate in coordinates {
+                await SMHIWarningService.checkAndNotify(at: coordinate)
+            }
+        }
     }
 
     private func loadWeather(latitude: Double, longitude: Double, placeName: String) {
