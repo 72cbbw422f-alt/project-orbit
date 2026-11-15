@@ -51,7 +51,7 @@ struct VaktDashboard: View {
         let thunder = conditions.contains { $0.contains("åska") }
         let maxGust = max(weather.windGust, upcoming.map(\.gust).max() ?? days.first?.gust ?? 0)
         let maxWind = max(weather.wind, upcoming.map(\.wind).max() ?? 0)
-        let wind = maxGust >= 17 || maxWind >= 11
+        let wind = maxGust >= 15 || maxWind >= 11
         let dateFormatter = DateFormatter()
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
         dateFormatter.timeZone = .current
