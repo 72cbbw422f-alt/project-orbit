@@ -227,6 +227,19 @@ private struct WatchDetailSheet: View {
         isWatchEnabled ? watch.detail : "Bevakningen är avstängd. Inga aviseringar skickas från den här vakten."
     }
 
+    private var nearTermHours: [HourForecast] {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        let now = Date()
+        let horizon = now.addingTimeInterval(6 * 60 * 60)
+        return hours.filter { hour in
+            guard let date = formatter.date(from: hour.id) else { return false }
+            return date >= now && date <= horizon
+        }
+    }
+
     private var relevantHours: [HourForecast] {
         if watch.id == "frost" { return nearTermHours.filter { $0.temperature <= 1 } }
         if watch.id == "precipitation" { return nearTermHours.filter { let c = $0.condition.lowercased(); return c.contains("regn") || c.contains("snö") || c.contains("dugg") || c.contains("skur") } }
@@ -391,7 +404,7 @@ struct ActiveWatchSummary: View {
         let text = nearTermHours.map { $0.condition.lowercased() }.joined(separator: " ")
         var result: [(String, String, Bool)] = []
         let snowRisk = nearTermHours.contains { $0.condition.localizedCaseInsensitiveContains("snö") && ($0.precipitationChance >= 40 || $0.precipitation >= 0.2) }
-        let rainRisk = hours.contains {
+        let rainRisk = nearTermHours.contains {
             let condition = $0.condition.lowercased()
             let isRain = condition.contains("regn") || condition.contains("duggregn") || condition.contains("skur")
             return isRain && ($0.precipitationChance >= 40 || $0.precipitation >= 0.3)
@@ -400,19 +413,15 @@ struct ActiveWatchSummary: View {
         if rainRisk { result.append(("REGNVAKTEN", "cloud.rain.fill", rainEnabled)) }
         if text.contains("åska") { result.append(("ÅSKVAKTEN", "cloud.bolt.rain.fill", thunderEnabled)) }
 
-        let gust = max(weather.windGust, hours.map(\.gust).max() ?? days.first?.gust ?? 0)
-        if gust >= 17 || max(weather.wind, hours.map(\.wind).max() ?? 0) >= 11 {
+        let gust = max(weather.windGust, nearTermHours.map(\.gust).max() ?? days.first?.gust ?? 0)
+        if gust >= 17 || max(weather.wind, nearTermHours.map(\.wind).max() ?? 0) >= 11 {
             result.append(("VINDVAKTEN", "wind", windEnabled))
         }
 
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = .current
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
         let nowHour = Calendar.current.component(.hour, from: Date())
         let currentThreshold = (nowHour >= 18 || nowHour < 9) ? 1 : 0
         let currentFrost = weather.temperature <= currentThreshold
-        let forecastFrost = hours.contains { hour in
+        let forecastFrost = nearTermHours.contains { hour in
             guard let date = formatter.date(from: hour.id) else { return false }
             let hourOfDay = Calendar.current.component(.hour, from: date)
             let threshold = (hourOfDay >= 18 || hourOfDay < 9) ? 1 : 0
