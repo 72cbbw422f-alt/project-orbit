@@ -300,7 +300,9 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                     monitoredPlaceIDs.contains($0.id) &&
                     (abs($0.latitude - latitude) > 0.015 || abs($0.longitude - longitude) > 0.015)
                 }
-                for savedPlace in otherPlaces.prefix(5) {
+                // Every place the user explicitly enabled must receive a fresh
+                // forecast and notification schedule; there is no UI limit of five.
+                for savedPlace in otherPlaces {
                     do {
                         let placeForecast = try await OpenMeteoService.fetch(
                             latitude: savedPlace.latitude,
