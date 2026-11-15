@@ -413,8 +413,8 @@ enum WeatherNotificationScheduler {
                     date: date, safetyCritical: false))
             }
             // Wind: consider both sustained wind and gusts; gusts carry the higher threshold.
-            if defaults.object(forKey: "Regnvakt.notifications.wind") as? Bool ?? true,
-               hour.gust >= WeatherWatchRules.windGustThreshold || hour.wind >= 11 {
+            if (defaults.object(forKey: "Regnvakt.notifications.wind") as? Bool ?? true),
+               (hour.gust >= WeatherWatchRules.windGustThreshold || hour.wind >= 11) {
                 active.append(Event(type: "wind", title: "Kraftig vind väntas",
                     body: String(format: "Vind cirka %.0f m/s med byar upp mot %.0f m/s omkring %@.", hour.wind, hour.gust, hour.time),
                     date: date, safetyCritical: false))
