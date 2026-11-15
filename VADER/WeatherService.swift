@@ -260,9 +260,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
         }
         guard !coordinates.isEmpty else { return }
         Task {
-            for coordinate in coordinates {
-                await SMHIWarningService.checkAndNotify(at: coordinate)
-            }
+            await SMHIWarningService.checkAndNotify(at: coordinates)
         }
     }
 
