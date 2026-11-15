@@ -79,16 +79,18 @@ enum SMHIWarningService {
                     guard let entry = details.first(where: { (($0["title"] as? [String: Any])?["code"] as? String) == code }) else { return "" }
                     return (entry["text"] as? [String: Any])?["sv"] as? String ?? ""
                 }
+                // SMHI's pushNotice controls SMHI's own push channel only.
+                // Regnvakt must still display and notify for valid warnings when it is false.
                 let start = area["approximateStart"] as? String ?? ""
                 let end = area["approximateEnd"] as? String ?? ""
-                let published = area["published"] as? String ?? ""
                 let startDate = parseSMHIDate(start) ?? .distantPast
                 if !end.isEmpty, let endDate = parseSMHIDate(end), endDate < Date() { continue }
                 if startDate > Date().addingTimeInterval(4 * 24 * 3600) { continue }
+                let whereText = text(for: "WHERE").trimmingCharacters(in: .whitespacesAndNewlines)
+                let displayArea = whereText.isEmpty ? areaName : whereText
                 result.append(SMHIWarning(id: warningID + "-" + String(describing: area["id"] ?? "area"),
-                    title: eventDescription.isEmpty ? eventName : eventDescription, level: level, area: areaName,
+                    title: eventDescription.isEmpty ? eventName : eventDescription, level: level, area: displayArea,
                     start: start, end: end, description: text(for: "INCIDENT"), advice: text(for: "AFFECT")))
-                _ = published
             }
         }
         return result.sorted { rank($0.level) > rank($1.level) }
