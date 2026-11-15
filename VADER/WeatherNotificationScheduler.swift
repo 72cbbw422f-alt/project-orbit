@@ -119,7 +119,15 @@ enum WeatherNotificationScheduler {
             .replacingOccurrences(of: ",", with: "_")
         // Rotate the location token synchronously so an older async schedule
         // cannot re-add notifications after this watch has been disabled.
-        UserDefaults.standard.set(UUID().uuidString, forKey: scheduleTokenKey + "." + locationID)
+        let defaults = UserDefaults.standard
+        defaults.set(UUID().uuidString, forKey: scheduleTokenKey + "." + locationID)
+        if let data = defaults.data(forKey: forecastRegistryKey),
+           var registry = try? JSONDecoder().decode([String: StoredForecast].self, from: data) {
+            registry.removeValue(forKey: String(format: "%.4f,%.4f", latitude, longitude))
+            if let updated = try? JSONEncoder().encode(registry) {
+                defaults.set(updated, forKey: forecastRegistryKey)
+            }
+        }
         let locationPrefix = prefix + locationID + "."
         let center = UNUserNotificationCenter.current()
         center.getPendingNotificationRequests { requests in
