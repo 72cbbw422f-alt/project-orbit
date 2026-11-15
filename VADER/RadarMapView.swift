@@ -549,7 +549,7 @@ struct RadarMapView: View {
                 .frame(height: 390)
 
                 VStack(spacing: 13) {
-                    HStack(spacing: 10) {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                         Button {
                             showWind = false
                             showClouds = false
