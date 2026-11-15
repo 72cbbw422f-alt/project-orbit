@@ -25,14 +25,18 @@ enum SMHIWarningService {
     static let endpoint = URL(string: "https://opendata-download-warnings.smhi.se/ibww/api/version/1/warning.json")!
 
     static func warnings(at coordinate: CLLocationCoordinate2D) async throws -> [SMHIWarning] {
-        try await fetchWarnings(filterCoordinate: coordinate)
+        try await fetchWarnings(filterCoordinates: [coordinate])
+    }
+
+    static func warnings(at coordinates: [CLLocationCoordinate2D]) async throws -> [SMHIWarning] {
+        try await fetchWarnings(filterCoordinates: coordinates)
     }
 
     static func nationwideWarnings() async throws -> [SMHIWarning] {
-        try await fetchWarnings(filterCoordinate: nil)
+        try await fetchWarnings(filterCoordinates: nil)
     }
 
-    private static func fetchWarnings(filterCoordinate coordinate: CLLocationCoordinate2D?) async throws -> [SMHIWarning] {
+    private static func fetchWarnings(filterCoordinates filterCoordinates: [CLLocationCoordinate2D]?) async throws -> [SMHIWarning] {
         var request = URLRequest(url: endpoint)
         request.cachePolicy = .reloadRevalidatingCacheData
         request.timeoutInterval = 20
@@ -67,14 +71,15 @@ enum SMHIWarningService {
                     areaName.localizedCaseInsensitiveContains("Kvarken") ||
                     areaName.localizedCaseInsensitiveContains("Ålands hav") ||
                     areaName.localizedCaseInsensitiveContains("Rigabukten")
-                if let coordinate,
-                   !contains(coordinate, geometryType: type, coordinates: coordinates),
-                   !isWithinDistance(
-                       coordinate,
-                       geometryType: type,
-                       coordinates: coordinates,
-                       maximumDistanceMeters: isMarineArea ? 50_000 : 5_000
-                   ) {
+                if let filterCoordinates, !filterCoordinates.contains(where: { coordinate in
+                    contains(coordinate, geometryType: type, coordinates: coordinates)
+                        || isWithinDistance(
+                            coordinate,
+                            geometryType: type,
+                            coordinates: coordinates,
+                            maximumDistanceMeters: isMarineArea ? 50_000 : 5_000
+                        )
+                }) {
                     continue
                 }
                 let levelObject = area["warningLevel"] as? [String: Any] ?? [:]
@@ -110,12 +115,17 @@ enum SMHIWarningService {
     }
 
     static func checkAndNotify(at coordinate: CLLocationCoordinate2D) async {
+        await checkAndNotify(at: [coordinate])
+    }
+
+    static func checkAndNotify(at coordinates: [CLLocationCoordinate2D]) async {
         let defaults = UserDefaults.standard
 
-        // Always refresh the visible official-warning status, independently of
-        // notification permissions and the user's notification toggle.
+        // One SMHI payload is evaluated against every active monitored place.
+        // This avoids repeated requests and prevents one place's empty result
+        // from overwriting a warning found for another place.
         do {
-            let current = try await warnings(at: coordinate)
+            let current = try await warnings(at: coordinates)
             defaults.set(!current.isEmpty, forKey: "Regnvakt.smhi.active")
             let summary = current.prefix(3).map { "\($0.title) – \($0.area)" }.joined(separator: " • ")
             defaults.set(current.isEmpty ? "Inga aktiva SMHI-varningar nära din plats" : summary,
