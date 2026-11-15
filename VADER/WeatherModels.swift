@@ -1,5 +1,15 @@
 import Foundation
 
+/// Shared thresholds used by the watch dashboard and notification engine.
+enum WeatherWatchRules {
+    static let forecastHorizonHours: TimeInterval = 6
+    static let windGustThreshold = 15.0
+
+    static func forecastHorizon(from date: Date) -> Date {
+        date.addingTimeInterval(forecastHorizonHours * 60 * 60)
+    }
+}
+
 struct WeatherSnapshot: Codable {
     let place: String
     let condition: String
