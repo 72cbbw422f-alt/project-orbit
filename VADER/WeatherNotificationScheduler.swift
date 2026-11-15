@@ -300,9 +300,9 @@ enum WeatherNotificationScheduler {
         // Current frost is a separate, immediate safety alert. It is deduplicated
         // by a stable daily identifier and remains armed across forecast refreshes.
         let now = Date()
-        // Only schedule forecast-driven alerts inside the rolling 8-hour window.
+        // Only schedule forecast-driven alerts inside the rolling 6-hour window.
         // The current-temperature frost check above remains immediate and separate.
-        let forecastHorizon = now.addingTimeInterval(8 * 60 * 60)
+        let forecastHorizon = now.addingTimeInterval(6 * 60 * 60)
         let currentHour = Calendar.current.component(.hour, from: now)
         let currentOvernight = currentHour >= 18 || currentHour < 9
         let currentThreshold = currentOvernight ? 1 : 0
