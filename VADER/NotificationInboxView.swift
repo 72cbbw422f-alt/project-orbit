@@ -268,13 +268,17 @@ enum SMHIWarningService {
         maximumDistanceMeters: Double
     ) -> Bool {
         guard let raw = coordinates as? [Any] else { return false }
-        let rings: [[[Double]]]
+        // Only each polygon's exterior ring defines its boundary. Interior
+        // rings are holes and must not create a false nearby-warning match.
+        let outerRings: [[[Double]]]
         if geometryType == "Polygon" {
-            rings = raw.compactMap { $0 as? [[Double]] }
+            guard let outer = raw.first as? [[Double]] else { return false }
+            outerRings = [outer]
         } else if geometryType == "MultiPolygon" {
-            rings = raw.flatMap { polygon -> [[[Double]]] in
-                guard let parts = polygon as? [Any] else { return [] }
-                return parts.compactMap { $0 as? [[Double]] }
+            outerRings = raw.compactMap { polygon in
+                guard let parts = polygon as? [Any],
+                      let outer = parts.first as? [[Double]] else { return nil }
+                return outer
             }
         } else {
             return false
@@ -285,7 +289,7 @@ enum SMHIWarningService {
         let px = point.longitude * longitudeScale
         let py = point.latitude * latitudeScale
 
-        for ring in rings where ring.count >= 2 {
+        for ring in outerRings where ring.count >= 2 {
             for index in ring.indices {
                 let next = (index + 1) % ring.count
                 guard ring[index].count >= 2, ring[next].count >= 2 else { continue }
@@ -590,10 +594,10 @@ struct NationalWarningsView: View {
                 Text(warning.advice).font(.system(size: 15)).foregroundStyle(.white.opacity(0.78))
             }
             if !warning.start.isEmpty {
-                            if let startDate = ISO8601DateFormatter().date(from: warning.start) {
-                                Text("Start: " + startDate.formatted(date: .abbreviated, time: .shortened))
-                                    .font(.system(size: 13)).foregroundStyle(.white.opacity(0.65))
-                            }
+                            if let startDate = parseSMHIDate(warning.start) {
+                Text("Start: " + startDate.formatted(date: .abbreviated, time: .shortened))
+                    .font(.system(size: 13)).foregroundStyle(.white.opacity(0.65))
+            }
             }
         }.padding(14).background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 16))
             .overlay(RoundedRectangle(cornerRadius: 16).stroke(warning.color.opacity(0.5), lineWidth: 1))
