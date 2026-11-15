@@ -133,73 +133,83 @@ struct SavedPlacesView: View {
     }
 
     private func placeRow(_ place: SavedWeatherPlace, prominent: Bool = false) -> some View {
-        HStack(spacing: 10) {
-            Button {
-                model.selectSavedPlace(place)
-                onSelectPlace()
-            } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: prominent ? "star.fill" : "mappin")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(PlacesPalette.cyan)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(place.name)
-                            .font(.system(size: 17, weight: .bold))
-                            .foregroundStyle(.white)
-                        if prominent {
-                            Text("Din favoritplats")
-                                .font(.system(size: 13))
-                                .foregroundStyle(PlacesPalette.muted)
+        VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                Button {
+                    model.selectSavedPlace(place)
+                    onSelectPlace()
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: prominent ? "star.fill" : "mappin")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(PlacesPalette.cyan)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(place.name)
+                                .font(.system(size: 17, weight: .bold))
+                                .foregroundStyle(.white)
+                            if prominent {
+                                Text("Din favoritplats")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(PlacesPalette.muted)
+                            }
                         }
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(PlacesPalette.muted)
                     }
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(PlacesPalette.muted)
+                    .contentShape(Rectangle())
                 }
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Menu {
+                    Button {
+                        model.toggleFavorite(place)
+                    } label: {
+                        Label(place.isFavorite ? "Ta bort favorit" : "Gör till favorit",
+                              systemImage: place.isFavorite ? "star.slash" : "star")
+                    }
+                    Button(role: .destructive) {
+                        model.removePlace(place)
+                    } label: {
+                        Label("Ta bort plats", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(PlacesPalette.muted)
+                        .frame(width: 38, height: 38)
+                        .contentShape(Rectangle())
+                }
             }
-            .buttonStyle(.plain)
-            .frame(maxWidth: .infinity, alignment: .leading)
 
             Button {
                 model.setMonitoring(place, enabled: !model.isMonitored(place))
             } label: {
-                VStack(spacing: 3) {
+                HStack(spacing: 8) {
                     Image(systemName: model.isMonitored(place) ? "bell.badge.fill" : "bell.slash")
-                        .font(.system(size: 17, weight: .semibold))
-                    Text(model.isMonitored(place) ? "Bevakas" : "Bevaka")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.system(size: 15, weight: .semibold))
+                    Text(model.isMonitored(place) ? "Bevakas" : "Bevaka den här platsen")
+                        .font(.system(size: 13, weight: .bold))
+                    Spacer()
+                    Text(model.isMonitored(place) ? "PÅ" : "AV")
+                        .font(.system(size: 11, weight: .black))
+                        .tracking(0.7)
                 }
                 .foregroundStyle(model.isMonitored(place) ? PlacesPalette.cyan : PlacesPalette.muted)
-                .frame(minWidth: 54, minHeight: 40)
+                .padding(.horizontal, 12)
+                .frame(maxWidth: .infinity, minHeight: 38)
+                .background(PlacesPalette.cyan.opacity(model.isMonitored(place) ? 0.12 : 0.055), in: RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(PlacesPalette.line, lineWidth: 1))
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(model.isMonitored(place) ? "Stäng av bevakning för \\(place.name)" : "Börja bevaka \\(place.name)")
-
-            Menu {
-                Button {
-                    model.toggleFavorite(place)
-                } label: {
-                    Label(place.isFavorite ? "Ta bort favorit" : "Gör till favorit",
-                          systemImage: place.isFavorite ? "star.slash" : "star")
-                }
-                Button(role: .destructive) {
-                    model.removePlace(place)
-                } label: {
-                    Label("Ta bort plats", systemImage: "trash")
-                }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(PlacesPalette.muted)
-                    .frame(width: 32, height: 38)
-                    .contentShape(Rectangle())
-            }
         }
         .padding(13)
         .background(PlacesPalette.panel, in: RoundedRectangle(cornerRadius: 15))
         .overlay(RoundedRectangle(cornerRadius: 15).stroke(PlacesPalette.line, lineWidth: 1))
     }
+}
 }
