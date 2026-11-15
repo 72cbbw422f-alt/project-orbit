@@ -398,11 +398,15 @@ private struct ReferenceWeatherHome: View {
     }
 
     private var watchEvent: (title: String, detail: String, symbol: String, level: String, tint: Color) {
-        guard !hours.isEmpty else {
+        let nearTermHours = hours.filter { hour in
+            guard let date = ISO8601DateFormatter().date(from: hour.id) else { return false }
+            return date >= Date() && date <= Date().addingTimeInterval(6 * 60 * 60)
+        }
+        guard !nearTermHours.isEmpty else {
             return ("Inväntar prognos", "Vädervakten analyserar kommande timmar när prognosen har hämtats.", "hourglass", "AVVAKTAR", RTheme.muted)
         }
 
-        let precipitation = hours.first { hour in
+        let precipitation = nearTermHours.first { hour in
             let condition = hour.condition.lowercased()
             let isSnow = condition.contains("snö")
             let isRain = condition.contains("regn") || condition.contains("dugg") || condition.contains("skur")
@@ -416,12 +420,12 @@ private struct ReferenceWeatherHome: View {
             return ("\(kind) kan komma", "\(precipitation.condition) omkring kl. \(precipitation.time). Nederbördsrisk \(precipitation.precipitationChance)% enligt timprognosen.", snow ? "cloud.snow.fill" : "cloud.rain.fill", "RISK I PROGNOS", Color.orange)
         }
 
-        if thunderWatchEnabled, let storm = hours.first(where: { $0.condition.localizedCaseInsensitiveContains("åska") }) {
+        if thunderWatchEnabled, let storm = nearTermHours.first(where: { $0.condition.localizedCaseInsensitiveContains("åska") }) {
             return ("Åskrisk", "Åska finns i prognosen omkring kl. \(storm.time). Följ SMHI:s varningar och sök skydd vid åska.", "cloud.bolt.rain.fill", "ÅSKRISK", Color.orange)
         }
 
-        let maxGust = max(weather.windGust, hours.map(\.gust).max() ?? 0)
-        let maxWind = max(weather.wind, hours.map(\.wind).max() ?? 0)
+        let maxGust = max(weather.windGust, nearTermHours.map(\.gust).max() ?? 0)
+        let maxWind = max(weather.wind, nearTermHours.map(\.wind).max() ?? 0)
         if windWatchEnabled && (maxGust >= 15 || maxWind >= 11) {
             return ("Kraftiga vindar", String(format: "Vind upp till %.1f m/s och byar upp till %.1f m/s i prognosen.", maxWind, maxGust), "wind", "VINDRISK", Color.orange)
         }
@@ -435,7 +439,7 @@ private struct ReferenceWeatherHome: View {
         if frostWatchEnabled && weather.temperature <= currentThreshold {
             return ("Risk för frost", "Frostrisk just nu vid cirka \(weather.temperature)°. Frost kan bildas även utan nederbörd.", "thermometer.snowflake", "FROSTRISK", Color.cyan)
         }
-        if frostWatchEnabled, let frost = hours.first(where: { hour in
+        if frostWatchEnabled, let frost = nearTermHours.first(where: { hour in
             guard let date = formatter.date(from: hour.id) else { return false }
             let hourOfDay = Calendar.current.component(.hour, from: date)
             return hour.temperature <= ((hourOfDay >= 18 || hourOfDay < 9) ? 1 : 0)
