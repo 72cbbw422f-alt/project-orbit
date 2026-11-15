@@ -225,8 +225,8 @@ private struct WindFieldOverlay: View {
                         var v = 0.0
                         var speed = 0.0
                         for sample in samples {
-                            let sx = 0.5 + (sample.longitude - samples[samples.count / 2].longitude) / 0.90
-                            let sy = 0.5 - (sample.latitude - samples[samples.count / 2].latitude) / 0.80
+                            let sx = 0.5 + (sample.longitude - samples[samples.count / 2].longitude) / 2.0
+                            let sy = 0.5 - (sample.latitude - samples[samples.count / 2].latitude) / 1.2
                             let dx = px - sx
                             let dy = py - sy
                             let weight = 1.0 / max(dx * dx + dy * dy, 0.0025)
@@ -1046,10 +1046,13 @@ struct RadarMapView: View {
         windStatus = "Hämtar vinddata över området…"
         let center = requestedCenter ?? windMapCenter ?? mapCoordinate
         windMapCenter = center
-        // A 5×5 field gives useful coverage without excessive simultaneous requests.
-        let grid = [-0.40, -0.20, 0.0, 0.20, 0.40]
-        let offsets: [(Double, Double)] = grid.flatMap { lat in
-            grid.map { lon in (lat, lon) }
+        // Spread the same 25 requests across a wider, map-sized area.
+        // Longitude needs a wider degree span at Swedish latitudes because
+        // one longitude degree is much shorter than one latitude degree.
+        let latitudeGrid = [-0.60, -0.30, 0.0, 0.30, 0.60]
+        let longitudeGrid = [-1.00, -0.50, 0.0, 0.50, 1.00]
+        let offsets: [(Double, Double)] = latitudeGrid.flatMap { lat in
+            longitudeGrid.map { lon in (lat, lon) }
         }
         var results: [WindSample] = []
         await withTaskGroup(of: WindSample?.self) { group in
