@@ -271,7 +271,17 @@ enum WeatherNotificationScheduler {
             let rightDate = ($1.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() ?? .distantFuture
             return leftDate < rightDate
         }
-        let selected = Array(requests.prefix(8))
+        // Reserve headroom for official SMHI alerts and other app notifications.
+        // Divide the weather-notification budget across every registered place.
+        let registryCount: Int
+        if let data = defaults.data(forKey: forecastRegistryKey),
+           let registry = try? JSONDecoder().decode([String: StoredForecast].self, from: data) {
+            registryCount = max(1, registry.count)
+        } else {
+            registryCount = 1
+        }
+        let perPlaceLimit = max(1, min(8, 60 / registryCount))
+        let selected = Array(requests.prefix(perPlaceLimit))
 
         
         let pending = await center.pendingNotificationRequests()
