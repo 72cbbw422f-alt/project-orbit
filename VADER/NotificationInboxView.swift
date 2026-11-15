@@ -141,11 +141,25 @@ enum SMHIWarningService {
         // from overwriting a warning found for another place.
         do {
             let current = try await warnings(at: coordinates)
-            defaults.set(!current.isEmpty, forKey: "Regnvakt.smhi.active")
-            let summary = current.prefix(3).map { "\($0.title) – \($0.area)" }.joined(separator: " • ")
-            defaults.set(current.isEmpty ? "Inga aktiva SMHI-varningar nära din plats" : summary,
+            let now = Date()
+            // SMHI may publish a warning several hours before it starts.
+            // Keep upcoming items visible in the warning feed, but never mark
+            // them active or fire an immediate "active warning" notification.
+            let active = current.filter { warning in
+                (parseSMHIDate(warning.start) ?? .distantPast) <= now
+            }
+            let upcoming = current.filter { warning in
+                guard let start = parseSMHIDate(warning.start) else { return false }
+                return start > now
+            }
+            defaults.set(!active.isEmpty, forKey: "Regnvakt.smhi.active")
+            let activeSummary = active.prefix(2).map { "\($0.title) – \($0.area)" }
+            let upcomingSummary = upcoming.prefix(2).map { "Kommande: \($0.title) – \($0.area)" }
+            let summary = (activeSummary + upcomingSummary).joined(separator: " • ")
+            defaults.set(summary.isEmpty ? "Inga aktiva eller kommande SMHI-varningar nära din plats" : summary,
                          forKey: "Regnvakt.smhi.summary")
-            defaults.set(current.first?.level.uppercased() ?? "", forKey: "Regnvakt.smhi.level")
+            defaults.set(active.first?.level.uppercased() ?? upcoming.first?.level.uppercased() ?? "",
+                         forKey: "Regnvakt.smhi.level")
 
             let updateFormatter = DateFormatter()
             updateFormatter.locale = Locale(identifier: "sv_SE")
@@ -166,12 +180,12 @@ enum SMHIWarningService {
 
             let key = "Regnvakt.smhi.warningSignatures.v1"
             var scheduled = Set(defaults.stringArray(forKey: key) ?? [])
-            let currentSignatures = Set(current.map { $0.id + "|" + $0.level + "|" + $0.title })
+            let currentSignatures = Set(active.map { $0.id + "|" + $0.level + "|" + $0.title })
             // Retain deduplication only while a warning remains active. If SMHI
             // later reissues the same warning ID, the user can be notified again.
             scheduled.formIntersection(currentSignatures)
             defaults.set(Array(scheduled), forKey: key)
-            for warning in current {
+            for warning in active {
                 let signature = warning.id + "|" + warning.level + "|" + warning.title
                 guard !scheduled.contains(signature) else { continue }
 
