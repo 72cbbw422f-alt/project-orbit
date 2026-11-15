@@ -247,6 +247,9 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
         weatherRequestID = UUID()
         let requestID = weatherRequestID
         currentCoordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        // Check official warnings independently from the forecast request so a
+        // failed Open-Meteo response can never prevent an SMHI warning check.
+        refreshSMHIWarnings()
         status = "Hämtar prognos för \(placeName)…"
         Task {
             do {
@@ -294,7 +297,6 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                     }
                 }
 
-                Task { await SMHIWarningService.checkAndNotify(at: CLLocationCoordinate2D(latitude: latitude, longitude: longitude)) }
                 status = "Liveprognos • Open-Meteo • \(savedPlaces.count) sparade platser bevakas"
             } catch {
                 guard requestID == weatherRequestID else { return }
