@@ -55,15 +55,19 @@ enum SMHIWarningService {
                 let featureProperties = feature["properties"] as? [String: Any] ?? [:]
                 let areaName = (area["areaName"] as? [String: Any])?["sv"] as? String ?? "Berört område"
                 let areaCode = featureProperties["code"] as? String ?? ""
+                let affectedAreas = area["affectedAreas"] as? [[String: Any]] ?? []
+                let affectedAreaIDs = Set(affectedAreas.compactMap { $0["id"] as? Int })
                 let marineNames = ["Bottenhavet", "Bottenviken", "Kvarken", "Östersjön", "Ålands hav", "Finska viken", "Rigabukten", "Kattegatt", "Skagerrak", "Vänern"]
-                let isMarineArea = areaCode == "SWE_SEA_DISTRICTS" || marineNames.contains(where: { areaName.localizedCaseInsensitiveContains($0) })
+                let isMarineArea = areaCode == "SWE_SEA_DISTRICTS" ||
+                    (41...50).contains(where: { affectedAreaIDs.contains($0) }) ||
+                    marineNames.contains(where: { areaName.localizedCaseInsensitiveContains($0) })
                 if let coordinate,
                    !contains(coordinate, geometryType: type, coordinates: coordinates),
                    !isWithinDistance(
                        coordinate,
                        geometryType: type,
                        coordinates: coordinates,
-                       maximumDistanceMeters: isMarineArea ? 150_000 : 50_000
+                       maximumDistanceMeters: isMarineArea ? 200_000 : 50_000
                    ) {
                     continue
                 }
@@ -191,9 +195,9 @@ enum SMHIWarningService {
         return polygons.contains { pointInRing(point, ring: $0) }
     }
 
-    // Marine warnings cover named sea districts, not the nearby coastal town's
-    // land coordinate. Include a warning when its sea polygon is within 50 km
-    // of the selected coastal location, while keeping land warnings polygon-exact.
+    // Marine warning polygons can sit well offshore from the coastal towns
+    // they affect. The caller uses a wider 200 km catchment for named sea
+    // districts; land warnings retain a tighter 50 km catchment.
     private static func isWithinDistance(
         _ point: CLLocationCoordinate2D,
         geometryType: String,
