@@ -2,6 +2,7 @@ import SwiftUI
 import UserNotifications
 
 struct NotificationSettingsView: View {
+    var refreshSMHIWarnings: () -> Void = {}
     @AppStorage("Regnvakt.notifications.enabled") private var notificationsEnabled = true
     @AppStorage("Regnvakt.notifications.rain") private var rainEnabled = true
     @AppStorage("Regnvakt.notifications.snow") private var snowEnabled = true
@@ -155,7 +156,10 @@ struct NotificationSettingsView: View {
         .onChange(of: frostEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
         .onChange(of: smhiEnabled) { _, enabled in
             if !enabled { SMHIWarningService.clearPendingNotifications() }
-            else { WeatherNotificationScheduler.refreshFromStoredForecast() }
+            else {
+                WeatherNotificationScheduler.refreshFromStoredForecast()
+                refreshSMHIWarnings()
+            }
         }
         .onChange(of: leadMinutes) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
         .onChange(of: quietHours) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
