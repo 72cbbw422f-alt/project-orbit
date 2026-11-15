@@ -995,14 +995,14 @@ private struct TodayWeatherDetails: View {
                             summaryTile(title:"NEDERBÖRD",value:String(format:"%.1f mm",weather.precipitationToday),subtitle:"Just nu",symbol:"drop.fill",tint:RTheme.cyan)
                             summaryTile(title:"VIND",value:String(format:"%.1f m/s",weather.wind),subtitle:"Byvind \(String(format:"%.1f",weather.windGust)) m/s",symbol:"wind",tint:Color(red:0.78,green:0.86,blue:1))
                         }
-                        Text("VINDRIKTNING OCH STYRKA").font(.system(size:12,weight:.heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
+                        Text("VINDRIKTNING").font(.system(size:12,weight:.heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
                         HStack(spacing:10) {
                             Image(systemName:"location.north.circle.fill")
                                 .font(.system(size:32)).rotationEffect(.degrees(weather.windDirectionDegrees))
                                 .foregroundStyle(RTheme.cyan)
                             VStack(alignment:.leading,spacing:3) {
                                 Text(weather.windDirectionText).font(.system(size:19,weight:.bold)).foregroundStyle(.white)
-                                Text(String(format:"%.0f° • Medelvind %.1f m/s • Byvind %.1f m/s",weather.windDirectionDegrees,weather.wind,weather.windGust))
+                                Text(String(format:"%.0f°",weather.windDirectionDegrees))
                                     .font(.system(size:12,weight:.medium)).foregroundStyle(RTheme.muted)
                             }
                             Spacer()
