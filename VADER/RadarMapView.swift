@@ -1101,6 +1101,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
         context.coordinator.latestTileURL = radarTileURL
         context.coordinator.latestCloudSamples = cloudSamples
         context.coordinator.cloudsVisible = showClouds
+        context.coordinator.precipitationTypesVisible = showPrecipitationTypes
         context.coordinator.onRegionChange = onRegionChange
         context.coordinator.updateLocationMarker(on: map, coordinate: coordinate, title: locationTitle)
         context.coordinator.applyRadarIfReady()
