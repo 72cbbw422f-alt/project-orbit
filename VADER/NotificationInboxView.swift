@@ -167,6 +167,21 @@ enum SMHIWarningService {
             updateFormatter.dateFormat = "HH:mm"
             defaults.set(updateFormatter.string(from: Date()), forKey: "Regnvakt.smhi.updated")
 
+            // Refresh the national overview independently of notification permissions.
+            // A user who disables push alerts must still see current nationwide warnings.
+            do {
+                let national = try await nationwideWarnings()
+                let nationalSignatures = Set(national.map { $0.id + "|" + $0.level + "|" + $0.title })
+                let nationalKey = "Regnvakt.smhi.nationalSignatures.v1"
+                let previousNational = Set(defaults.stringArray(forKey: nationalKey) ?? [])
+                if nationalSignatures.contains(where: { !previousNational.contains($0) }) {
+                    defaults.set(true, forKey: "Regnvakt.smhi.hasNewNationalWarnings")
+                }
+                defaults.set(Array(nationalSignatures), forKey: nationalKey)
+            } catch {
+                // Preserve the last successful nationwide snapshot/signatures.
+            }
+
             // Notification delivery is a separate concern. Never mark a warning
             // as handled until iOS confirms that the request was accepted.
             guard (defaults.object(forKey: "Regnvakt.notifications.enabled") as? Bool ?? true),
@@ -212,16 +227,6 @@ enum SMHIWarningService {
                 }
             }
 
-            // Keep the nationwide warning snapshot for the national warning view,
-            // but do not use it to suppress or replace local coastal notifications.
-            let national = try await nationwideWarnings()
-            let nationalSignatures = Set(national.map { $0.id + "|" + $0.level + "|" + $0.title })
-            let nationalKey = "Regnvakt.smhi.nationalSignatures.v1"
-            let previousNational = Set(defaults.stringArray(forKey: nationalKey) ?? [])
-            if nationalSignatures.contains(where: { !previousNational.contains($0) }) {
-                defaults.set(true, forKey: "Regnvakt.smhi.hasNewNationalWarnings")
-            }
-            defaults.set(Array(nationalSignatures), forKey: nationalKey)
         } catch {
             defaults.set("Kunde inte uppdatera SMHI – senast kända status visas",
                          forKey: "Regnvakt.smhi.summary")
