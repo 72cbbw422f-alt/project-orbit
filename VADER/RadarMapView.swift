@@ -676,6 +676,25 @@ struct RadarMapView: View {
                         .padding(12).frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color(red: 0.12, green: 0.16, blue: 0.21), in: RoundedRectangle(cornerRadius: 15))
                     }
+                    if showPrecipitationTypes {
+                        let rainCount = windSamples.filter { $0.precipitationType == 1 && $0.precipitation >= 0.05 }.count
+                        let snowCount = windSamples.filter { $0.precipitationType == 2 && $0.precipitation >= 0.05 }.count
+                        let mixedCount = windSamples.filter { $0.precipitationType == 3 && $0.precipitation >= 0.05 }.count
+                        VStack(alignment: .leading, spacing: 9) {
+                            Text("NEDERBÖRDSTYP ÖVER KARTAN")
+                                .font(.system(size: 12, weight: .heavy)).tracking(0.8).foregroundStyle(Color.cyan)
+                            Text("Modellbedömning från Open-Meteo. Färgerna visar beräknad nederbördstyp vid geografiska punkter – inte en direkt klassificering av radarbildens pixlar.")
+                                .font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.82))
+                            HStack(spacing: 12) {
+                                legendItem("Regn", color: Color(red: 0.18, green: 0.58, blue: 0.96), count: rainCount)
+                                legendItem("Snö", color: Color(red: 0.82, green: 0.92, blue: 1.0), count: snowCount)
+                                legendItem("Blandat", color: Color(red: 0.68, green: 0.42, blue: 0.88), count: mixedCount)
+                            }
+                        }
+                        .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(red: 0.12, green: 0.16, blue: 0.21), in: RoundedRectangle(cornerRadius: 15))
+                    }
+
                     if !showWind && !showClouds {
                     HStack(spacing: 9) {
                         Image(systemName: precipitationSymbol)
@@ -846,6 +865,16 @@ struct RadarMapView: View {
             Button("Stäng", role: .cancel) {}
         } message: {
             Text("Radarn visar observerad nederbörd. SMHI används i första hand. RainViewer används som reserv om SMHI:s radarflöde inte är tillgängligt. Nederbördstypen hämtas separat från en vädermodell och är en bedömning, inte en direkt klassificering av varje radar-pixel.")
+        }
+    }
+
+    private func legendItem(_ title: String, color: Color, count: Int) -> some View {
+        HStack(spacing: 5) {
+            Circle().fill(color).frame(width: 9, height: 9)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(.system(size: 10, weight: .bold)).foregroundStyle(.white)
+                Text("\\(count) punkter").font(.system(size: 9, weight: .medium)).foregroundStyle(.white.opacity(0.58))
+            }
         }
     }
 
