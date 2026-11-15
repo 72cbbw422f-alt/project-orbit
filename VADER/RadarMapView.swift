@@ -1204,8 +1204,8 @@ private struct RegnvaktMapView: UIViewRepresentable {
             guard styleReady, let style = mapView?.style else { return }
 
             // Remove the previous type layers and their individual sources.
-            let typeLayers = ["rain", "snow", "mixed"].map { "regnvakt-precip-type-\\($0)-layer" }
-            let typeSources = ["rain", "snow", "mixed"].map { "regnvakt-precip-type-\\($0)-source" }
+            let typeLayers = ["rain", "snow", "mixed"].map { name in "regnvakt-precip-type-\\(name)-layer" }
+            let typeSources = ["rain", "snow", "mixed"].map { name in "regnvakt-precip-type-\\(name)-source" }
             for identifier in typeLayers {
                 if let layer = style.layer(withIdentifier: identifier) { style.removeLayer(layer) }
             }
