@@ -318,7 +318,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                     }
                 }
 
-                status = "Liveprognos • Open-Meteo • \(savedPlaces.count) sparade platser bevakas"
+                status = "Liveprognos • Open-Meteo"
             } catch {
                 guard requestID == weatherRequestID else { return }
                 status = "Kunde inte hämta väderdata. Försök igen."
