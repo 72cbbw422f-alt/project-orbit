@@ -238,7 +238,7 @@ struct SavedPlacesView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(model.isMonitored(place) ? "Stäng av bevakning för \\(place.name)" : "Börja bevaka \\(place.name)")
+            .accessibilityLabel(model.isMonitored(place) ? "Stäng av bevakning för \(place.name)" : "Börja bevaka \\(place.name)")
         }
         .padding(13)
         .background(PlacesPalette.panel, in: RoundedRectangle(cornerRadius: 15))
