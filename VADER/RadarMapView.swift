@@ -1202,25 +1202,52 @@ private struct RegnvaktMapView: UIViewRepresentable {
 
         func applyPrecipitationTypesIfReady() {
             guard styleReady, let style = mapView?.style else { return }
-            if let layer = style.layer(withIdentifier: "regnvakt-precip-type-layer") { style.removeLayer(layer) }
-            if let source = style.source(withIdentifier: "regnvakt-precip-type-source") { style.removeSource(source) }
-            guard precipitationTypesVisible else { return }
-            let features: [MLNPointFeature] = latestCloudSamples.compactMap { sample in
-                guard sample.precipitationType > 0, sample.precipitation >= 0.05 else { return nil }
-                let feature = MLNPointFeature()
-                feature.coordinate = CLLocationCoordinate2D(latitude: sample.latitude, longitude: sample.longitude)
-                feature.attributes = ["precipType": NSNumber(value: sample.precipitationType), "intensity": NSNumber(value: sample.precipitation)]
-                return feature
+
+            // Remove the previous type layers and their individual sources.
+            let typeLayers = ["rain", "snow", "mixed"].map { "regnvakt-precip-type-\\($0)-layer" }
+            let typeSources = ["rain", "snow", "mixed"].map { "regnvakt-precip-type-\\($0)-source" }
+            for identifier in typeLayers {
+                if let layer = style.layer(withIdentifier: identifier) { style.removeLayer(layer) }
             }
-            guard !features.isEmpty else { return }
-            let source = MLNShapeSource(identifier: "regnvakt-precip-type-source", shape: MLNShapeCollectionFeature(shapes: features), options: nil)
-            let layer = MLNCircleStyleLayer(identifier: "regnvakt-precip-type-layer", source: source)
-            layer.circleRadius = NSExpression(forConstantValue: 42)
-            layer.circleBlur = NSExpression(forConstantValue: 0.72)
-            layer.circleColor = NSExpression(format: "TERNARY(precipType == 3, %@, TERNARY(precipType == 2, %@, %@))", UIColor(red: 0.68, green: 0.42, blue: 0.88, alpha: 1), UIColor(red: 0.82, green: 0.92, blue: 1.0, alpha: 1), UIColor(red: 0.18, green: 0.58, blue: 0.96, alpha: 1))
-            layer.circleOpacity = NSExpression(format: "MIN(0.82, 0.28 + intensity * 0.18)")
-            style.addSource(source)
-            style.addLayer(layer)
+            for identifier in typeSources {
+                if let source = style.source(withIdentifier: identifier) { style.removeSource(source) }
+            }
+            guard precipitationTypesVisible else { return }
+
+            // Use separate constant-style layers. Avoid runtime NSExpression
+            // evaluation here: MapLibre can reject nested TERNARY expressions
+            // when the user enables this overlay.
+            let definitions: [(name: String, type: Int, color: UIColor)] = [
+                ("rain", 1, UIColor(red: 0.18, green: 0.58, blue: 0.96, alpha: 1)),
+                ("snow", 2, UIColor(red: 0.82, green: 0.92, blue: 1.0, alpha: 1)),
+                ("mixed", 3, UIColor(red: 0.68, green: 0.42, blue: 0.88, alpha: 1))
+            ]
+
+            for definition in definitions {
+                let features: [MLNPointFeature] = latestCloudSamples.compactMap { sample in
+                    guard sample.precipitationType == definition.type,
+                          sample.precipitation >= 0.05 else { return nil }
+                    let feature = MLNPointFeature()
+                    feature.coordinate = CLLocationCoordinate2D(latitude: sample.latitude, longitude: sample.longitude)
+                    return feature
+                }
+                guard !features.isEmpty else { continue }
+
+                let sourceID = "regnvakt-precip-type-\\(definition.name)-source"
+                let layerID = "regnvakt-precip-type-\\(definition.name)-layer"
+                let source = MLNShapeSource(
+                    identifier: sourceID,
+                    shape: MLNShapeCollectionFeature(shapes: features),
+                    options: nil
+                )
+                let layer = MLNCircleStyleLayer(identifier: layerID, source: source)
+                layer.circleRadius = NSExpression(forConstantValue: 42)
+                layer.circleBlur = NSExpression(forConstantValue: 0.72)
+                layer.circleColor = NSExpression(forConstantValue: definition.color)
+                layer.circleOpacity = NSExpression(forConstantValue: 0.62)
+                style.addSource(source)
+                style.addLayer(layer)
+            }
         }
 
         func applyRadarIfReady() {
