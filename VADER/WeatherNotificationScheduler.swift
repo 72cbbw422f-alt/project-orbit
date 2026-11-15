@@ -121,6 +121,8 @@ enum WeatherNotificationScheduler {
         guard globallyEnabled else {
             
             let pending = await center.pendingNotificationRequests()
+            guard defaults.string(forKey: tokenKey) == token,
+                  (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken else { return }
             let staleIDs = pending.map(\.identifier).filter { $0.hasPrefix(prefix) }
             center.removePendingNotificationRequests(withIdentifiers: staleIDs)
             SMHIWarningService.clearPendingNotifications()
@@ -140,6 +142,8 @@ enum WeatherNotificationScheduler {
         guard allowed else {
             // Remove previously armed weather alerts immediately if permission was revoked.
             let pending = await center.pendingNotificationRequests()
+            guard defaults.string(forKey: tokenKey) == token,
+                  (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken else { return }
             let staleIDs = pending.map(\.identifier).filter { $0.hasPrefix(prefix) }
             center.removePendingNotificationRequests(withIdentifiers: staleIDs)
             let status = authorization.authorizationStatus == .denied
@@ -258,6 +262,11 @@ enum WeatherNotificationScheduler {
             }
             do {
                 try await center.add(request)
+                guard defaults.string(forKey: tokenKey) == token,
+                      (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken else {
+                    center.removePendingNotificationRequests(withIdentifiers: [request.identifier])
+                    return
+                }
                 if isImmediate, let alertDay = request.content.userInfo["alertDay"] as? Date {
                     defaults.set(alertDay, forKey: frostDayKey)
                 }
