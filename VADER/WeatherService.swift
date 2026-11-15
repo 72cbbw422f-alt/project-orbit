@@ -243,6 +243,11 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
         }
     }
 
+    func refreshSMHIWarnings() {
+        guard let coordinate = currentCoordinate else { return }
+        Task { await SMHIWarningService.checkAndNotify(at: coordinate) }
+    }
+
     private func loadWeather(latitude: Double, longitude: Double, placeName: String) {
         weatherRequestID = UUID()
         let requestID = weatherRequestID
