@@ -1215,8 +1215,8 @@ private struct RegnvaktMapView: UIViewRepresentable {
             guard styleReady, let style = mapView?.style else { return }
 
             // Remove the previous type layers and their individual sources.
-            let typeLayers = ["rain", "snow", "mixed"].map { name in "regnvakt-precip-type-\\(name)-layer" }
-            let typeSources = ["rain", "snow", "mixed"].map { name in "regnvakt-precip-type-\\(name)-source" }
+            let typeLayers = ["rain", "snow", "mixed"].map { name in "regnvakt-precip-type-\(name)-layer" }
+            let typeSources = ["rain", "snow", "mixed"].map { name in "regnvakt-precip-type-\(name)-source" }
             for identifier in typeLayers {
                 if let layer = style.layer(withIdentifier: identifier) { style.removeLayer(layer) }
             }
@@ -1244,8 +1244,8 @@ private struct RegnvaktMapView: UIViewRepresentable {
                 }
                 guard !features.isEmpty else { continue }
 
-                let sourceID = "regnvakt-precip-type-\\(definition.name)-source"
-                let layerID = "regnvakt-precip-type-\\(definition.name)-layer"
+                let sourceID = "regnvakt-precip-type-\(definition.name)-source"
+                let layerID = "regnvakt-precip-type-\(definition.name)-layer"
                 let source = MLNShapeSource(
                     identifier: sourceID,
                     shape: MLNShapeCollectionFeature(shapes: features),
