@@ -414,7 +414,7 @@ private struct ReferenceWeatherHome: View {
 
         let maxGust = max(weather.windGust, hours.map(\.gust).max() ?? 0)
         let maxWind = max(weather.wind, hours.map(\.wind).max() ?? 0)
-        if windWatchEnabled && (maxGust >= 17 || maxWind >= 11) {
+        if windWatchEnabled && (maxGust >= 15 || maxWind >= 11) {
             return ("Kraftiga vindar", String(format: "Vind upp till %.1f m/s och byar upp till %.1f m/s i prognosen.", maxWind, maxGust), "wind", "VINDRISK", Color.orange)
         }
 
