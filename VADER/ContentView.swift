@@ -275,14 +275,15 @@ private struct ReferenceWeatherHome: View {
             Spacer(minLength: 2)
             Button(action: showNationalWarnings) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Color.orange)
-                    .frame(width: 34, height: 34)
-                    .background(Color.orange.opacity(0.12), in: Circle())
-                    .overlay(Circle().stroke(Color.orange.opacity(0.45), lineWidth: 1))
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(hasNewNationalWarnings ? Color.red : Color.orange)
+                    .frame(width: 40, height: 40)
+                    .background((hasNewNationalWarnings ? Color.red : Color.orange).opacity(0.16), in: Circle())
+                    .overlay(Circle().stroke((hasNewNationalWarnings ? Color.red : Color.orange).opacity(0.72), lineWidth: 1.4))
+                    .shadow(color: hasNewNationalWarnings ? Color.red.opacity(0.55) : .clear, radius: 9)
                     .overlay(alignment: .topTrailing) {
                         if hasNewNationalWarnings {
-                            Circle().fill(Color.orange).frame(width: 9, height: 9)
+                            Circle().fill(Color.red).frame(width: 11, height: 11)
                                 .overlay(Circle().stroke(RTheme.bg, lineWidth: 1.5))
                                 .offset(x: 1, y: -1)
                         }
@@ -291,15 +292,16 @@ private struct ReferenceWeatherHome: View {
             .buttonStyle(.plain)
             .accessibilityLabel(hasNewNationalWarnings ? "Nya SMHI-varningar i Sverige" : "Sveriges SMHI-varningar")
             Button(action: showNotifications) {
-                Image(systemName: "bell.badge")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 34, height: 34)
-                    .background(.white.opacity(0.08), in: Circle())
-                    .overlay(Circle().stroke(.white.opacity(0.18), lineWidth: 1))
+                Image(systemName: hasUnreadNotifications ? "bell.badge.fill" : "bell")
+                    .font(.system(size: 19, weight: .bold))
+                    .foregroundStyle(hasUnreadNotifications ? RTheme.cyan : .white)
+                    .frame(width: 40, height: 40)
+                    .background(hasUnreadNotifications ? RTheme.cyan.opacity(0.18) : .white.opacity(0.09), in: Circle())
+                    .overlay(Circle().stroke(hasUnreadNotifications ? RTheme.cyan.opacity(0.78) : .white.opacity(0.22), lineWidth: 1.3))
+                    .shadow(color: hasUnreadNotifications ? RTheme.cyan.opacity(0.48) : .clear, radius: 8)
                     .overlay(alignment: .topTrailing) {
                         if hasUnreadNotifications {
-                            Circle().fill(RTheme.cyan).frame(width: 9, height: 9)
+                            Circle().fill(Color.red).frame(width: 11, height: 11)
                                 .overlay(Circle().stroke(RTheme.bg, lineWidth: 1.5))
                                 .offset(x: 1, y: -1)
                         }
