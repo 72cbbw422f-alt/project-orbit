@@ -228,11 +228,11 @@ private struct WatchDetailSheet: View {
     }
 
     private var relevantHours: [HourForecast] {
-        if watch.id == "frost" { return hours.filter { $0.temperature <= 1 } }
-        if watch.id == "precipitation" { return hours.filter { let c = $0.condition.lowercased(); return c.contains("regn") || c.contains("snö") || c.contains("dugg") || c.contains("skur") } }
-        if watch.id == "wind" { return hours.filter { $0.gust >= 17 || $0.wind >= 11 } }
-        if watch.id == "thunder" { return hours.filter { $0.condition.localizedCaseInsensitiveContains("åska") } }
-        return hours.filter {
+        if watch.id == "frost" { return nearTermHours.filter { $0.temperature <= 1 } }
+        if watch.id == "precipitation" { return nearTermHours.filter { let c = $0.condition.lowercased(); return c.contains("regn") || c.contains("snö") || c.contains("dugg") || c.contains("skur") } }
+        if watch.id == "wind" { return nearTermHours.filter { $0.gust >= 17 || $0.wind >= 11 } }
+        if watch.id == "thunder" { return nearTermHours.filter { $0.condition.localizedCaseInsensitiveContains("åska") } }
+        return nearTermHours.filter {
             let c = $0.condition.lowercased()
             return c.contains("regn") || c.contains("snö") || c.contains("dugg") || c.contains("skur")
         }
@@ -378,9 +378,19 @@ struct ActiveWatchSummary: View {
     @AppStorage("Regnvakt.notifications.smhi") private var smhiEnabled = true
 
     private var activeTitles: [(String, String, Bool)] {
-        let text = hours.map { $0.condition.lowercased() }.joined(separator: " ")
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        let now = Date()
+        let horizon = now.addingTimeInterval(6 * 60 * 60)
+        let nearTermHours = hours.filter { hour in
+            guard let date = formatter.date(from: hour.id) else { return false }
+            return date >= now && date <= horizon
+        }
+        let text = nearTermHours.map { $0.condition.lowercased() }.joined(separator: " ")
         var result: [(String, String, Bool)] = []
-        let snowRisk = hours.contains { $0.condition.localizedCaseInsensitiveContains("snö") && ($0.precipitationChance >= 40 || $0.precipitation >= 0.2) }
+        let snowRisk = nearTermHours.contains { $0.condition.localizedCaseInsensitiveContains("snö") && ($0.precipitationChance >= 40 || $0.precipitation >= 0.2) }
         let rainRisk = hours.contains {
             let condition = $0.condition.lowercased()
             let isRain = condition.contains("regn") || condition.contains("duggregn") || condition.contains("skur")
