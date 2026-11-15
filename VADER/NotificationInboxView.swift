@@ -33,10 +33,13 @@ enum SMHIWarningService {
     }
 
     static func nationwideWarnings() async throws -> [SMHIWarning] {
-        try await fetchWarnings(filterCoordinates: nil)
+        try await fetchWarnings(filterCoordinates: nil, includeUpcoming: false)
     }
 
-    private static func fetchWarnings(filterCoordinates filterCoordinates: [CLLocationCoordinate2D]?) async throws -> [SMHIWarning] {
+    private static func fetchWarnings(
+        filterCoordinates filterCoordinates: [CLLocationCoordinate2D]?,
+        includeUpcoming: Bool = true
+    ) async throws -> [SMHIWarning] {
         var request = URLRequest(url: endpoint)
         request.cachePolicy = .reloadRevalidatingCacheData
         request.timeoutInterval = 20
@@ -45,9 +48,9 @@ enum SMHIWarningService {
         guard let items = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { throw URLError(.cannotParseResponse) }
         var result: [SMHIWarning] = []
         for item in items {
-            let warningID = String(describing: item["id"] ?? UUID().uuidString)
             let event = item["event"] as? [String: Any] ?? [:]
             let eventName = (event["sv"] as? String) ?? "Vädervarning"
+            let warningID = String(describing: item["id"] ?? eventName)
             let areas = item["warningAreas"] as? [[String: Any]] ?? []
             for area in areas {
                 // SMHI warning-area "area" is a GeoJSON Feature; the polygon
@@ -84,6 +87,11 @@ enum SMHIWarningService {
                 }
                 let levelObject = area["warningLevel"] as? [String: Any] ?? [:]
                 let level = levelObject["sv"] as? String ?? "Meddelande"
+                let levelCode = (levelObject["code"] as? String ?? "").uppercased()
+                // SMHI also publishes information messages. They are not yellow,
+                // orange or red weather warnings and must not be presented as such.
+                guard ["YELLOW", "ORANGE", "RED"].contains(levelCode) ||
+                      ["gul", "orange", "röd", "rod"].contains(level.lowercased()) else { continue }
                 let eventDescription = (area["eventDescription"] as? [String: Any])?["sv"] as? String ?? eventName
                 let details = area["descriptions"] as? [[String: Any]] ?? (item["descriptions"] as? [[String: Any]] ?? [])
                 func text(for code: String) -> String {
@@ -95,11 +103,18 @@ enum SMHIWarningService {
                 let start = area["approximateStart"] as? String ?? ""
                 let end = area["approximateEnd"] as? String ?? ""
                 let startDate = parseSMHIDate(start) ?? .distantPast
-                if !end.isEmpty, let endDate = parseSMHIDate(end), endDate < Date() { continue }
-                if startDate > Date().addingTimeInterval(4 * 24 * 3600) { continue }
+                let now = Date()
+                if !end.isEmpty, let endDate = parseSMHIDate(end), endDate < now { continue }
+                if includeUpcoming {
+                    if startDate > now.addingTimeInterval(4 * 24 * 3600) { continue }
+                } else if startDate > now {
+                    // The national overview is explicitly an active-warning view.
+                    continue
+                }
                 let whereText = text(for: "WHERE").trimmingCharacters(in: .whitespacesAndNewlines)
                 let displayArea = whereText.isEmpty ? areaName : whereText
-                result.append(SMHIWarning(id: warningID + "-" + String(describing: area["id"] ?? "area"),
+                let areaID = String(describing: area["id"] ?? "\(displayArea)-\(start)")
+                result.append(SMHIWarning(id: warningID + "-" + areaID,
                     title: eventDescription.isEmpty ? eventName : eventDescription, level: level, area: displayArea,
                     start: start, end: end, description: text(for: "INCIDENT"), advice: text(for: "AFFECT")))
             }
@@ -206,16 +221,21 @@ enum SMHIWarningService {
 
     private static func contains(_ point: CLLocationCoordinate2D, geometryType: String, coordinates: Any) -> Bool {
         guard let raw = coordinates as? [Any] else { return false }
-        let polygons: [[[Double]]]
+        let polygons: [[[[Double]]]]
         if geometryType == "Polygon" {
-            guard let ring = raw.first as? [[Double]] else { return false }
-            polygons = [ring]
+            let rings = raw.compactMap { $0 as? [[Double]] }
+            polygons = [rings]
         } else if geometryType == "MultiPolygon" {
             polygons = raw.compactMap { polygon in
-                guard let first = polygon as? [Any], let ring = first.first as? [[Double]] else { return nil }; return ring
+                guard let parts = polygon as? [Any] else { return nil }
+                return parts.compactMap { $0 as? [[Double]] }
             }
         } else { return false }
-        return polygons.contains { pointInRing(point, ring: $0) }
+        return polygons.contains { polygon in
+            guard let outer = polygon.first, pointInRing(point, ring: outer) else { return false }
+            // GeoJSON interior rings are holes, not part of the warning area.
+            return !polygon.dropFirst().contains { pointInRing(point, ring: $0) }
+        }
     }
 
     // Marine warning polygons can sit well offshore from the coast and SMHI's
