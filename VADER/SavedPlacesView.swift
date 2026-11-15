@@ -160,6 +160,7 @@ struct SavedPlacesView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Button {
                 model.setMonitoring(place, enabled: !model.isMonitored(place))
