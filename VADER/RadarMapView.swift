@@ -449,6 +449,10 @@ struct RadarMapView: View {
         )
     }
 
+    private var coordinateKey: String {
+        String(format: "%.5f,%.5f", mapCoordinate.latitude, mapCoordinate.longitude)
+    }
+
     private var selectedFrame: RadarFrame? {
         frames.indices.contains(selectedIndex) ? frames[selectedIndex] : nil
     }
@@ -825,6 +829,15 @@ struct RadarMapView: View {
                 await refreshRadarAtPlace()
             }
         }
+        .onChange(of: coordinateKey) { _, _ in
+            // A newly selected town is a new geographic map context.
+            Task {
+                await refreshWindField(center: mapCoordinate)
+                await refreshPrecipitationType()
+                await refreshNowcast()
+                await refreshRadarAtPlace()
+            }
+        }
         .onReceive(playback) { _ in
             guard isPlaying, !frames.isEmpty else { return }
             selectedIndex = selectedIndex >= frames.count - 1 ? 0 : selectedIndex + 1
@@ -1116,6 +1129,12 @@ private struct RegnvaktMapView: UIViewRepresentable {
         context.coordinator.precipitationTypesVisible = showPrecipitationTypes
         context.coordinator.onRegionChange = onRegionChange
         context.coordinator.updateLocationMarker(on: map, coordinate: coordinate, title: locationTitle)
+        if let previous = context.coordinator.lastCoordinate,
+           abs(previous.latitude - coordinate.latitude) > 0.001 ||
+           abs(previous.longitude - coordinate.longitude) > 0.001 {
+            context.coordinator.lastCoordinate = coordinate
+            map.setCenter(coordinate, zoomLevel: max(map.zoomLevel, 7.0), animated: true)
+        }
         context.coordinator.applyRadarIfReady()
         context.coordinator.applyCloudsIfReady()
         context.coordinator.applyPrecipitationTypesIfReady()
@@ -1204,10 +1223,10 @@ private struct RegnvaktMapView: UIViewRepresentable {
             let layer = MLNCircleStyleLayer(identifier: "regnvakt-cloud-layer", source: source)
             // Soft, overlapping map-anchored fields blend neighboring observations
             // without creating the bright isolated bullseyes seen in the 5×5 version.
-            layer.circleRadius = NSExpression(forConstantValue: 64)
-            layer.circleBlur = NSExpression(forConstantValue: 0.88)
+            layer.circleRadius = NSExpression(forConstantValue: 42)
+            layer.circleBlur = NSExpression(forConstantValue: 0.68)
             layer.circleColor = NSExpression(forConstantValue: UIColor(red: 0.78, green: 0.87, blue: 0.96, alpha: 1))
-            layer.circleOpacity = NSExpression(format: "cloudCover / 100.0 * 0.30")
+            layer.circleOpacity = NSExpression(format: "cloudCover / 100.0 * 0.24")
             style.addSource(source)
             style.addLayer(layer)
         }
@@ -1253,10 +1272,10 @@ private struct RegnvaktMapView: UIViewRepresentable {
                     options: nil
                 )
                 let layer = MLNCircleStyleLayer(identifier: layerID, source: source)
-                layer.circleRadius = NSExpression(forConstantValue: 42)
-                layer.circleBlur = NSExpression(forConstantValue: 0.72)
+                layer.circleRadius = NSExpression(forConstantValue: 27)
+                layer.circleBlur = NSExpression(forConstantValue: 0.38)
                 layer.circleColor = NSExpression(forConstantValue: definition.color)
-                layer.circleOpacity = NSExpression(forConstantValue: 0.62)
+                layer.circleOpacity = NSExpression(forConstantValue: 0.78)
                 style.addSource(source)
                 style.addLayer(layer)
             }
