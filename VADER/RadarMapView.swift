@@ -549,7 +549,7 @@ struct RadarMapView: View {
                 .frame(height: 390)
 
                 VStack(spacing: 13) {
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
                         Button {
                             showWind = false
                             showClouds = false
@@ -558,12 +558,13 @@ struct RadarMapView: View {
                         } label: {
                             Label("Regn", systemImage: "cloud.rain.fill")
                                 .font(.system(size: 15, weight: .bold))
-                                .frame(maxWidth: .infinity).frame(height: 48)
-                                .foregroundStyle(!showWind ? Color(red: 0.10, green: 0.13, blue: 0.17) : .white)
-                                .background(!showWind ? Color(red: 0.98, green: 0.62, blue: 0.43) : Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 13))
-                                .overlay(RoundedRectangle(cornerRadius: 13).stroke(!showWind ? Color.white.opacity(0.35) : Color.white.opacity(0.16), lineWidth: 1))
+                                .frame(maxWidth: .infinity).frame(height: 64)
+                                .foregroundStyle(!showWind && !showClouds && !showPrecipitationTypes ? Color(red: 0.10, green: 0.13, blue: 0.17) : .white)
+                                .background(!showWind && !showClouds && !showPrecipitationTypes ? Color(red: 0.98, green: 0.62, blue: 0.43) : Color(red: 0.15, green: 0.22, blue: 0.31), in: RoundedRectangle(cornerRadius: 13))
+                                .overlay(RoundedRectangle(cornerRadius: 13).stroke(!showWind && !showClouds && !showPrecipitationTypes ? Color.white.opacity(0.55) : Color.white.opacity(0.18), lineWidth: 1))
                         }
                         .buttonStyle(.plain)
+
                         Button {
                             showWind = true
                             showClouds = false
@@ -573,30 +574,29 @@ struct RadarMapView: View {
                         } label: {
                             Label("Vind", systemImage: "wind")
                                 .font(.system(size: 15, weight: .bold))
-                                .frame(maxWidth: .infinity).frame(height: 48)
-                                .foregroundStyle(showWind ? Color(red: 0.05, green: 0.12, blue: 0.15) : .white)
-                                .background(showWind ? Color.cyan : Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 13))
-                                .overlay(RoundedRectangle(cornerRadius: 13).stroke(showWind ? Color.white.opacity(0.38) : Color.white.opacity(0.16), lineWidth: 1))
+                                .frame(maxWidth: .infinity).frame(height: 64)
+                                .foregroundStyle(showWind ? Color(red: 0.10, green: 0.13, blue: 0.17) : .white)
+                                .background(showWind ? Color(red: 0.98, green: 0.62, blue: 0.43) : Color(red: 0.15, green: 0.22, blue: 0.31), in: RoundedRectangle(cornerRadius: 13))
+                                .overlay(RoundedRectangle(cornerRadius: 13).stroke(showWind ? Color.white.opacity(0.55) : Color.white.opacity(0.18), lineWidth: 1))
                         }
                         .buttonStyle(.plain)
+
                         Button {
                             showWind = false
                             showClouds = true
                             showPrecipitationTypes = false
                             showRadar = false
-                            // Always load a fresh cloud field for the map's current
-                            // geographic center; existing wind samples may belong to
-                            // a different area or an earlier map position.
                             Task { await refreshWindField(center: windMapCenter ?? mapCoordinate) }
                         } label: {
                             Label("Moln", systemImage: "cloud.fill")
                                 .font(.system(size: 15, weight: .bold))
-                                .frame(maxWidth: .infinity).frame(height: 48)
-                                .foregroundStyle(showClouds ? Color(red: 0.05, green: 0.12, blue: 0.15) : .white)
-                                .background(showClouds ? Color(red: 0.72, green: 0.82, blue: 0.92) : Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 13))
-                                .overlay(RoundedRectangle(cornerRadius: 13).stroke(showClouds ? Color.white.opacity(0.38) : Color.white.opacity(0.16), lineWidth: 1))
+                                .frame(maxWidth: .infinity).frame(height: 64)
+                                .foregroundStyle(showClouds ? Color(red: 0.10, green: 0.13, blue: 0.17) : .white)
+                                .background(showClouds ? Color(red: 0.98, green: 0.62, blue: 0.43) : Color(red: 0.15, green: 0.22, blue: 0.31), in: RoundedRectangle(cornerRadius: 13))
+                                .overlay(RoundedRectangle(cornerRadius: 13).stroke(showClouds ? Color.white.opacity(0.55) : Color.white.opacity(0.18), lineWidth: 1))
                         }
                         .buttonStyle(.plain)
+
                         Button {
                             showWind = false
                             showClouds = false
@@ -606,9 +606,10 @@ struct RadarMapView: View {
                         } label: {
                             Label("Typ", systemImage: "cloud.snow.fill")
                                 .font(.system(size: 15, weight: .bold))
-                                .frame(maxWidth: .infinity).frame(height: 48)
-                                .foregroundStyle(showPrecipitationTypes ? Color(red: 0.05, green: 0.12, blue: 0.15) : .white)
-                                .background(showPrecipitationTypes ? Color(red: 0.72, green: 0.84, blue: 0.96) : Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 13))
+                                .frame(maxWidth: .infinity).frame(height: 64)
+                                .foregroundStyle(showPrecipitationTypes ? Color(red: 0.10, green: 0.13, blue: 0.17) : .white)
+                                .background(showPrecipitationTypes ? Color(red: 0.98, green: 0.62, blue: 0.43) : Color(red: 0.15, green: 0.22, blue: 0.31), in: RoundedRectangle(cornerRadius: 13))
+                                .overlay(RoundedRectangle(cornerRadius: 13).stroke(showPrecipitationTypes ? Color.white.opacity(0.55) : Color.white.opacity(0.18), lineWidth: 1))
                         }
                         .buttonStyle(.plain)
                     }
