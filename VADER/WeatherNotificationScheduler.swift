@@ -30,7 +30,7 @@ enum WeatherNotificationScheduler {
         let defaults = UserDefaults.standard
         let locationKey = String(format: "%.4f,%.4f", latitude, longitude)
         let token = UUID().uuidString
-        defaults.set(token, forKey: scheduleTokenKey)
+        defaults.set(token, forKey: scheduleTokenKey + "." + locationKey.replacingOccurrences(of: ",", with: "_"))
         defaults.set(locationKey, forKey: Self.locationKey)
         defaults.set(data, forKey: forecastKey)
         defaults.set(place, forKey: placeKey)
@@ -47,18 +47,20 @@ enum WeatherNotificationScheduler {
            let hours = try? JSONDecoder().decode([HourForecast].self, from: data) {
             let place = defaults.string(forKey: placeKey) ?? "vald plats"
             let token = UUID().uuidString
-            defaults.set(token, forKey: scheduleTokenKey)
+            let storedLocationID = defaults.string(forKey: locationKey) ?? "unknown"
+            defaults.set(token, forKey: scheduleTokenKey + "." + storedLocationID.replacingOccurrences(of: ",", with: "_"))
             let temperatureAge = Date().timeIntervalSince1970 - defaults.double(forKey: currentTemperatureUpdatedKey)
             let recentTemperature = temperatureAge >= 0 && temperatureAge <= 2 * 60 * 60
                 ? defaults.object(forKey: currentTemperatureKey) as? Int
                 : nil
-            Task { await schedule(place: place, hours: hours, currentTemperature: recentTemperature, token: token, locationID: defaults.string(forKey: locationKey) ?? "unknown") }
+            Task { await schedule(place: place, hours: hours, currentTemperature: recentTemperature, token: token, locationID: storedLocationID) }
         } else {
             // Reconcile even without a cached forecast so turning a watch off
             // cannot leave stale pending notifications armed.
             let token = UUID().uuidString
-            defaults.set(token, forKey: scheduleTokenKey)
-            Task { await schedule(place: "vald plats", hours: [], currentTemperature: nil, token: token, locationID: defaults.string(forKey: locationKey) ?? "unknown") }
+            let storedLocationID = defaults.string(forKey: locationKey) ?? "unknown"
+            defaults.set(token, forKey: scheduleTokenKey + "." + storedLocationID.replacingOccurrences(of: ",", with: "_"))
+            Task { await schedule(place: "vald plats", hours: [], currentTemperature: nil, token: token, locationID: storedLocationID) }
         }
     }
 
@@ -98,6 +100,8 @@ enum WeatherNotificationScheduler {
     private static func schedule(place: String, hours: [HourForecast], currentTemperature: Int?, token: String, locationID: String) async {
         let defaults = UserDefaults.standard
         let center = UNUserNotificationCenter.current()
+        let tokenKey = scheduleTokenKey + "." + locationID.replacingOccurrences(of: ",", with: "_")
+        guard defaults.string(forKey: tokenKey) == token else { return }
         let globallyEnabled = defaults.object(forKey: "Regnvakt.notifications.enabled") as? Bool ?? true
         guard globallyEnabled else {
             
@@ -112,7 +116,8 @@ enum WeatherNotificationScheduler {
         }
 
         let authorization = await center.notificationSettings()
-        
+        guard defaults.string(forKey: tokenKey) == token else { return }
+
         let allowed = authorization.authorizationStatus == .authorized ||
             authorization.authorizationStatus == .provisional ||
             authorization.authorizationStatus == .ephemeral
@@ -210,7 +215,9 @@ enum WeatherNotificationScheduler {
 
         
         let pending = await center.pendingNotificationRequests()
+        guard defaults.string(forKey: tokenKey) == token else { return }
         let delivered = await center.deliveredNotifications()
+        guard defaults.string(forKey: tokenKey) == token else { return }
         let desiredIDs = Set(selected.map(\.identifier))
         let preserveCurrentFrost = currentTemperature == nil
             && (defaults.object(forKey: "Regnvakt.notifications.frost") as? Bool ?? true)
@@ -222,7 +229,7 @@ enum WeatherNotificationScheduler {
         center.removePendingNotificationRequests(withIdentifiers: oldIDs)
         let existingIDs = Set(pending.map(\.identifier)).union(delivered.map { $0.request.identifier })
         for request in selected {
-            
+            guard defaults.string(forKey: tokenKey) == token else { return }
             let isImmediate = (request.content.userInfo["immediate"] as? Bool) ?? false
             if existingIDs.contains(request.identifier) {
                 if isImmediate, let alertDay = request.content.userInfo["alertDay"] as? Date {
@@ -240,6 +247,7 @@ enum WeatherNotificationScheduler {
             }
         }
         let finalPending = await center.pendingNotificationRequests()
+        guard defaults.string(forKey: tokenKey) == token else { return }
         let finalCount = finalPending.filter { $0.identifier.hasPrefix(prefix) }.count
         defaults.set(finalCount, forKey: scheduledCountKey)
         defaults.set(Date().timeIntervalSince1970, forKey: scheduleUpdatedKey)
