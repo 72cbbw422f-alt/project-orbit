@@ -151,6 +151,11 @@ enum SMHIWarningService {
 
             let key = "Regnvakt.smhi.warningSignatures.v1"
             var scheduled = Set(defaults.stringArray(forKey: key) ?? [])
+            let currentSignatures = Set(current.map { $0.id + "|" + $0.level + "|" + $0.title })
+            // Retain deduplication only while a warning remains active. If SMHI
+            // later reissues the same warning ID, the user can be notified again.
+            scheduled.formIntersection(currentSignatures)
+            defaults.set(Array(scheduled), forKey: key)
             for warning in current {
                 let signature = warning.id + "|" + warning.level + "|" + warning.title
                 guard !scheduled.contains(signature) else { continue }
