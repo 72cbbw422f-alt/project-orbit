@@ -212,4 +212,3 @@ struct SavedPlacesView: View {
         .overlay(RoundedRectangle(cornerRadius: 15).stroke(PlacesPalette.line, lineWidth: 1))
     }
 }
-}
