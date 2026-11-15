@@ -408,6 +408,11 @@ private struct ReferenceWeatherHome: View {
             guard let date = nearTermFormatter.date(from: hour.id) else { return false }
             return date >= now && date <= nearTermHorizon
         }
+        let currentHour = Calendar.current.component(.hour, from: now)
+        let currentThreshold = (currentHour >= 18 || currentHour < 9) ? 1 : 0
+        if frostWatchEnabled && weather.temperature <= currentThreshold {
+            return ("Risk för frost", "Frostrisk just nu vid cirka \(weather.temperature)°. Frost kan bildas även utan nederbörd.", "thermometer.snowflake", "FROSTRISK", Color.cyan)
+        }
         guard !nearTermHours.isEmpty else {
             return ("Inväntar prognos", "Vädervakten analyserar kommande timmar när prognosen har hämtats.", "hourglass", "AVVAKTAR", RTheme.muted)
         }
@@ -436,17 +441,8 @@ private struct ReferenceWeatherHome: View {
             return ("Kraftiga vindar", String(format: "Vind upp till %.1f m/s och byar upp till %.1f m/s i prognosen.", maxWind, maxGust), "wind", "VINDRISK", Color.orange)
         }
 
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = .current
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
-        let currentHour = Calendar.current.component(.hour, from: Date())
-        let currentThreshold = (currentHour >= 18 || currentHour < 9) ? 1 : 0
-        if frostWatchEnabled && weather.temperature <= currentThreshold {
-            return ("Risk för frost", "Frostrisk just nu vid cirka \(weather.temperature)°. Frost kan bildas även utan nederbörd.", "thermometer.snowflake", "FROSTRISK", Color.cyan)
-        }
         if frostWatchEnabled, let frost = nearTermHours.first(where: { hour in
-            guard let date = formatter.date(from: hour.id) else { return false }
+            guard let date = nearTermFormatter.date(from: hour.id) else { return false }
             let hourOfDay = Calendar.current.component(.hour, from: date)
             return hour.temperature <= ((hourOfDay >= 18 || hourOfDay < 9) ? 1 : 0)
         }) {
