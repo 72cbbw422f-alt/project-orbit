@@ -62,7 +62,7 @@ struct VaktDashboard: View {
                 && (hour.precipitationChance >= 40 || hour.precipitation >= 0.2)
         }
         let thunder = conditions.contains { $0.contains("åska") }
-        let maxGust = max(weather.windGust, upcoming.map(\.gust).max() ?? days.first?.gust ?? 0)
+        let maxGust = max(weather.windGust, upcoming.map(\.gust).max() ?? 0)
         let maxWind = max(weather.wind, upcoming.map(\.wind).max() ?? 0)
         let wind = maxGust >= 15 || maxWind >= 11
         let dateFormatter = DateFormatter()
@@ -413,7 +413,7 @@ struct ActiveWatchSummary: View {
         if rainRisk { result.append(("REGNVAKTEN", "cloud.rain.fill", rainEnabled)) }
         if text.contains("åska") { result.append(("ÅSKVAKTEN", "cloud.bolt.rain.fill", thunderEnabled)) }
 
-        let gust = max(weather.windGust, nearTermHours.map(\.gust).max() ?? days.first?.gust ?? 0)
+        let gust = max(weather.windGust, nearTermHours.map(\.gust).max() ?? 0)
         if gust >= 17 || max(weather.wind, nearTermHours.map(\.wind).max() ?? 0) >= 11 {
             result.append(("VINDVAKTEN", "wind", windEnabled))
         }
