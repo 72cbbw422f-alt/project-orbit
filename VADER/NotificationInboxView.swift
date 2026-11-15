@@ -52,7 +52,13 @@ enum SMHIWarningService {
                       let geometry = feature["geometry"] as? [String: Any],
                       let type = geometry["type"] as? String,
                       let coordinates = geometry["coordinates"] else { continue }
-                if let coordinate, !contains(coordinate, geometryType: type, coordinates: coordinates) { continue }
+                let featureProperties = feature["properties"] as? [String: Any] ?? [:]
+                let isMarineArea = (featureProperties["code"] as? String) == "SWE_SEA_DISTRICTS"
+                if let coordinate,
+                   !contains(coordinate, geometryType: type, coordinates: coordinates),
+                   !(isMarineArea && isWithinDistance(coordinate, geometryType: type, coordinates: coordinates, maximumDistanceMeters: 50_000)) {
+                    continue
+                }
                 let levelObject = area["warningLevel"] as? [String: Any] ?? [:]
                 let level = levelObject["sv"] as? String ?? "Meddelande"
                 let areaName = (area["areaName"] as? [String: Any])?["sv"] as? String ?? "Berört område"
@@ -161,6 +167,54 @@ enum SMHIWarningService {
             }
         } else { return false }
         return polygons.contains { pointInRing(point, ring: $0) }
+    }
+
+    // Marine warnings cover named sea districts, not the nearby coastal town's
+    // land coordinate. Include a warning when its sea polygon is within 50 km
+    // of the selected coastal location, while keeping land warnings polygon-exact.
+    private static func isWithinDistance(
+        _ point: CLLocationCoordinate2D,
+        geometryType: String,
+        coordinates: Any,
+        maximumDistanceMeters: Double
+    ) -> Bool {
+        guard let raw = coordinates as? [Any] else { return false }
+        let rings: [[[Double]]]
+        if geometryType == "Polygon" {
+            rings = raw.compactMap { $0 as? [[Double]] }
+        } else if geometryType == "MultiPolygon" {
+            rings = raw.flatMap { polygon -> [[[Double]]] in
+                guard let parts = polygon as? [Any] else { return [] }
+                return parts.compactMap { $0 as? [[Double]] }
+            }
+        } else {
+            return false
+        }
+
+        let latitudeScale = 110_540.0
+        let longitudeScale = 111_320.0 * cos(point.latitude * .pi / 180)
+        let px = point.longitude * longitudeScale
+        let py = point.latitude * latitudeScale
+
+        for ring in rings where ring.count >= 2 {
+            for index in ring.indices {
+                let next = (index + 1) % ring.count
+                guard ring[index].count >= 2, ring[next].count >= 2 else { continue }
+                let ax = ring[index][0] * longitudeScale
+                let ay = ring[index][1] * latitudeScale
+                let bx = ring[next][0] * longitudeScale
+                let by = ring[next][1] * latitudeScale
+                let dx = bx - ax
+                let dy = by - ay
+                let lengthSquared = dx * dx + dy * dy
+                let projection = lengthSquared == 0 ? 0 : max(0, min(1, ((px - ax) * dx + (py - ay) * dy) / lengthSquared))
+                let nearestX = ax + projection * dx
+                let nearestY = ay + projection * dy
+                let distance = hypot(px - nearestX, py - nearestY)
+                if distance <= maximumDistanceMeters { return true }
+            }
+        }
+        return false
     }
 
     private static func pointInRing(_ point: CLLocationCoordinate2D, ring: [[Double]]) -> Bool {
