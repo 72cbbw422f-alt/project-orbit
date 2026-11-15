@@ -873,7 +873,7 @@ struct RadarMapView: View {
             Circle().fill(color).frame(width: 9, height: 9)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title).font(.system(size: 10, weight: .bold)).foregroundStyle(.white)
-                Text("\\(count) punkter").font(.system(size: 9, weight: .medium)).foregroundStyle(.white.opacity(0.58))
+                Text("\(count) punkter").font(.system(size: 9, weight: .medium)).foregroundStyle(.white.opacity(0.58))
             }
         }
     }
