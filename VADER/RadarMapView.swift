@@ -437,6 +437,7 @@ struct RadarMapView: View {
     @State private var windStatus = "Hämtar vindfält…"
     @State private var windUpdated: Date?
     @State private var windMapCenter: CLLocationCoordinate2D?
+    @State private var windRefreshTask: Task<Void, Never>?
 
     private let playback = Timer.publish(every: 0.75, on: .main, in: .common).autoconnect()
 
@@ -514,7 +515,13 @@ struct RadarMapView: View {
                         onRegionChange: { center in
                             windMapCenter = center
                             if showWind || showClouds || showPrecipitationTypes {
-                                Task { await refreshWindField(center: center) }
+                                // Debounce intermediate map-camera updates during a pan.
+                                windRefreshTask?.cancel()
+                                windRefreshTask = Task { @MainActor in
+                                    try? await Task.sleep(nanoseconds: 700_000_000)
+                                    guard !Task.isCancelled else { return }
+                                    await refreshWindField(center: center)
+                                }
                             }
                         }
                     )
@@ -996,15 +1003,15 @@ struct RadarMapView: View {
         windStatus = "Hämtar vinddata över området…"
         let center = requestedCenter ?? windMapCenter ?? mapCoordinate
         windMapCenter = center
-        // A denser 7×7 field reduces visible gaps between model samples.
-        // The same geographic coordinates drive the map-anchored cloud layer.
-        let grid = [-0.45, -0.30, -0.15, 0.0, 0.15, 0.30, 0.45]
+        // A 5×5 field gives useful coverage without excessive simultaneous requests.
+        let grid = [-0.40, -0.20, 0.0, 0.20, 0.40]
         let offsets: [(Double, Double)] = grid.flatMap { lat in
             grid.map { lon in (lat, lon) }
         }
         var results: [WindSample] = []
         await withTaskGroup(of: WindSample?.self) { group in
             for (index, offset) in offsets.enumerated() {
+                if Task.isCancelled { break }
                 let lat = center.latitude + offset.0
                 let lon = center.longitude + offset.1
                 group.addTask {
@@ -1038,13 +1045,17 @@ struct RadarMapView: View {
                     return WindSample(id: index, latitude: lat, longitude: lon, speed: speed, direction: direction, gust: gust, cloudCover: cloud, precipitationType: type, precipitation: precipitation)
                 }
             }
-            for await sample in group { if let sample { results.append(sample) } }
+            for await sample in group {
+                if Task.isCancelled { group.cancelAll(); break }
+                if let sample { results.append(sample) }
+            }
         }
+        guard !Task.isCancelled else { return }
         windSamples = results.sorted { $0.id < $1.id }
         windUpdated = Date()
         windStatus = results.count == offsets.count
-            ? (showClouds ? "Molntäcke • 49 geografiskt placerade modellpunkter" : "Vindfält • 49 modellpunkter runt kartans mittpunkt")
-            : (showClouds ? "Molntäcke delvis tillgängligt • \(results.count) av 49 punkter" : "Vindfält delvis tillgängligt • \(results.count) av 25 punkter")
+            ? (showClouds ? "Molntäcke • 25 geografiskt placerade modellpunkter" : "Vindfält • 25 modellpunkter runt kartans mittpunkt")
+            : (showClouds ? "Molntäcke delvis tillgängligt • \(results.count) av 25 punkter" : "Vindfält delvis tillgängligt • \(results.count) av 25 punkter")
     }
 
     private static func precipitationName(code: Int, temperature: Double) -> String {
