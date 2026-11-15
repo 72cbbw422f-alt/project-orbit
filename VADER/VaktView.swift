@@ -36,8 +36,21 @@ struct VaktDashboard: View {
     let days: [DayForecast]
     let hours: [HourForecast]
 
+    private var nearTermHours: [HourForecast] {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        let now = Date()
+        let horizon = now.addingTimeInterval(6 * 60 * 60)
+        return hours.filter { hour in
+            guard let date = formatter.date(from: hour.id) else { return false }
+            return date >= now && date <= horizon
+        }
+    }
+
     private var watches: [WatchItem] {
-        let upcoming = hours
+        let upcoming = nearTermHours
         let conditions = upcoming.map { $0.condition.lowercased() }
         let rain = upcoming.contains { hour in
             let condition = hour.condition.lowercased()
@@ -153,7 +166,7 @@ struct VaktDashboard: View {
             .padding(.horizontal, 14).padding(.top, 22)
         }
         .sheet(item: $selectedWatch) { watch in
-            WatchDetailSheet(watch: watch, hours: hours)
+            WatchDetailSheet(watch: watch, hours: nearTermHours)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(Color(red: 0.008, green: 0.025, blue: 0.055))
