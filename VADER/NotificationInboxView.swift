@@ -77,7 +77,7 @@ enum SMHIWarningService {
                             coordinate,
                             geometryType: type,
                             coordinates: coordinates,
-                            maximumDistanceMeters: isMarineArea ? 50_000 : 5_000
+                            maximumDistanceMeters: isMarineArea ? 75_000 : 5_000
                         )
                 }) {
                     continue
@@ -218,9 +218,10 @@ enum SMHIWarningService {
         return polygons.contains { pointInRing(point, ring: $0) }
     }
 
-    // Marine warning polygons can sit offshore from the coast. Apply a
-    // 50 km coastal catchment to sea districts nationwide, while land warning
-    // polygons use only a 5 km GPS/border tolerance to avoid false positives.
+    // Marine warning polygons can sit well offshore from the coast and SMHI's
+    // location-based warning presentation includes nearby coastal communities.
+    // Apply a 75 km coastal catchment to sea districts nationwide; land warning
+    // polygons retain a 5 km GPS/border tolerance to avoid broad false positives.
     private static func isWithinDistance(
         _ point: CLLocationCoordinate2D,
         geometryType: String,
