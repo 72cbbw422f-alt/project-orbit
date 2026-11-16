@@ -163,6 +163,9 @@ enum WeatherNotificationScheduler {
         let key = "Regnvakt.notifications.explicitPlaceMonitoringMigration.v1"
         let defaults = UserDefaults.standard
         guard !defaults.bool(forKey: key) else { return }
+        // Invalidate any legacy-cache schedule already running before clearing
+        // its requests, so it cannot add them back after the migration cleanup.
+        defaults.set(UUID().uuidString, forKey: globalScheduleTokenKey)
         UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
             let ids = requests.map(\.identifier).filter { $0.hasPrefix(prefix) }
             UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
