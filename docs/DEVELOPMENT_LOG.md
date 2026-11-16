@@ -127,6 +127,28 @@ Följande problem har rapporterats vid test och ska följas tills de verifierats
 7. Testa tidslinjen och layouten på fysisk iPhone.
 8. Dokumentera varje test med enhet/iOS-version, steg, förväntat resultat, faktiskt resultat och eventuell skärmbild/logg.
 
+## Statusfärger för vädervakter och startsidans riskindikator – 2026-11-16
+
+### Genomförda kodändringar
+
+- VaktView.swift: vädervakternas kort har nu neutral bakgrund i stället för att hela kortet färgas grönt när bevakningen är aktiverad.
+- Aktiverad/avstängd bevakning visas separat från prognosrisk: grön status betyder att bevakningen är på, grå betyder avstängd och orange visar upptäckt risk.
+- En officiell röd SMHI-varning får röd riskstatus. Övriga prognosrisker visas orange; en vanlig prognosrisk får alltså inte felaktigt samma allvarlighetsfärg som en röd myndighetsvarning.
+- En kompakt förklaring har lagts till under bevakningskorten med betydelsen av grönt, orange, rött och grått. Den förklarar också att en aktiverad bevakning inte betyder att en risk redan har upptäckts.
+- ContentView.swift: startsidan har fått en diskret statusrad med färgprick och kort text. Den visar röd vid officiell röd SMHI-varning, orange vid upptäckt risk, grön när tillgänglig prognos inte visar någon av de kontrollerade riskerna och döljs när timprognos saknas.
+- Statusraden är tryckbar och öppnar fliken Vädervakter.
+
+### Viktig teknisk notering
+
+- Startsidan räknar för närvarande ut riskindikatorn separat från VaktDashboard. De viktigaste trösklarna används, men riskberäkningen är ännu inte extraherad till en gemensam regelmotor. Nästa kodgranskning bör samla logiken så att startsidan och bevakningskorten aldrig kan visa motstridiga riskbedömningar.
+- Färgerna beskriver två olika dimensioner: om bevakningen är aktiverad och om prognosen visar risk. Därför kan en avstängd bevakning fortfarande visa en separat orange riskmarkering.
+
+### Verifieringsstatus
+
+- Build #383 (43939629418) för föregående frostfix och dokumentation slutfördes med success.
+- De nya statusfärgerna och startsidans indikator har committats efter build #383. Ny CI-build måste verifieras innan ändringarna betraktas som kompilerade.
+- Inte testat på fysisk iPhone. Kontrollera särskilt att statusraden inte tränger undan plats-/väderinformationen, att tryck navigerar till Vädervakter, att röd endast används för röd SMHI-varning och att risk/status visas korrekt när en bevakning är avstängd.
+
 ## Arbetsregel för kommande ändringar
 
 Varje arbetsomgång ska dokumentera:
