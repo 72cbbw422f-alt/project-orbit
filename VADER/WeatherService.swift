@@ -217,25 +217,40 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
         }
     }
 
-    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        if manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse {
-            requestLocation()
-        } else if manager.authorizationStatus == .denied || manager.authorizationStatus == .restricted {
-            status = "Platsåtkomst avstängd – sök efter ort eller stad"
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let status = manager.authorizationStatus
+        let isAuthorized = status == .authorizedAlways || status == .authorizedWhenInUse
+        let isDenied = status == .denied || status == .restricted
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if isAuthorized {
+                requestLocation()
+            } else if isDenied {
+                self.status = "Platsåtkomst avstängd – sök efter ort eller stad"
+            }
         }
     }
 
-    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        status = "Kunde inte hämta position – sök efter ort eller stad."
+    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        let message = error.localizedDescription
+        Task { @MainActor [weak self] in
+            self?.status = message.isEmpty
+                ? "Kunde inte hämta position – sök efter ort eller stad."
+                : "Kunde inte hämta position – sök efter ort eller stad. (\(message))"
+        }
     }
 
-    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
-        if let lastFetch, Date().timeIntervalSince(lastFetch) < 300 { return }
-        lastFetch = Date()
-        currentCoordinate = location.coordinate
-        status = "Hämtar prognos för din position…"
-        Task {
+        let latitude = location.coordinate.latitude
+        let longitude = location.coordinate.longitude
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if let lastFetch, Date().timeIntervalSince(lastFetch) < 300 { return }
+            lastFetch = Date()
+            currentCoordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+            status = "Hämtar prognos för din position…"
+            let location = CLLocation(latitude: latitude, longitude: longitude)
             let placeName: String
             do {
                 let marks = try await geocoder.reverseGeocodeLocation(location, preferredLocale: Locale(identifier: "sv_SE"))
@@ -251,7 +266,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
             } catch {
                 placeName = "Min position"
             }
-            loadWeather(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude, placeName: placeName)
+            loadWeather(latitude: latitude, longitude: longitude, placeName: placeName)
         }
     }
 
