@@ -1263,6 +1263,8 @@ private struct RegnvaktMapView: UIViewRepresentable {
         var lastCoordinate: CLLocationCoordinate2D?
         private var styleReady = false
         private var appliedIdentity: String?
+        private var appliedCloudIdentity: String?
+        private var appliedPrecipitationIdentity: String?
         private var locationMarker: MLNPointAnnotation?
 
         func updateLocationMarker(on map: MLNMapView, coordinate: CLLocationCoordinate2D, title: String) {
@@ -1306,6 +1308,8 @@ private struct RegnvaktMapView: UIViewRepresentable {
             self.mapView = mapView
             styleReady = true
             appliedIdentity = nil
+            appliedCloudIdentity = nil
+            appliedPrecipitationIdentity = nil
             applyRadarIfReady()
             applyCloudsIfReady()
             applyPrecipitationTypesIfReady()
@@ -1313,6 +1317,12 @@ private struct RegnvaktMapView: UIViewRepresentable {
 
         func applyCloudsIfReady() {
             guard styleReady, let style = mapView?.style else { return }
+            let identity = cloudsVisible
+                ? latestCloudSamples.map { "\($0.id):\(Int($0.cloudCover.rounded()))" }.joined(separator: "|")
+                : "hidden"
+            guard identity != appliedCloudIdentity else { return }
+            appliedCloudIdentity = identity
+
             if let layer = style.layer(withIdentifier: "regnvakt-cloud-layer") { style.removeLayer(layer) }
             if let source = style.source(withIdentifier: "regnvakt-cloud-source") { style.removeSource(source) }
             guard cloudsVisible, !latestCloudSamples.isEmpty else { return }
@@ -1323,24 +1333,31 @@ private struct RegnvaktMapView: UIViewRepresentable {
                 feature.attributes = ["cloudCover": NSNumber(value: sample.cloudCover)]
                 return feature
             }
-            let collection = MLNShapeCollectionFeature(shapes: features)
-            let source = MLNShapeSource(identifier: "regnvakt-cloud-source", shape: collection, options: nil)
-            let layer = MLNHeatmapStyleLayer(identifier: "regnvakt-cloud-layer", source: source)
-            // A heatmap interpolates the sampled cloud-cover values into one
-            // continuous field instead of drawing a separate blurred disk per point.
-            layer.heatmapWeight = NSExpression(format: "cloudCover / 100.0")
-            layer.heatmapIntensity = NSExpression(forConstantValue: 0.9)
-            layer.heatmapRadius = NSExpression(forConstantValue: 105)
-            layer.heatmapOpacity = NSExpression(forConstantValue: 0.46)
-            layer.heatmapColor = NSExpression(forConstantValue: UIColor(red: 0.72, green: 0.84, blue: 0.96, alpha: 1))
+            let source = MLNShapeSource(
+                identifier: "regnvakt-cloud-source",
+                shape: MLNShapeCollectionFeature(shapes: features),
+                options: nil
+            )
+            let layer = MLNCircleStyleLayer(identifier: "regnvakt-cloud-layer", source: source)
+            // A soft blue cloud veil whose opacity follows the actual modelled
+            // cloud percentage. Circle layers avoid the opaque white heatmap
+            // and are only rebuilt when visibility or sample values change.
+            layer.circleColor = NSExpression(forConstantValue: UIColor(red: 0.42, green: 0.66, blue: 0.88, alpha: 1))
+            layer.circleOpacity = NSExpression(format: "cloudCover / 100.0 * 0.34")
+            layer.circleRadius = NSExpression(forConstantValue: 54)
+            layer.circleBlur = NSExpression(forConstantValue: 0.82)
             style.addSource(source)
             style.addLayer(layer)
         }
 
         func applyPrecipitationTypesIfReady() {
             guard styleReady, let style = mapView?.style else { return }
+            let identity = precipitationTypesVisible
+                ? latestCloudSamples.map { "\($0.id):\($0.precipitationType):\(Int(($0.precipitation * 10).rounded()))" }.joined(separator: "|")
+                : "hidden"
+            guard identity != appliedPrecipitationIdentity else { return }
+            appliedPrecipitationIdentity = identity
 
-            // Remove the previous type layers and their individual sources.
             let typeLayers = ["rain", "snow", "mixed"].map { name in "regnvakt-precip-type-\(name)-layer" }
             let typeSources = ["rain", "snow", "mixed"].map { name in "regnvakt-precip-type-\(name)-source" }
             for identifier in typeLayers {
@@ -1351,9 +1368,6 @@ private struct RegnvaktMapView: UIViewRepresentable {
             }
             guard precipitationTypesVisible else { return }
 
-            // Use separate constant-style layers. Avoid runtime NSExpression
-            // evaluation here: MapLibre can reject nested TERNARY expressions
-            // when the user enables this overlay.
             let definitions: [(name: String, type: Int, color: UIColor)] = [
                 ("rain", 1, UIColor(red: 0.18, green: 0.58, blue: 0.96, alpha: 1)),
                 ("snow", 2, UIColor(red: 0.82, green: 0.92, blue: 1.0, alpha: 1)),
@@ -1366,6 +1380,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
                           sample.precipitation >= 0.05 else { return nil }
                     let feature = MLNPointFeature()
                     feature.coordinate = CLLocationCoordinate2D(latitude: sample.latitude, longitude: sample.longitude)
+                    feature.attributes = ["precipitation": NSNumber(value: sample.precipitation)]
                     return feature
                 }
                 guard !features.isEmpty else { continue }
@@ -1377,14 +1392,13 @@ private struct RegnvaktMapView: UIViewRepresentable {
                     shape: MLNShapeCollectionFeature(shapes: features),
                     options: nil
                 )
-                let layer = MLNHeatmapStyleLayer(identifier: layerID, source: source)
-                // Categorical precipitation points are blended into regional
-                // patches; this avoids the oversized individual point markers.
-                layer.heatmapWeight = NSExpression(forConstantValue: 1.0)
-                layer.heatmapIntensity = NSExpression(forConstantValue: 0.85)
-                layer.heatmapRadius = NSExpression(forConstantValue: 78)
-                layer.heatmapOpacity = NSExpression(forConstantValue: 0.62)
-                layer.heatmapColor = NSExpression(forConstantValue: definition.color)
+                let layer = MLNCircleStyleLayer(identifier: layerID, source: source)
+                // Distinct translucent coloured patches replace the white,
+                // flashing heatmap. The blur blends neighbouring model points.
+                layer.circleColor = NSExpression(forConstantValue: definition.color)
+                layer.circleOpacity = NSExpression(forConstantValue: 0.62)
+                layer.circleRadius = NSExpression(forConstantValue: 48)
+                layer.circleBlur = NSExpression(forConstantValue: 0.78)
                 style.addSource(source)
                 style.addLayer(layer)
             }
