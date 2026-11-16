@@ -162,6 +162,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
         if enabled {
             monitoredPlaceIDs.insert(place.id)
             persistMonitoredPlaces()
+            refreshSMHIWarnings()
             Task {
                 do {
                     let forecast = try await OpenMeteoService.fetch(latitude: place.latitude, longitude: place.longitude)
@@ -186,6 +187,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
             // Reclaim this place's share of the pending-notification budget
             // and reschedule the remaining monitored locations.
             WeatherNotificationScheduler.refreshFromStoredForecast()
+            refreshSMHIWarnings()
         }
     }
 
@@ -203,6 +205,10 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
             savedPlaces[index].isFavorite = true
         }
         persistSavedPlaces()
+        // Removing a place must also release its share of the common queue
+        // and immediately re-evaluate the remaining SMHI coverage.
+        WeatherNotificationScheduler.refreshFromStoredForecast()
+        refreshSMHIWarnings()
     }
 
     private func persistSavedPlaces() {
@@ -264,7 +270,10 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
             }
             if !isDuplicate { coordinates.append(coordinate) }
         }
-        guard !coordinates.isEmpty else { return }
+        guard !coordinates.isEmpty else {
+            SMHIWarningService.clearPendingNotifications()
+            return
+        }
         Task {
             await SMHIWarningService.checkAndNotify(at: coordinates)
         }
