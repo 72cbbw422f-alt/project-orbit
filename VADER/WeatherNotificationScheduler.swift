@@ -80,6 +80,11 @@ enum WeatherNotificationScheduler {
             return
         }
 
+        // The legacy single-place cache is only valid before explicit-place
+        // monitoring migration. Never resurrect a removed/unmonitored location.
+        let migrationKey = "Regnvakt.notifications.explicitPlaceMonitoringMigration.v1"
+        guard !defaults.bool(forKey: migrationKey) else { return }
+
         // Migrate installations that only have the former single-place cache.
         if let data = defaults.data(forKey: forecastKey),
            let hours = try? JSONDecoder().decode([HourForecast].self, from: data) {
