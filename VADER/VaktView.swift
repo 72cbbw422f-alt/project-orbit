@@ -70,7 +70,9 @@ struct VaktDashboard: View {
         let wind = assessment.wind
         let frostHour = assessment.forecastFrostHour
         let wetNearFreeze = assessment.wetNearFreezeHour
-        let currentHourOfDay = Calendar.current.component(.hour, from: Date())
+        var swedishCalendar = Calendar(identifier: .gregorian)
+        swedishCalendar.timeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
+        let currentHourOfDay = swedishCalendar.component(.hour, from: Date())
         let currentFrostThreshold = (currentHourOfDay >= 18 || currentHourOfDay < 9) ? 1 : 0
         let currentFrost = weather.temperature <= currentFrostThreshold
         let frost = assessment.frost

@@ -50,7 +50,7 @@ struct WeatherRiskAssessment {
         let upcoming = hours.compactMap { hour -> (HourForecast, Date)? in
             guard let date = formatter.date(from: hour.id), date >= now, date <= horizon else { return nil }
             return (hour, date)
-        }.sorted { $0.1 < $1.1 }.map(\.0)
+        }.sorted { $0.1 < $1.1 }.map { $0.0 }
 
         let rain = upcoming.contains { hour in
             let condition = hour.condition.lowercased()

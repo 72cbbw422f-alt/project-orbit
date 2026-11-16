@@ -541,7 +541,9 @@ enum WeatherNotificationScheduler {
         guard setting != "none" else { return false }
         let parts = setting.split(separator: "–").compactMap { Int($0) }
         guard parts.count == 2 else { return false }
-        let hour = (Calendar(identifier: .gregorian).withTimeZone(TimeZone(identifier: "Europe/Stockholm") ?? .current)).component(.hour, from: date)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
+        let hour = calendar.component(.hour, from: date)
         let start = parts[0], end = parts[1]
         return start < end ? (hour >= start && hour < end) : (hour >= start || hour < end)
     }
