@@ -60,8 +60,8 @@ struct WeatherRiskAssessment {
                 && ($0.precipitationChance >= 40 || $0.precipitation >= 0.2)
         }
         let thunder = upcoming.contains { $0.condition.localizedCaseInsensitiveContains("åska") }
-        let maxGust = max(weather.windGust, upcoming.map(\\.gust).max() ?? 0)
-        let maxWind = max(weather.wind, upcoming.map(\\.wind).max() ?? 0)
+        let maxGust = max(weather.windGust, upcoming.map(\.gust).max() ?? 0)
+        let maxWind = max(weather.wind, upcoming.map(\.wind).max() ?? 0)
         let wind = maxGust >= WeatherWatchRules.windGustThreshold || maxWind >= 11
 
         let currentHour = Calendar.current.component(.hour, from: now)
