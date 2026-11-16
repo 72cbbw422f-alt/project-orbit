@@ -249,9 +249,12 @@ enum SMHIWarningService {
                 if leftStart != rightStart { return leftStart < rightStart }
                 return $0.id < $1.id
             }
-            for warning in prioritizedActive.prefix(8) {
+            var queuedSMHIWarnings = 0
+            for warning in prioritizedActive {
+                guard queuedSMHIWarnings < 8 else { break }
                 let signature = warning.id + "|" + warning.level + "|" + warning.title + "|" + warning.start
                 guard await SMHIWarningNotificationGate.shared.claim(signature) else { continue }
+                queuedSMHIWarnings += 1
 
                 let content = UNMutableNotificationContent()
                 content.title = "SMHI: \(warning.level)"
