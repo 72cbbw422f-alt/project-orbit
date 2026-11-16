@@ -57,6 +57,37 @@ enum WeatherNotificationScheduler {
         Task { await schedule(place: place, hours: hours, currentTemperature: currentTemperature, token: token, globalToken: globalToken, locationID: locationKey) }
     }
 
+    /// Refreshes forecasts for explicitly monitored saved places while iOS grants background time.
+    /// Local notifications already scheduled in the notification center can still fire with the app closed.
+    static func refreshMonitoredForecastsInBackground() async {
+        let defaults = UserDefaults.standard
+        let savedPlaces = defaults.data(forKey: "Regnvakt.savedPlaces.v1")
+            .flatMap { try? JSONDecoder().decode([SavedWeatherPlace].self, from: $0) } ?? []
+        let monitoredIDs = Set(defaults.stringArray(forKey: "Regnvakt.monitoredPlaces.v1") ?? [])
+        let globalToken = defaults.string(forKey: globalScheduleTokenKey) ?? "initial"
+
+        for place in savedPlaces where monitoredIDs.contains(place.id.uuidString) {
+            do {
+                let forecast = try await OpenMeteoService.fetch(latitude: place.latitude, longitude: place.longitude)
+                let locationID = String(format: "%.4f,%.4f", place.latitude, place.longitude)
+                let token = UUID().uuidString
+                defaults.set(token, forKey: scheduleTokenKey + "." + locationID.replacingOccurrences(of: ",", with: "_"))
+                defaults.set(locationID, forKey: self.locationKey)
+                defaults.set(try? JSONEncoder().encode(forecast.hours), forKey: forecastKey)
+                defaults.set(place.name, forKey: placeKey)
+                var registry = (try? JSONDecoder().decode([String: StoredForecast].self, from: defaults.data(forKey: forecastRegistryKey) ?? Data())) ?? [:]
+                registry[locationID] = StoredForecast(place: place.name, locationID: locationID, hours: forecast.hours, currentTemperature: forecast.current.temperature, savedAt: Date())
+                if let data = try? JSONEncoder().encode(registry) {
+                    defaults.set(data, forKey: forecastRegistryKey)
+                }
+                await schedule(place: place.name, hours: forecast.hours, currentTemperature: forecast.current.temperature,
+                               token: token, globalToken: globalToken, locationID: locationID)
+            } catch {
+                // Keep the last valid schedule if a background forecast request fails.
+            }
+        }
+    }
+
     static func refreshFromStoredForecast() {
         let defaults = UserDefaults.standard
         let globalToken = defaults.string(forKey: globalScheduleTokenKey) ?? "initial"
