@@ -376,6 +376,7 @@ enum WeatherNotificationScheduler {
 
         var result: [Event] = []
         var previousTypes = Set<String>()
+        var forecastFrostDays = Set<Date>()
         var lastWetForecastDate: Date?
 
         // Current frost is a separate, immediate safety alert. It is deduplicated
@@ -465,20 +466,26 @@ enum WeatherNotificationScheduler {
 
                 if hour.temperature <= frostThreshold {
                     let calendar = Calendar.current
-                    let today = calendar.startOfDay(for: Date())
                     let eventDay = calendar.startOfDay(for: date)
-                    let dayOffset = calendar.dateComponents([.day], from: today, to: eventDay).day ?? 99
-                    let currentHour = calendar.component(.hour, from: Date())
-                    let isTonight = (dayOffset == 0 && (localHour >= 18 || (currentHour < 9 && localHour < 9)))
-                        || (dayOffset == 1 && currentHour >= 9 && localHour < 9)
-                    let dateLabel = date.formatted(date: .abbreviated, time: .omitted)
-                    active.append(Event(
-                        type: "frost",
-                        title: isTonight ? "Möjlig frostrisk i natt" : "Möjlig frostrisk",
-                        body: "Prognosen visar omkring \(hour.temperature)° den \(dateLabel) kl. \(hour.time). Frost kan bildas även utan nederbörd. Detta är en riskprognos, inte en säker händelse.",
-                        date: date,
-                        safetyCritical: true
-                    ))
+                    // One forecast frost warning per local calendar day and
+                    // monitored place. Hourly temperatures can oscillate around
+                    // 0–1°C; do not create several near-identical alerts for
+                    // the same overnight frost episode.
+                    if forecastFrostDays.insert(eventDay).inserted {
+                        let today = calendar.startOfDay(for: Date())
+                        let dayOffset = calendar.dateComponents([.day], from: today, to: eventDay).day ?? 99
+                        let currentHour = calendar.component(.hour, from: Date())
+                        let isTonight = (dayOffset == 0 && (localHour >= 18 || (currentHour < 9 && localHour < 9)))
+                            || (dayOffset == 1 && currentHour >= 9 && localHour < 9)
+                        let dateLabel = date.formatted(date: .abbreviated, time: .omitted)
+                        active.append(Event(
+                            type: "frost",
+                            title: isTonight ? "Möjlig frostrisk i natt" : "Möjlig frostrisk",
+                            body: "Prognosen visar omkring \(hour.temperature)° den \(dateLabel) kl. \(hour.time). Frost kan bildas även utan nederbörd. Detta är en riskprognos, inte en säker händelse.",
+                            date: date,
+                            safetyCritical: true
+                        ))
+                    }
                 }
 
                 // Ice risk is distinct from frost: moisture must be present now,
