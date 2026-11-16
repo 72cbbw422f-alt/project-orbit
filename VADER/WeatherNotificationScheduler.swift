@@ -390,7 +390,7 @@ enum WeatherNotificationScheduler {
         // Current frost is a separate, immediate safety alert. It is deduplicated
         // by a stable daily identifier and remains armed across forecast refreshes.
         let now = Date()
-        // Only schedule forecast-driven alerts inside the rolling 6-hour window.
+        // Only schedule forecast-driven alerts inside the configured notification horizon.
         // The current-temperature frost check above remains immediate and separate.
         let forecastHorizon = WeatherWatchRules.notificationForecastHorizon(from: now)
         let currentHour = Calendar.current.component(.hour, from: now)
@@ -406,6 +406,13 @@ enum WeatherNotificationScheduler {
             // Seed the transition detector even when today's immediate alert was
             // already delivered, so the same continuous frost episode is not re-armed.
             previousTypes.insert("frost")
+        }
+        // A current frost alert and a forecast frost alert must never coexist
+        // for the same monitored place and local calendar day. The stored day
+        // also covers a previously armed current alert when cached temperature
+        // has become stale and currentTemperature is temporarily nil.
+        if currentFrost || alreadyAlertedForCurrentFrostToday {
+            forecastFrostDays.insert(Calendar.current.startOfDay(for: now))
         }
         if currentFrost && !alreadyAlertedForCurrentFrostToday {
             result.append(Event(
