@@ -25,12 +25,18 @@ private actor SMHIWarningNotificationGate {
     static let shared = SMHIWarningNotificationGate()
     private var scheduled = Set<String>()
     private var inFlight = [String: UUID]()
+    private var currentEpoch = ""
 
     private let persistenceKey = "Regnvakt.smhi.warningSignatures.v1"
     private let notificationEpochKey = "Regnvakt.smhi.notificationEpoch.v1"
 
     func prepare(current: Set<String>, persisted: Set<String>, epoch: String) {
         guard (UserDefaults.standard.string(forKey: notificationEpochKey) ?? "") == epoch else { return }
+        if currentEpoch != epoch {
+            scheduled.removeAll()
+            inFlight.removeAll()
+            currentEpoch = epoch
+        }
         // Merge persisted claims instead of replacing actor state. A slower,
         // overlapping refresh must never erase a claim committed by a faster one.
         scheduled.formUnion(persisted.intersection(current))
@@ -41,6 +47,7 @@ private actor SMHIWarningNotificationGate {
         guard UserDefaults.standard.string(forKey: notificationEpochKey) == epoch else { return }
         scheduled.removeAll()
         inFlight.removeAll()
+        currentEpoch = epoch
         UserDefaults.standard.removeObject(forKey: persistenceKey)
     }
 
