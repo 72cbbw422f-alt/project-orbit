@@ -37,6 +37,7 @@ struct VaktDashboard: View {
     let weather: WeatherSnapshot
     let days: [DayForecast]
     let hours: [HourForecast]
+    let refreshSMHIWarnings: () -> Void
 
     private var nearTermHours: [HourForecast] {
         let formatter = DateFormatter()
@@ -180,7 +181,7 @@ struct VaktDashboard: View {
             .padding(.horizontal, 14).padding(.top, 22)
         }
         .sheet(item: $selectedWatch) { watch in
-            WatchDetailSheet(watch: watch, hours: nearTermHours)
+            WatchDetailSheet(watch: watch, hours: nearTermHours, refreshSMHIWarnings: refreshSMHIWarnings)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(Color(red: 0.008, green: 0.025, blue: 0.055))
@@ -246,6 +247,7 @@ struct VaktDashboard: View {
 private struct WatchDetailSheet: View {
     let watch: WatchItem
     let hours: [HourForecast]
+    let refreshSMHIWarnings: () -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var notificationStatus = "Kontrollerar schemalagda aviseringar…"
     @State private var testStatus = ""
@@ -385,7 +387,12 @@ private struct WatchDetailSheet: View {
         case "official":
             Toggle("Aktivera SMHI-varningar", isOn: $smhiEnabled).tint(WatchPalette.cyan)
                 .onChange(of: smhiEnabled) { _, enabled in
-                    if !enabled { SMHIWarningService.clearPendingNotifications() }
+                    if !enabled {
+                        SMHIWarningService.clearPendingNotifications()
+                    } else {
+                        SMHIWarningService.notificationsReenabled()
+                        refreshSMHIWarnings()
+                    }
                 }
         default:
             Text("Ingen separat inställning finns för den här bevakningen.")
