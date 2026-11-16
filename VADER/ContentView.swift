@@ -468,7 +468,7 @@ private struct ReferenceWeatherHome: View {
                 Spacer(minLength: 1)
                 HStack(spacing: 3) {
                     Circle().fill(isLive ? .green : .orange).frame(width:6,height:6)
-                    Text(isLive ? "LIVE" : "DEMO").font(.system(size:12,weight:.heavy))
+                    Text(isLive ? "LIVE" : "INVÄNTAR").font(.system(size:12,weight:.heavy))
                 }.foregroundStyle(isLive ? .green : .orange)
             }
             Text("Nästa väderhändelse")
