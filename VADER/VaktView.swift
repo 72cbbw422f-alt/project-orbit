@@ -33,6 +33,7 @@ struct VaktDashboard: View {
     @AppStorage("Regnvakt.notifications.thunder") private var thunderEnabled = true
     @AppStorage("Regnvakt.notifications.frost") private var frostEnabled = true
     @AppStorage("Regnvakt.notifications.smhi") private var smhiNotificationsEnabled = true
+    @AppStorage("Regnvakt.notifications.enabled") private var notificationsEnabled = true
     let weather: WeatherSnapshot
     let days: [DayForecast]
     let hours: [HourForecast]
@@ -111,11 +112,11 @@ struct VaktDashboard: View {
                 : rain ? "Regn når aviseringsgränsen i timprognosen"
                 : "Ingen nederbörd når aviseringsgränsen kommande timmar")
         return [
-            WatchItem(id: "precipitation", title: precipitationTitle, subtitle: "Nederbörd · regn · snö · duggregn", symbol: snow ? "cloud.snow.fill" : "cloud.rain.fill", active: (rain && rainEnabled) || (snow && snowEnabled), isEnabled: snow ? snowEnabled : rainEnabled, riskDetected: rain || snow, detail: precipitationDetail, level: !(rainEnabled || snowEnabled) ? "AVSTÄNGD" : ((rain && rainEnabled) || (snow && snowEnabled)) ? "RISK I PROGNOS" : (rain || snow) ? "RISK FINNS · VAKT AV" : "LUGNT", tint: WatchPalette.cyan),
-            WatchItem(id: "thunder", title: "ÅSKVAKTEN", subtitle: "Åska · blixtar · åskrisk", symbol: "cloud.bolt.rain.fill", active: thunder && thunderEnabled, isEnabled: thunderEnabled, riskDetected: thunder, detail: thunder ? "Åska förekommer i prognosen" : "Ingen åska identifierad i prognosen", level: !thunderEnabled ? "AVSTÄNGD" : thunder ? "RISK I PROGNOS" : "LUGNT", tint: Color.orange),
-            WatchItem(id: "wind", title: "VINDVAKTEN", subtitle: "Vindstyrka · hårda vindbyar", symbol: "wind", active: wind && windEnabled, isEnabled: windEnabled, riskDetected: wind, detail: String(format: "Vind upp till %.1f m/s • byvind %.1f m/s", maxWind, maxGust), level: !windEnabled ? "AVSTÄNGD" : wind ? "FÖRHÖJD VIND" : "LUGNT", tint: Color(red: 0.54, green: 0.72, blue: 1.0)),
-            WatchItem(id: "frost", title: "FROSTVAKTEN", subtitle: "Frostbildning · temperatur · separat halkrisk", symbol: "thermometer.snowflake", active: frost && frostEnabled, isEnabled: frostEnabled, riskDetected: frost, detail: wetNearFreeze.map { "Fukt/nederbörd och cirka \($0.temperature)° omkring kl. \($0.time) – risk för halka" } ?? (currentFrost ? "Frostrisk just nu: cirka \(weather.temperature)°. Frost kan bildas även utan nederbörd." : frostHour.map { "Frostrisk: cirka \($0.temperature)° kl. \($0.time). Frost kan bildas även utan nederbörd." } ?? "Ingen tydlig frostrisk i timprognosen"), level: !frostEnabled ? "AVSTÄNGD" : wetNearFreeze != nil ? "HALKRISK" : frost ? "FROSTRISK" : "LUGNT", tint: Color.cyan),
-            WatchItem(id: "official", title: "SMHI:S VÄDERVARNINGAR", subtitle: "Officiella varningar som berör vald plats", symbol: "exclamationmark.triangle.fill", active: smhiActive && smhiNotificationsEnabled, isEnabled: smhiNotificationsEnabled, riskDetected: smhiActive, detail: smhiSummary + (smhiUpdated.isEmpty ? "" : " • Uppdaterad " + smhiUpdated), level: !smhiNotificationsEnabled ? "AVSTÄNGD" : smhiActive ? (smhiLevel.isEmpty ? "AKTIV VARNING" : smhiLevel + " VARNING") : "INGEN AKTIV VARNING", tint: smhiSeverityTint)
+            WatchItem(id: "precipitation", title: precipitationTitle, subtitle: "Nederbörd · regn · snö · duggregn", symbol: snow ? "cloud.snow.fill" : "cloud.rain.fill", active: notificationsEnabled && ((rain && rainEnabled) || (snow && snowEnabled)), isEnabled: notificationsEnabled && (snow ? snowEnabled : rainEnabled), riskDetected: rain || snow, detail: precipitationDetail, level: !(rainEnabled || snowEnabled) ? "AVSTÄNGD" : ((rain && rainEnabled) || (snow && snowEnabled)) ? "RISK I PROGNOS" : (rain || snow) ? "RISK FINNS · VAKT AV" : "LUGNT", tint: WatchPalette.cyan),
+            WatchItem(id: "thunder", title: "ÅSKVAKTEN", subtitle: "Åska · blixtar · åskrisk", symbol: "cloud.bolt.rain.fill", active: notificationsEnabled && thunder && thunderEnabled, isEnabled: notificationsEnabled && thunderEnabled, riskDetected: thunder, detail: thunder ? "Åska förekommer i prognosen" : "Ingen åska identifierad i prognosen", level: !thunderEnabled ? "AVSTÄNGD" : thunder ? "RISK I PROGNOS" : "LUGNT", tint: Color.orange),
+            WatchItem(id: "wind", title: "VINDVAKTEN", subtitle: "Vindstyrka · hårda vindbyar", symbol: "wind", active: notificationsEnabled && wind && windEnabled, isEnabled: notificationsEnabled && windEnabled, riskDetected: wind, detail: String(format: "Vind upp till %.1f m/s • byvind %.1f m/s", maxWind, maxGust), level: !windEnabled ? "AVSTÄNGD" : wind ? "FÖRHÖJD VIND" : "LUGNT", tint: Color(red: 0.54, green: 0.72, blue: 1.0)),
+            WatchItem(id: "frost", title: "FROSTVAKTEN", subtitle: "Frostbildning · temperatur · separat halkrisk", symbol: "thermometer.snowflake", active: notificationsEnabled && frost && frostEnabled, isEnabled: notificationsEnabled && frostEnabled, riskDetected: frost, detail: wetNearFreeze.map { "Fukt/nederbörd och cirka \($0.temperature)° omkring kl. \($0.time) – risk för halka" } ?? (currentFrost ? "Frostrisk just nu: cirka \(weather.temperature)°. Frost kan bildas även utan nederbörd." : frostHour.map { "Frostrisk: cirka \($0.temperature)° kl. \($0.time). Frost kan bildas även utan nederbörd." } ?? "Ingen tydlig frostrisk i timprognosen"), level: !frostEnabled ? "AVSTÄNGD" : wetNearFreeze != nil ? "HALKRISK" : frost ? "FROSTRISK" : "LUGNT", tint: Color.cyan),
+            WatchItem(id: "official", title: "SMHI:S VÄDERVARNINGAR", subtitle: "Officiella varningar som berör vald plats", symbol: "exclamationmark.triangle.fill", active: notificationsEnabled && smhiActive && smhiNotificationsEnabled, isEnabled: notificationsEnabled && smhiNotificationsEnabled, riskDetected: smhiActive, detail: smhiSummary + (smhiUpdated.isEmpty ? "" : " • Uppdaterad " + smhiUpdated), level: !smhiNotificationsEnabled ? "AVSTÄNGD" : smhiActive ? (smhiLevel.isEmpty ? "AKTIV VARNING" : smhiLevel + " VARNING") : "INGEN AKTIV VARNING", tint: smhiSeverityTint)
         ]
     }
 
@@ -133,7 +134,8 @@ struct VaktDashboard: View {
         return Color(red: 0.96, green: 0.78, blue: 0.25)
     }
     private var enabledWatchCount: Int {
-        [rainEnabled, snowEnabled, thunderEnabled, windEnabled, frostEnabled, smhiNotificationsEnabled]
+        guard notificationsEnabled else { return 0 }
+        return [rainEnabled, snowEnabled, thunderEnabled, windEnabled, frostEnabled, smhiNotificationsEnabled]
             .filter { $0 }.count
     }
 
@@ -253,8 +255,10 @@ private struct WatchDetailSheet: View {
     @AppStorage("Regnvakt.notifications.thunder") private var thunderEnabled = true
     @AppStorage("Regnvakt.notifications.frost") private var frostEnabled = true
     @AppStorage("Regnvakt.notifications.smhi") private var smhiEnabled = true
+    @AppStorage("Regnvakt.notifications.enabled") private var notificationsEnabled = true
 
     private var isWatchEnabled: Bool {
+        guard notificationsEnabled else { return false }
         switch watch.id {
         case "precipitation": return rainEnabled || snowEnabled
         case "thunder": return thunderEnabled
@@ -267,7 +271,8 @@ private struct WatchDetailSheet: View {
 
     private var displayedLevel: String { isWatchEnabled ? watch.level : "AVSTÄNGD" }
     private var displayedDetail: String {
-        isWatchEnabled ? watch.detail : "Bevakningen är avstängd. Inga aviseringar skickas från den här vakten."
+        if !notificationsEnabled { return "Aviseringar är avstängda globalt i Regnvakt." }
+        return isWatchEnabled ? watch.detail : "Bevakningen är avstängd. Inga aviseringar skickas från den här vakten."
     }
 
     private var nearTermHours: [HourForecast] {
@@ -432,6 +437,7 @@ struct ActiveWatchSummary: View {
     @AppStorage("Regnvakt.notifications.thunder") private var thunderEnabled = true
     @AppStorage("Regnvakt.notifications.frost") private var frostEnabled = true
     @AppStorage("Regnvakt.notifications.smhi") private var smhiEnabled = true
+    @AppStorage("Regnvakt.notifications.enabled") private var notificationsEnabled = true
 
     private var activeTitles: [(String, String, Bool)] {
         let formatter = DateFormatter()
@@ -452,13 +458,13 @@ struct ActiveWatchSummary: View {
             let isRain = condition.contains("regn") || condition.contains("duggregn") || condition.contains("skur")
             return isRain && ($0.precipitationChance >= 40 || $0.precipitation >= 0.3)
         }
-        if snowRisk { result.append(("SNÖVAKTEN", "cloud.snow.fill", snowEnabled)) }
-        if rainRisk { result.append(("REGNVAKTEN", "cloud.rain.fill", rainEnabled)) }
-        if text.contains("åska") { result.append(("ÅSKVAKTEN", "cloud.bolt.rain.fill", thunderEnabled)) }
+        if snowRisk { result.append(("SNÖVAKTEN", "cloud.snow.fill", notificationsEnabled && snowEnabled)) }
+        if rainRisk { result.append(("REGNVAKTEN", "cloud.rain.fill", notificationsEnabled && rainEnabled)) }
+        if text.contains("åska") { result.append(("ÅSKVAKTEN", "cloud.bolt.rain.fill", notificationsEnabled && thunderEnabled)) }
 
         let gust = max(weather.windGust, nearTermHours.map(\.gust).max() ?? 0)
         if gust >= WeatherWatchRules.windGustThreshold || max(weather.wind, nearTermHours.map(\.wind).max() ?? 0) >= 11 {
-            result.append(("VINDVAKTEN", "wind", windEnabled))
+            result.append(("VINDVAKTEN", "wind", notificationsEnabled && windEnabled))
         }
 
         let nowHour = Calendar.current.component(.hour, from: Date())
@@ -471,14 +477,15 @@ struct ActiveWatchSummary: View {
             return hour.temperature <= threshold
         }
         if currentFrost || forecastFrost {
-            result.append(("FROSTVAKTEN", "thermometer.snowflake", frostEnabled))
+            result.append(("FROSTVAKTEN", "thermometer.snowflake", notificationsEnabled && frostEnabled))
         }
-        if smhiActive { result.append(("SMHI-VARNING", "exclamationmark.triangle.fill", smhiEnabled)) }
+        if smhiActive { result.append(("SMHI-VARNING", "exclamationmark.triangle.fill", notificationsEnabled && smhiEnabled)) }
         return result
     }
 
     private var enabledCount: Int {
-        [rainEnabled, snowEnabled, thunderEnabled, windEnabled, frostEnabled, smhiEnabled].filter { $0 }.count
+        guard notificationsEnabled else { return 0 }
+        return [rainEnabled, snowEnabled, thunderEnabled, windEnabled, frostEnabled, smhiEnabled].filter { $0 }.count
     }
 
     var body: some View {
@@ -501,18 +508,20 @@ struct ActiveWatchSummary: View {
             } else {
                 LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], alignment: .leading, spacing: 7) {
                     ForEach(Array(activeTitles.enumerated()), id: \.offset) { _, item in
+                        let activeGreen = Color(red: 0.24, green: 0.66, blue: 0.43)
                         HStack(spacing: 6) {
-                            Image(systemName: item.1).foregroundStyle(item.2 ? WatchPalette.cyan : WatchPalette.muted)
+                            Image(systemName: item.1).foregroundStyle(item.2 ? activeGreen : WatchPalette.muted)
                             Text(item.0).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.78)
                             Spacer(minLength: 0)
+                            Circle().fill(item.2 ? activeGreen : WatchPalette.muted.opacity(0.55)).frame(width: 5, height: 5)
                             Text(item.2 ? "PÅ" : "AV")
                                 .font(.system(size: 9, weight: .heavy))
-                                .foregroundStyle(item.2 ? WatchPalette.cyan : WatchPalette.muted)
+                                .foregroundStyle(item.2 ? activeGreen : WatchPalette.muted)
                         }
                         .font(.system(size: 11, weight: .heavy))
                         .padding(.horizontal, 9).padding(.vertical, 9)
-                        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
-                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(WatchPalette.line, lineWidth: 1))
+                        .background(item.2 ? Color(red: 0.025, green: 0.105, blue: 0.075) : .white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(item.2 ? activeGreen.opacity(0.34) : WatchPalette.line, lineWidth: 1))
                     }
                 }
             }
