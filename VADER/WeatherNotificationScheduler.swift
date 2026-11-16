@@ -280,7 +280,7 @@ enum WeatherNotificationScheduler {
         } else {
             registryCount = 1
         }
-        let perPlaceLimit = max(1, min(8, 60 / registryCount))
+        let perPlaceLimit = max(1, min(8, 52 / registryCount))
         let selected = Array(requests.prefix(perPlaceLimit))
 
         
