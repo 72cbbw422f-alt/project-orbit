@@ -193,3 +193,10 @@ Varje arbetsomgång ska dokumentera:
 - Aviseringsmotorn använder samma risktrösklar för regn (40 % eller 0,3 mm), snö (40 % eller 0,2 mm), vind (15 m/s byvind eller 11 m/s medelvind), åska och frost (1 °C nattetid, 0 °C dagtid). Notiserna har avsiktligt 24 timmars horisont medan skärmens sammanfattning använder 6 timmar; det är en skillnad i framförhållning, inte i tröskelvärden.
 - Halknotisen har ett separat säkerhetsvillkor: fukt/nederbörd nu eller inom tre prognostimmar, alternativt underkyld nederbörd. Detta motsvarar riskmotorns halkbedömning, med notifieringens övergångs-/dedupliceringslogik ovanpå.
 - Fysisk enhetstestning återstår. Verifiera särskilt att detaljtexten för frost/halkrisk överensstämmer med statusen och att aviseringar inom 24 timmar inte ger falska förväntningar om att samma risk måste visas i 6-timmarssammanfattningen.
+
+
+## CI-fel och korrigering – 2026-11-17
+
+- Build #397 (`43950797835`) nådde Swift-kompileringen men misslyckades i `VADER/WeatherModels.swift:101` eftersom den tidigare lokala variabeln `wetNearFreeze` hade ersatts av `wetNearFreezeHour`, medan returvärdet fortfarande refererade till den borttagna variabeln.
+- Korrigerat frostflaggan så att den använder `wetNearFreezeHour != nil`. Det behåller den avsedda gemensamma riskbedömningen och tar bort kompileringsfelet.
+- Ny CI-byggning behöver verifiera korrigeringen. Ingen fysisk enhetstestning är utförd.
