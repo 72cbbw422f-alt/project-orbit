@@ -24,6 +24,7 @@ targets:
     sources:
       - path: VADER
     info:
+      path: VADER/Info.plist
       properties:
         BGTaskSchedulerPermittedIdentifiers:
           - app.walnut8211.vadra.weather-refresh
