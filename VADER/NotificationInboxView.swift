@@ -21,6 +21,29 @@ struct SMHIWarning: Identifiable {
     }
 }
 
+private actor SMHIWarningNotificationGate {
+    static let shared = SMHIWarningNotificationGate()
+    private var scheduled = Set<String>()
+    private var inFlight = Set<String>()
+
+    func prepare(current: Set<String>, persisted: Set<String>) {
+        scheduled = persisted.intersection(current)
+        inFlight.formIntersection(current)
+    }
+
+    func claim(_ signature: String) -> Bool {
+        guard !scheduled.contains(signature), !inFlight.contains(signature) else { return false }
+        inFlight.insert(signature)
+        return true
+    }
+
+    func finish(_ signature: String, accepted: Bool) -> Set<String> {
+        inFlight.remove(signature)
+        if accepted { scheduled.insert(signature) }
+        return scheduled
+    }
+}
+
 enum SMHIWarningService {
     static let endpoint = URL(string: "https://opendata-download-warnings.smhi.se/ibww/api/version/1/warning.json")!
 
@@ -194,15 +217,20 @@ enum SMHIWarningService {
                   authorization.authorizationStatus == .ephemeral else { return }
 
             let key = "Regnvakt.smhi.warningSignatures.v1"
-            var scheduled = Set(defaults.stringArray(forKey: key) ?? [])
             let currentSignatures = Set(active.map { $0.id + "|" + $0.level + "|" + $0.title })
-            // Retain deduplication only while a warning remains active. If SMHI
-            // later reissues the same warning ID, the user can be notified again.
-            scheduled.formIntersection(currentSignatures)
-            defaults.set(Array(scheduled), forKey: key)
+            let persistedSignatures = Set(defaults.stringArray(forKey: key) ?? [])
+            // The actor serializes claims across overlapping refreshes. A warning
+            // is claimed before awaiting UNUserNotificationCenter.add, preventing
+            // two concurrent checks from scheduling the same active warning.
+            await SMHIWarningNotificationGate.shared.prepare(
+                current: currentSignatures,
+                persisted: persistedSignatures
+            )
+            let prepared = persistedSignatures.intersection(currentSignatures)
+            defaults.set(Array(prepared), forKey: key)
             for warning in active {
                 let signature = warning.id + "|" + warning.level + "|" + warning.title
-                guard !scheduled.contains(signature) else { continue }
+                guard await SMHIWarningNotificationGate.shared.claim(signature) else { continue }
 
                 let content = UNMutableNotificationContent()
                 content.title = "SMHI: \(warning.level)"
@@ -219,10 +247,12 @@ enum SMHIWarningService {
                 )
                 do {
                     try await center.add(request)
-                    scheduled.insert(signature)
-                    defaults.set(Array(scheduled), forKey: key)
+                    let acceptedSignatures = await SMHIWarningNotificationGate.shared.finish(signature, accepted: true)
+                    defaults.set(Array(acceptedSignatures), forKey: key)
                     defaults.set(true, forKey: "Regnvakt.notifications.hasUnread")
                 } catch {
+                    let acceptedSignatures = await SMHIWarningNotificationGate.shared.finish(signature, accepted: false)
+                    defaults.set(Array(acceptedSignatures), forKey: key)
                     // Leave the signature uncommitted so the next check retries.
                 }
             }
