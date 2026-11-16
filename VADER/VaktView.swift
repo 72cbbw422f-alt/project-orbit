@@ -99,7 +99,7 @@ struct VaktDashboard: View {
         let currentFrostThreshold = (currentHourOfDay >= 18 || currentHourOfDay < 9) ? 1 : 0
         let currentFrost = weather.temperature <= currentFrostThreshold
         let frost = currentFrost || frostHour != nil || wetNearFreeze != nil
-        let precipitationTitle = snow ? "SNÖVAKTEN" : "REGNVAKTEN"
+        let precipitationTitle = "NEDERBÖRDSVAKTEN"
         let firstPrecipitation = upcoming.first { hour in
             let condition = hour.condition.lowercased()
             let isSnow = condition.contains("snö")
@@ -112,8 +112,9 @@ struct VaktDashboard: View {
                 : snow ? "Snöfall når aviseringsgränsen i timprognosen"
                 : rain ? "Regn når aviseringsgränsen i timprognosen"
                 : "Ingen nederbörd når aviseringsgränsen kommande timmar")
+        let enabledPrecipitationRisk = (rain && rainEnabled) || (snow && snowEnabled)
         return [
-            WatchItem(id: "precipitation", title: precipitationTitle, subtitle: "Nederbörd · regn · snö · duggregn", symbol: snow ? "cloud.snow.fill" : "cloud.rain.fill", active: notificationsEnabled && ((rain && rainEnabled) || (snow && snowEnabled)), isEnabled: notificationsEnabled && (snow ? snowEnabled : rainEnabled), riskDetected: rain || snow, detail: precipitationDetail, level: !notificationsEnabled || !(rainEnabled || snowEnabled) ? "AVSTÄNGD" : ((rain && rainEnabled) || (snow && snowEnabled)) ? "RISK I PROGNOS" : (rain || snow) ? "RISK FINNS · VAKT AV" : "LUGNT", tint: WatchPalette.cyan),
+            WatchItem(id: "precipitation", title: precipitationTitle, subtitle: "Nederbörd · regn · snö · duggregn", symbol: snow ? "cloud.snow.fill" : "cloud.rain.fill", active: notificationsEnabled && enabledPrecipitationRisk, isEnabled: notificationsEnabled && (rainEnabled || snowEnabled), riskDetected: rain || snow, detail: precipitationDetail, level: !notificationsEnabled || !(rainEnabled || snowEnabled) ? "AVSTÄNGD" : enabledPrecipitationRisk ? "RISK I PROGNOS" : (rain || snow) ? "RISK FINNS · VAKT AV" : "LUGNT", tint: WatchPalette.cyan),
             WatchItem(id: "thunder", title: "ÅSKVAKTEN", subtitle: "Åska · blixtar · åskrisk", symbol: "cloud.bolt.rain.fill", active: notificationsEnabled && thunder && thunderEnabled, isEnabled: notificationsEnabled && thunderEnabled, riskDetected: thunder, detail: thunder ? "Åska förekommer i prognosen" : "Ingen åska identifierad i prognosen", level: !notificationsEnabled || !thunderEnabled ? "AVSTÄNGD" : thunder ? "RISK I PROGNOS" : "LUGNT", tint: Color.orange),
             WatchItem(id: "wind", title: "VINDVAKTEN", subtitle: "Vindstyrka · hårda vindbyar", symbol: "wind", active: notificationsEnabled && wind && windEnabled, isEnabled: notificationsEnabled && windEnabled, riskDetected: wind, detail: String(format: "Vind upp till %.1f m/s • byvind %.1f m/s", maxWind, maxGust), level: !notificationsEnabled || !windEnabled ? "AVSTÄNGD" : wind ? "FÖRHÖJD VIND" : "LUGNT", tint: Color(red: 0.54, green: 0.72, blue: 1.0)),
             WatchItem(id: "frost", title: "FROSTVAKTEN", subtitle: "Frostbildning · temperatur · separat halkrisk", symbol: "thermometer.snowflake", active: notificationsEnabled && frost && frostEnabled, isEnabled: notificationsEnabled && frostEnabled, riskDetected: frost, detail: wetNearFreeze.map { "Fukt/nederbörd och cirka \($0.temperature)° omkring kl. \($0.time) – risk för halka" } ?? (currentFrost ? "Frostrisk just nu: cirka \(weather.temperature)°. Frost kan bildas även utan nederbörd." : frostHour.map { "Frostrisk: cirka \($0.temperature)° kl. \($0.time). Frost kan bildas även utan nederbörd." } ?? "Ingen tydlig frostrisk i timprognosen"), level: !notificationsEnabled || !frostEnabled ? "AVSTÄNGD" : wetNearFreeze != nil ? "HALKRISK" : frost ? "FROSTRISK" : "LUGNT", tint: Color.cyan),
