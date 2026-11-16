@@ -44,13 +44,13 @@ struct WeatherRiskAssessment {
     ) -> WeatherRiskAssessment {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = .current
+        formatter.timeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
         let horizon = WeatherWatchRules.forecastHorizon(from: now)
-        let upcoming = hours.filter { hour in
-            guard let date = formatter.date(from: hour.id) else { return false }
-            return date >= now && date <= horizon
-        }
+        let upcoming = hours.compactMap { hour -> (HourForecast, Date)? in
+            guard let date = formatter.date(from: hour.id), date >= now, date <= horizon else { return nil }
+            return (hour, date)
+        }.sorted { $0.1 < $1.1 }.map(\.0)
 
         let rain = upcoming.contains { hour in
             let condition = hour.condition.lowercased()
@@ -66,12 +66,14 @@ struct WeatherRiskAssessment {
         let maxWind = max(weather.wind, upcoming.map(\.wind).max() ?? 0)
         let wind = maxGust >= WeatherWatchRules.windGustThreshold || maxWind >= 11
 
-        let currentHour = Calendar.current.component(.hour, from: now)
+        var swedishCalendar = Calendar(identifier: .gregorian)
+        swedishCalendar.timeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
+        let currentHour = swedishCalendar.component(.hour, from: now)
         let currentThreshold = (currentHour >= 18 || currentHour < 9) ? 1 : 0
         let currentFrost = weather.temperature <= currentThreshold
         let forecastFrost = upcoming.contains { hour in
             guard let date = formatter.date(from: hour.id) else { return false }
-            let localHour = Calendar.current.component(.hour, from: date)
+            let localHour = swedishCalendar.component(.hour, from: date)
             return hour.temperature <= ((localHour >= 18 || localHour < 9) ? 1 : 0)
         }
         let wetNearFreezeHour = upcoming.enumerated().first { index, hour in
@@ -103,7 +105,7 @@ struct WeatherRiskAssessment {
             wetNearFreezeHour: wetNearFreezeHour,
             forecastFrostHour: upcoming.first { hour in
                 guard let date = formatter.date(from: hour.id) else { return false }
-                let localHour = Calendar.current.component(.hour, from: date)
+                let localHour = swedishCalendar.component(.hour, from: date)
                 return hour.temperature <= ((localHour >= 18 || localHour < 9) ? 1 : 0)
             },
             hasForecastData: !upcoming.isEmpty,

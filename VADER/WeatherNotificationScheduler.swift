@@ -379,7 +379,7 @@ enum WeatherNotificationScheduler {
     private static func makeEvents(hours: [HourForecast], currentTemperature: Int?, defaults: UserDefaults, frostDayKey: String) -> [Event] {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = .current
+        formatter.timeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
 
         var result: [Event] = []
@@ -390,10 +390,16 @@ enum WeatherNotificationScheduler {
         // Current frost is a separate, immediate safety alert. It is deduplicated
         // by a stable daily identifier and remains armed across forecast refreshes.
         let now = Date()
+        var swedishCalendar = Calendar(identifier: .gregorian)
+        swedishCalendar.timeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
+        let orderedHours = hours.compactMap { hour -> (HourForecast, Date)? in
+            guard let date = formatter.date(from: hour.id) else { return nil }
+            return (hour, date)
+        }.sorted { $0.1 < $1.1 }
         // Only schedule forecast-driven alerts inside the configured notification horizon.
         // The current-temperature frost check above remains immediate and separate.
         let forecastHorizon = WeatherWatchRules.notificationForecastHorizon(from: now)
-        let currentHour = Calendar.current.component(.hour, from: now)
+        let currentHour = swedishCalendar.component(.hour, from: now)
         let currentOvernight = currentHour >= 18 || currentHour < 9
         let currentThreshold = currentOvernight ? 1 : 0
         let currentFrost = (defaults.object(forKey: "Regnvakt.notifications.frost") as? Bool ?? true)
@@ -412,7 +418,7 @@ enum WeatherNotificationScheduler {
         // also covers a previously armed current alert when cached temperature
         // has become stale and currentTemperature is temporarily nil.
         if currentFrost || alreadyAlertedForCurrentFrostToday {
-            forecastFrostDays.insert(Calendar.current.startOfDay(for: now))
+            forecastFrostDays.insert(swedishCalendar.startOfDay(for: now))
         }
         if currentFrost && !alreadyAlertedForCurrentFrostToday {
             result.append(Event(
@@ -425,10 +431,8 @@ enum WeatherNotificationScheduler {
             ))
         }
 
-        for hour in hours {
-            guard let date = formatter.date(from: hour.id),
-                  date > now,
-                  date <= forecastHorizon else { continue }
+        for (hour, date) in orderedHours {
+            guard date > now, date <= forecastHorizon else { continue }
 
             let condition = hour.condition.lowercased()
             let isRain = condition.contains("regn") || condition.contains("dugg") || condition.contains("skur")
@@ -440,7 +444,10 @@ enum WeatherNotificationScheduler {
             let wetNow = hasPrecipitation ||
                 (hour.precipitationChance >= 50 && forecastShowsWetWeather)
             let wetWithinThreeHours = wetNow ||
-                (lastWetForecastDate.map { date.timeIntervalSince($0) <= 3 * 60 * 60 } ?? false)
+                (lastWetForecastDate.map {
+                    let elapsed = date.timeIntervalSince($0)
+                    return elapsed >= 0 && elapsed <= 3 * 60 * 60
+                } ?? false)
             var active: [Event] = []
 
             // Rain: notify for a meaningful forecast probability or measurable amount.
@@ -473,21 +480,21 @@ enum WeatherNotificationScheduler {
             }
 
             if defaults.object(forKey: "Regnvakt.notifications.frost") as? Bool ?? true {
-                let localHour = Calendar.current.component(.hour, from: date)
+                let localHour = swedishCalendar.component(.hour, from: date)
                 let overnight = localHour >= 18 || localHour < 9
                 // Forecast temperatures are whole degrees. A 1°C buffer is used
                 // overnight; during daytime, require freezing temperature.
                 let frostThreshold = overnight ? 1 : 0
 
                 if hour.temperature <= frostThreshold {
-                    let calendar = Calendar.current
+                    let calendar = swedishCalendar
                     let eventDay = calendar.startOfDay(for: date)
                     // One forecast frost warning per local calendar day and
                     // monitored place. Hourly temperatures can oscillate around
                     // 0–1°C; do not create several near-identical alerts for
                     // the same overnight frost episode.
                     if forecastFrostDays.insert(eventDay).inserted {
-                        let today = calendar.startOfDay(for: Date())
+                        let today = swedishCalendar.startOfDay(for: Date())
                         let dayOffset = calendar.dateComponents([.day], from: today, to: eventDay).day ?? 99
                         let currentHour = calendar.component(.hour, from: Date())
                         let isTonight = (dayOffset == 0 && (localHour >= 18 || (currentHour < 9 && localHour < 9)))
@@ -534,7 +541,7 @@ enum WeatherNotificationScheduler {
         guard setting != "none" else { return false }
         let parts = setting.split(separator: "–").compactMap { Int($0) }
         guard parts.count == 2 else { return false }
-        let hour = Calendar.current.component(.hour, from: date)
+        let hour = (Calendar(identifier: .gregorian).withTimeZone(TimeZone(identifier: "Europe/Stockholm") ?? .current)).component(.hour, from: date)
         let start = parts[0], end = parts[1]
         return start < end ? (hour >= start && hour < end) : (hour >= start || hour < end)
     }

@@ -386,6 +386,19 @@ private enum OpenMeteoService {
               let hourly = root["hourly"] as? [String: Any],
               let dates = daily["time"] as? [String],
               let hourlyTimes = hourly["time"] as? [String] else { throw URLError(.cannotParseResponse) }
+        // Required values must be present and finite. A missing API field is
+        // unknown weather, never a safe zero (especially for wind and temperature).
+        let requiredCurrentKeys = [
+            "temperature_2m", "relative_humidity_2m", "apparent_temperature",
+            "precipitation", "weather_code", "wind_speed_10m",
+            "wind_direction_10m", "wind_gusts_10m", "pressure_msl",
+            "cloud_cover", "dew_point_2m", "visibility"
+        ]
+        guard requiredCurrentKeys.allSatisfy({ key in
+            guard let value = current[key] as? NSNumber else { return false }
+            return value.doubleValue.isFinite
+        }) else { throw URLError(.cannotParseResponse) }
+
         func number(_ dict: [String: Any], _ key: String) -> Double {
             (dict[key] as? NSNumber)?.doubleValue ?? 0
         }
@@ -399,12 +412,34 @@ private enum OpenMeteoService {
         let uv = daily["uv_index_max"] as? [NSNumber] ?? []
         let sunrises = daily["sunrise"] as? [String] ?? []
         let sunsets = daily["sunset"] as? [String] ?? []
+        let dailyNumericArrays = [lows, highs, codes, chances, amounts, winds, gusts, uv]
+        guard !dates.isEmpty,
+              dailyNumericArrays.allSatisfy({ $0.count >= dates.count }),
+              sunrises.count >= dates.count,
+              sunsets.count >= dates.count,
+              dailyNumericArrays.allSatisfy({ values in values.prefix(dates.count).allSatisfy { $0.doubleValue.isFinite } }) else {
+            throw URLError(.cannotParseResponse)
+        }
         let hourlyTemps = hourly["temperature_2m"] as? [NSNumber] ?? []
         let hourlyChances = hourly["precipitation_probability"] as? [NSNumber] ?? []
         let hourlyAmounts = hourly["precipitation"] as? [NSNumber] ?? []
         let hourlyCodes = hourly["weather_code"] as? [NSNumber] ?? []
         let hourlyWinds = hourly["wind_speed_10m"] as? [NSNumber] ?? []
         let hourlyGusts = hourly["wind_gusts_10m"] as? [NSNumber] ?? []
+
+        // Risk evaluation depends on every hourly field. Reject an incomplete
+        // forecast rather than silently replacing missing precipitation/wind
+        // values with zero and reporting false "no risk".
+        let hourlyArrays = [hourlyTemps, hourlyChances, hourlyAmounts, hourlyCodes, hourlyWinds, hourlyGusts]
+        guard !hourlyTimes.isEmpty,
+              hourlyArrays.allSatisfy({ $0.count >= hourlyTimes.count }),
+              hourlyArrays.allSatisfy({ values in values.prefix(hourlyTimes.count).allSatisfy { $0.doubleValue.isFinite } }),
+              hourlyTimes.allSatisfy({ value in
+                  let parts = value.split(separator: "T")
+                  return parts.count == 2 && parts[0].count == 10 && parts[1].count == 5
+              }) else {
+            throw URLError(.cannotParseResponse)
+        }
         let apiTimeZone = TimeZone(identifier: root["timezone"] as? String ?? "") ?? .current
         let hourFormatter = DateFormatter()
         hourFormatter.locale = Locale(identifier: "en_US_POSIX")
@@ -415,7 +450,9 @@ private enum OpenMeteoService {
         displayHour.timeZone = apiTimeZone
         displayHour.dateFormat = "HH"
         let now = Date()
-        let currentHour = Calendar.current.date(bySetting: .minute, value: 0, of: now) ?? now
+        var apiCalendar = Calendar(identifier: .gregorian)
+        apiCalendar.timeZone = apiTimeZone
+        let currentHour = apiCalendar.dateInterval(of: .hour, for: now)?.start ?? now
         let startIndex = hourlyTimes.firstIndex { (hourFormatter.date(from: $0) ?? .distantPast) >= currentHour } ?? 0
         let hours: [HourForecast] = hourlyTimes.indices
             .filter { $0 >= startIndex && $0 < startIndex + 168 }

@@ -200,3 +200,18 @@ Varje arbetsomgång ska dokumentera:
 - Build #397 (`43950797835`) nådde Swift-kompileringen men misslyckades i `VADER/WeatherModels.swift:101` eftersom den tidigare lokala variabeln `wetNearFreeze` hade ersatts av `wetNearFreezeHour`, medan returvärdet fortfarande refererade till den borttagna variabeln.
 - Korrigerat frostflaggan så att den använder `wetNearFreezeHour != nil`. Det behåller den avsedda gemensamma riskbedömningen och tar bort kompileringsfelet.
 - Ny CI-byggning behöver verifiera korrigeringen. Ingen fysisk enhetstestning är utförd.
+
+
+## Prognosdatakvalitet och tidszonssäkring – 2026-11-17
+
+- Open-Meteo-hämtningen avvisar nu svar där obligatoriska aktuella mätvärden saknas/är ogiltiga eller där någon av de sex timvisa riskserierna är kortare än tidsserien. Saknade värden får inte längre tyst bli 0 och därmed se ut som vindstilla eller nederbördsfritt väder.
+- Dagliga prognosserier valideras mot antal datum innan de visas; ofullständiga dagsvärden ska inte fyllas med nollor.
+- Starttimmen avrundas i API-platsens tidszon. Riskbedömning, vaktfilter och notifieringsschema tolkar prognosernas lokala tidsstämplar med Europe/Stockholm, vilket är rätt tidszon för appens svenska orter även om telefonen befinner sig i en annan tidszon.
+- Notisschemaläggaren sorterar timprognosen kronologiskt och halkans tre-timmarsfönster kräver nu ett tidsavstånd mellan 0 och 3 timmar; en timme i fel ordning kan inte längre räknas som framtida fukt.
+- Detta är kodgranskning och defensiv validering, inte bevis på API-tillgänglighet eller fysisk enhetstest. Vid ofullständigt Open-Meteo-svar visas hämtningsfel i stället för en falskt lugn prognos; tidigare cache kan fortfarande finnas kvar och statusen måste därför läsas tillsammans med senaste uppdatering.
+
+### Återstående verifiering
+
+- Granska SMHI-tjänstens geografiska täckning och felhantering separat; koordinatbaserad kontroll av vald/bevakad plats är inte samma sak som en nationell varningsöversikt.
+- Lägg till testbar risklogik/testmål och kör gränsvärdestester för regn, snö, vind, frost och halka.
+- Fysisk iPhone-testning av radar, notiser, behörigheter, bakgrundsbeteende och layout återstår.
