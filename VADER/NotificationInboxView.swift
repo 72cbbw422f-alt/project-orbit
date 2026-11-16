@@ -33,7 +33,6 @@ private actor SMHIWarningNotificationGate {
         // overlapping refresh must never erase a claim committed by a faster one.
         scheduled.formUnion(persisted.intersection(current))
         // Do not discard in-flight claims based on a possibly stale response.
-        UserDefaults.standard.set(Array(scheduled.intersection(current)), forKey: persistenceKey)
     }
 
     func clearScheduled() {
@@ -229,7 +228,7 @@ enum SMHIWarningService {
                   authorization.authorizationStatus == .ephemeral else { return }
 
             let key = "Regnvakt.smhi.warningSignatures.v1"
-            let currentSignatures = Set(active.map { $0.id + "|" + $0.level + "|" + $0.title })
+            let currentSignatures = Set(active.map { $0.id + "|" + $0.level + "|" + $0.title + "|" + $0.start })
             let persistedSignatures = Set(defaults.stringArray(forKey: key) ?? [])
             // The actor serializes claims across overlapping refreshes. A warning
             // is claimed before awaiting UNUserNotificationCenter.add, preventing
@@ -251,7 +250,7 @@ enum SMHIWarningService {
                 return $0.id < $1.id
             }
             for warning in prioritizedActive.prefix(8) {
-                let signature = warning.id + "|" + warning.level + "|" + warning.title
+                let signature = warning.id + "|" + warning.level + "|" + warning.title + "|" + warning.start
                 guard await SMHIWarningNotificationGate.shared.claim(signature) else { continue }
 
                 let content = UNMutableNotificationContent()
@@ -273,8 +272,7 @@ enum SMHIWarningService {
                         && (defaults.object(forKey: "Regnvakt.notifications.smhi") as? Bool ?? true)
                     guard stillEnabled else {
                         center.removePendingNotificationRequests(withIdentifiers: [request.identifier])
-                        let acceptedSignatures = await SMHIWarningNotificationGate.shared.finish(signature, accepted: false)
-                        defaults.set(Array(acceptedSignatures), forKey: key)
+                        _ = await SMHIWarningNotificationGate.shared.finish(signature, accepted: false)
                         continue
                     }
                     _ = await SMHIWarningNotificationGate.shared.finish(signature, accepted: true)
