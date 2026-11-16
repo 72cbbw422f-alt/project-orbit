@@ -183,6 +183,9 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
             monitoredPlaceIDs.remove(place.id)
             persistMonitoredPlaces()
             WeatherNotificationScheduler.removeNotifications(latitude: place.latitude, longitude: place.longitude)
+            // Reclaim this place's share of the pending-notification budget
+            // and reschedule the remaining monitored locations.
+            WeatherNotificationScheduler.refreshFromStoredForecast()
         }
     }
 
