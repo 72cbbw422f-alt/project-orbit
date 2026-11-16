@@ -1058,62 +1058,85 @@ struct RadarMapView: View {
         windStatus = "Hämtar vinddata över området…"
         let center = requestedCenter ?? windMapCenter ?? mapCoordinate
         windMapCenter = center
-        // Spread the same 25 requests across a wider, map-sized area.
-        // Longitude needs a wider degree span at Swedish latitudes because
-        // one longitude degree is much shorter than one latitude degree.
+
+        // Keep the 5×5 geographic sample grid, but request all locations in
+        // one Open-Meteo call instead of opening 25 parallel HTTP requests.
         let latitudeGrid = [-0.60, -0.30, 0.0, 0.30, 0.60]
         let longitudeGrid = [-1.00, -0.50, 0.0, 0.50, 1.00]
         let offsets: [(Double, Double)] = latitudeGrid.flatMap { lat in
             longitudeGrid.map { lon in (lat, lon) }
         }
-        var results: [WindSample] = []
-        await withTaskGroup(of: WindSample?.self) { group in
-            for (index, offset) in offsets.enumerated() {
-                if Task.isCancelled { break }
-                let lat = center.latitude + offset.0
-                let lon = center.longitude + offset.1
-                group.addTask {
-                    var components = URLComponents(string: "https://api.open-meteo.com/v1/forecast")!
-                    components.queryItems = [
-                        URLQueryItem(name: "latitude", value: String(lat)),
-                        URLQueryItem(name: "longitude", value: String(lon)),
-                        URLQueryItem(name: "current", value: "wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,precipitation,rain,showers,snowfall,weather_code"),
-                        URLQueryItem(name: "wind_speed_unit", value: "ms"),
-                        URLQueryItem(name: "timezone", value: "auto")
-                    ]
-                    guard let url = components.url,
-                          let (data, response) = try? await URLSession.shared.data(from: url),
-                          (response as? HTTPURLResponse)?.statusCode == 200,
-                          let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                          let current = root["current"] as? [String: Any],
-                          let speed = (current["wind_speed_10m"] as? NSNumber)?.doubleValue,
-                          let direction = (current["wind_direction_10m"] as? NSNumber)?.doubleValue,
-                          let gust = (current["wind_gusts_10m"] as? NSNumber)?.doubleValue else { return nil }
-                    let cloud = (current["cloud_cover"] as? NSNumber)?.doubleValue ?? 0
-                    let rain = (current["rain"] as? NSNumber)?.doubleValue ?? 0
-                    let showers = (current["showers"] as? NSNumber)?.doubleValue ?? 0
-                    let snow = (current["snowfall"] as? NSNumber)?.doubleValue ?? 0
-                    let precipitation = (current["precipitation"] as? NSNumber)?.doubleValue ?? max(rain + showers, snow)
-                    let code = (current["weather_code"] as? NSNumber)?.intValue ?? 0
-                    let type: Int
-                    if snow > 0.02 && rain + showers > 0.02 { type = 3 }
-                    else if snow > 0.02 || (71...86).contains(code) { type = 2 }
-                    else if rain + showers > 0.02 || (51...67).contains(code) || (80...82).contains(code) { type = 1 }
-                    else { type = 0 }
-                    return WindSample(id: index, latitude: lat, longitude: lon, speed: speed, direction: direction, gust: gust, cloudCover: cloud, precipitationType: type, precipitation: precipitation)
-                }
-            }
-            for await sample in group {
-                if Task.isCancelled { group.cancelAll(); break }
-                if let sample { results.append(sample) }
-            }
+        let coordinates = offsets.map { (center.latitude + $0.0, center.longitude + $0.1) }
+
+        var components = URLComponents(string: "https://api.open-meteo.com/v1/forecast")!
+        components.queryItems = [
+            URLQueryItem(name: "latitude", value: coordinates.map { String($0.0) }.joined(separator: ",")),
+            URLQueryItem(name: "longitude", value: coordinates.map { String($0.1) }.joined(separator: ",")),
+            URLQueryItem(name: "current", value: "wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,precipitation,rain,showers,snowfall,weather_code"),
+            URLQueryItem(name: "wind_speed_unit", value: "ms"),
+            URLQueryItem(name: "timezone", value: "auto")
+        ]
+
+        guard let url = components.url else {
+            windStatus = "Kunde inte skapa begäran för vinddata."
+            return
         }
-        guard !Task.isCancelled else { return }
-        windSamples = results.sorted { $0.id < $1.id }
-        windUpdated = Date()
-        windStatus = results.count == offsets.count
-            ? (showClouds ? "Molntäcke • 25 geografiskt placerade modellpunkter" : "Vindfält • 25 modellpunkter runt kartans mittpunkt")
-            : (showClouds ? "Molntäcke delvis tillgängligt • \(results.count) av 25 punkter" : "Vindfält delvis tillgängligt • \(results.count) av 25 punkter")
+
+        do {
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 20
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard !Task.isCancelled else { return }
+            guard (response as? HTTPURLResponse)?.statusCode == 200,
+                  let locations = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                throw URLError(.cannotParseResponse)
+            }
+
+            var results: [WindSample] = []
+            for (index, root) in locations.enumerated() {
+                guard index < coordinates.count,
+                      let current = root["current"] as? [String: Any],
+                      let speed = (current["wind_speed_10m"] as? NSNumber)?.doubleValue,
+                      let direction = (current["wind_direction_10m"] as? NSNumber)?.doubleValue,
+                      let gust = (current["wind_gusts_10m"] as? NSNumber)?.doubleValue else { continue }
+
+                let cloud = (current["cloud_cover"] as? NSNumber)?.doubleValue ?? 0
+                let rain = (current["rain"] as? NSNumber)?.doubleValue ?? 0
+                let showers = (current["showers"] as? NSNumber)?.doubleValue ?? 0
+                let snow = (current["snowfall"] as? NSNumber)?.doubleValue ?? 0
+                let precipitation = (current["precipitation"] as? NSNumber)?.doubleValue ?? max(rain + showers, snow)
+                let code = (current["weather_code"] as? NSNumber)?.intValue ?? 0
+                let type: Int
+                if snow > 0.02 && rain + showers > 0.02 { type = 3 }
+                else if snow > 0.02 || (71...86).contains(code) { type = 2 }
+                else if rain + showers > 0.02 || (51...67).contains(code) || (80...82).contains(code) { type = 1 }
+                else { type = 0 }
+
+                let coordinate = coordinates[index]
+                results.append(WindSample(
+                    id: index,
+                    latitude: coordinate.0,
+                    longitude: coordinate.1,
+                    speed: speed,
+                    direction: direction,
+                    gust: gust,
+                    cloudCover: cloud,
+                    precipitationType: type,
+                    precipitation: precipitation
+                ))
+            }
+
+            guard !Task.isCancelled else { return }
+            windSamples = results.sorted { $0.id < $1.id }
+            windUpdated = Date()
+            windStatus = results.count == offsets.count
+                ? (showClouds ? "Molntäcke • 25 geografiskt placerade modellpunkter" : "Vindfält • 25 modellpunkter runt kartans mittpunkt")
+                : (showClouds ? "Molntäcke delvis tillgängligt • \(results.count) av 25 punkter" : "Vindfält delvis tillgängligt • \(results.count) av 25 punkter")
+        } catch {
+            guard !Task.isCancelled else { return }
+            windStatus = "Kunde inte hämta vinddata för kartområdet. Försök igen."
+        }
     }
 
     private static func precipitationName(code: Int, temperature: Double) -> String {
