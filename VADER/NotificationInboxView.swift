@@ -176,7 +176,7 @@ enum SMHIWarningService {
             await SMHIWarningNotificationGate.shared.clearScheduled(ifEpoch: epoch)
             let requests = await center.pendingNotificationRequests()
             guard defaults.string(forKey: notificationEpochKey) == epoch else { return }
-            let ids = requests.map(\\.identifier).filter { $0.hasPrefix("smhi.") }
+            let ids = requests.map(\.identifier).filter { $0.hasPrefix("smhi.") }
             center.removePendingNotificationRequests(withIdentifiers: ids)
         }
     }
@@ -272,7 +272,7 @@ enum SMHIWarningService {
             let pendingSMHIRequests = await center.pendingNotificationRequests().filter {
                 $0.identifier.hasPrefix("smhi.")
             }
-            let pendingSMHIIDs = Set(pendingSMHIRequests.map(\\.identifier))
+            let pendingSMHIIDs = Set(pendingSMHIRequests.map(\.identifier))
             let availableSMHISlots = max(0, 8 - pendingSMHIRequests.count)
             var queuedSMHIWarnings = 0
             for warning in prioritizedActive {
@@ -280,7 +280,7 @@ enum SMHIWarningService {
                 let safeID = warning.id.replacingOccurrences(
                     of: "[^A-Za-z0-9.-]", with: "-", options: .regularExpression
                 )
-                let identifier = "smhi.\\(safeID).\\(warning.level)"
+                let identifier = "smhi.\(safeID).\(warning.level)"
 
                 // Recover a request accepted by iOS just before an app interruption.
                 if pendingSMHIIDs.contains(identifier) {
@@ -297,11 +297,8 @@ enum SMHIWarningService {
                 content.body = "\(warning.title) – \(warning.area)"
                 content.sound = .default
                 content.userInfo = ["watch": "smhi", "warningID": warning.id, "area": warning.area]
-                let safeID = warning.id.replacingOccurrences(
-                    of: "[^A-Za-z0-9.-]", with: "-", options: .regularExpression
-                )
                 let request = UNNotificationRequest(
-                    identifier: "smhi.\(safeID).\(warning.level)",
+                    identifier: identifier,
                     content: content,
                     trigger: UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false)
                 )
