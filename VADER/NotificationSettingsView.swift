@@ -166,15 +166,34 @@ struct NotificationSettingsView: View {
     }
 
     private func watchToggle(_ title: String, subtitle: String, icon: String, value: Binding<Bool>) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: icon).font(.system(size: 17, weight: .semibold)).foregroundStyle(cyan).frame(width: 25)
+        let isEnabled = value.wrappedValue
+        let activeGreen = Color(red: 0.24, green: 0.66, blue: 0.43)
+        return HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(isEnabled ? activeGreen : cyan)
+                .frame(width: 25)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
                 Text(subtitle).font(.system(size: 12, weight: .medium)).foregroundStyle(muted)
             }
             Spacer(minLength: 4)
-            Toggle(title, isOn: value).labelsHidden().tint(cyan)
+            Circle()
+                .fill(isEnabled ? activeGreen : muted.opacity(0.35))
+                .frame(width: 6, height: 6)
+                .accessibilityHidden(true)
+            Toggle(title, isOn: value).labelsHidden().tint(isEnabled ? activeGreen : cyan)
         }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+        .background(
+            isEnabled ? Color(red: 0.035, green: 0.105, blue: 0.078) : .clear,
+            in: RoundedRectangle(cornerRadius: 12)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(isEnabled ? activeGreen.opacity(0.34) : .clear, lineWidth: 1)
+        )
     }
 
     @MainActor
