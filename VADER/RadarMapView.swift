@@ -866,6 +866,7 @@ struct RadarMapView: View {
               }
               .padding(.bottom, 112)
             }
+            .safeAreaPadding(.top, 10)
         }
         .task {
             await refreshRadar()
