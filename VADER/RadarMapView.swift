@@ -75,7 +75,15 @@ private enum RadarService {
         let unique = Dictionary(grouping: frames, by: { $0.time })
         let sorted = unique.values.compactMap { $0.first }.sorted { $0.time < $1.time }
         let recent = Array(sorted.suffix(25))
-        guard !recent.isEmpty else { throw URLError(.cannotParseResponse) }
+        guard let newest = recent.last?.time else { throw URLError(.cannotParseResponse) }
+
+        // QCOMP frames are generated every five minutes. Do not keep presenting
+        // an old SMHI image as live radar during an upstream outage; let the
+        // RainViewer fallback take over when the newest frame is stale.
+        let frameAge = Date().timeIntervalSince(newest)
+        guard frameAge >= -5 * 60, frameAge <= 20 * 60 else {
+            throw URLError(.cannotLoadFromNetwork)
+        }
         return recent
     }
 
