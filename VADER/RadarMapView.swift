@@ -581,7 +581,45 @@ struct RadarMapView: View {
                 }
                 .padding(.horizontal, 12)
                 .frame(maxWidth: .infinity)
-                .frame(height: 430)
+                .frame(height: 340)
+
+                if !showWind && !showClouds, let selectedFrame {
+                    HStack(spacing: 9) {
+                        Button { selectedIndex = max(0, selectedIndex - 1) } label: {
+                            Image(systemName: "backward.end.fill").font(.system(size: 12, weight: .bold))
+                                .frame(width: 28, height: 34)
+                        }
+                        VStack(alignment: .leading, spacing: 1) {
+                            HStack {
+                                Text("RADAR").font(.system(size: 10, weight: .heavy)).tracking(0.8).foregroundStyle(Color.cyan)
+                                Spacer()
+                                Text(selectedFrame.time.formatted(date: .omitted, time: .shortened))
+                                    .font(.system(size: 13, weight: .bold, design: .rounded).monospacedDigit())
+                            }
+                            Slider(value: Binding(
+                                get: { Double(selectedIndex) },
+                                set: { selectedIndex = Int($0.rounded()) }
+                            ), in: 0...Double(max(0, frames.count - 1)), step: 1)
+                            .tint(Color(red: 0.98, green: 0.58, blue: 0.40))
+                            .disabled(frames.count < 2)
+                        }
+                        Button { isPlaying.toggle() } label: {
+                            Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                                .font(.system(size: 13, weight: .bold))
+                                .frame(width: 34, height: 34)
+                                .background(Color(red: 0.98, green: 0.66, blue: 0.47), in: Circle())
+                                .foregroundStyle(Color(red: 0.07, green: 0.10, blue: 0.14))
+                        }
+                        Button { selectedIndex = min(frames.count - 1, selectedIndex + 1) } label: {
+                            Image(systemName: "forward.end.fill").font(.system(size: 12, weight: .bold))
+                                .frame(width: 28, height: 34)
+                        }
+                    }
+                    .foregroundStyle(Color(red: 0.98, green: 0.66, blue: 0.47))
+                    .padding(.horizontal, 11).padding(.vertical, 6)
+                    .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 13))
+                    .padding(.horizontal, 12).padding(.top, 7).padding(.bottom, 3)
+                }
 
                 VStack(spacing: 13) {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
@@ -690,8 +728,8 @@ struct RadarMapView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("MOLNTÄCKE ÖVER KARTOMRÅDET")
                                 .font(.system(size: 12, weight: .heavy)).tracking(0.8).foregroundStyle(Color.cyan)
-                            Text("Modellberäknad molnighet från Open-Meteo. Ljusa fält visar större molntäcke; visualiseringen är en interpolerad områdesbild, inte satellitobservation.")
-                                .font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.82))
+                            Text("Open-Meteo-modell • geografiskt placerade mätpunkter, inte satellitbilder.")
+                                .font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.68))
                             HStack {
                                 Text(windStatus)
                                 Spacer()
@@ -714,8 +752,8 @@ struct RadarMapView: View {
                         VStack(alignment: .leading, spacing: 9) {
                             Text("NEDERBÖRDSTYP ÖVER KARTAN")
                                 .font(.system(size: 12, weight: .heavy)).tracking(0.8).foregroundStyle(Color.cyan)
-                            Text("Modellbedömning från Open-Meteo. Färgerna visar beräknad nederbördstyp vid geografiska punkter – inte en direkt klassificering av radarbildens pixlar.")
-                                .font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.82))
+                            Text("Prognosmodell från Open-Meteo – inte en klassificering av radarbildens pixlar.")
+                                .font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.68))
                             HStack(spacing: 12) {
                                 legendItem("Regn", color: Color(red: 0.18, green: 0.58, blue: 0.96), count: rainCount)
                                 legendItem("Snö", color: Color(red: 0.82, green: 0.92, blue: 1.0), count: snowCount)
@@ -726,78 +764,6 @@ struct RadarMapView: View {
                         .background(Color(red: 0.12, green: 0.16, blue: 0.21), in: RoundedRectangle(cornerRadius: 15))
                     }
 
-                    if !showWind && !showClouds {
-                    HStack(spacing: 9) {
-                        Image(systemName: precipitationSymbol)
-                            .font(.system(size: 19, weight: .semibold))
-                            .foregroundStyle(Color(red: 0.98, green: 0.58, blue: 0.40))
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(precipitationType).font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
-                            Text(typeDetail).font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.68))
-                            Text(radarAtPlace).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color(red: 0.35, green: 0.88, blue: 0.83))
-                        }
-                        Spacer()
-                        Button { showTypeInfo = true } label: {
-                            Image(systemName: "info.circle").font(.system(size: 19)).foregroundStyle(Color(red: 0.98, green: 0.58, blue: 0.40))
-                        }
-                    }
-                    .padding(12)
-                    .background(Color(red: 0.12, green: 0.16, blue: 0.21), in: RoundedRectangle(cornerRadius: 15))
-                    }
-
-
-                    if isLoading {
-                        HStack(spacing: 8) {
-                            ProgressView().tint(.cyan)
-                            Text("Hämtar radarobservationer…")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.8))
-                        }.frame(maxWidth: .infinity, alignment: .leading)
-                    } else if let errorMessage {
-                        Text(errorMessage).font(.system(size: 12, weight: .medium)).foregroundStyle(.orange)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-
-                    if !showWind && !showClouds {
-                    if let selectedFrame {
-                        HStack(alignment: .firstTextBaseline) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("VALD RADARTID").font(.system(size: 12, weight: .heavy)).tracking(1).foregroundStyle(Color.cyan)
-                                Text(selectedFrame.time.formatted(date: .omitted, time: .shortened))
-                                    .font(.system(size: 24, weight: .bold, design: .rounded).monospacedDigit()).foregroundStyle(.white)
-                            }
-                            Spacer()
-                            Text("SENASTE 2 TIMMARNA").font(.system(size: 12, weight: .heavy)).tracking(0.8).foregroundStyle(.white.opacity(0.6))
-                        }
-                        Slider(value: Binding(
-                            get: { Double(selectedIndex) },
-                            set: { selectedIndex = Int($0.rounded()) }
-                        ), in: 0...Double(max(0, frames.count - 1)), step: 1)
-                        .tint(Color(red: 0.98, green: 0.58, blue: 0.40))
-                        .disabled(frames.count < 2)
-                        HStack(spacing: 18) {
-                            Button { selectedIndex = max(0, selectedIndex - 1) } label: { Image(systemName: "backward.end.fill").font(.system(size: 17)) }
-                            Button { isPlaying.toggle() } label: {
-                                Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                                    .font(.system(size: 18, weight: .bold))
-                                    .foregroundStyle(Color(red: 0.07, green: 0.10, blue: 0.14))
-                                    .frame(width: 48, height: 48)
-                                    .background(Color(red: 0.98, green: 0.66, blue: 0.47), in: Circle())
-                            }
-                            Button { selectedIndex = min(frames.count - 1, selectedIndex + 1) } label: { Image(systemName: "forward.end.fill").font(.system(size: 17)) }
-                            Spacer()
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text("UPPDATERAD").font(.system(size: 12, weight: .heavy)).tracking(0.8).foregroundStyle(.white.opacity(0.48))
-                                Text(lastUpdated?.formatted(date: .omitted, time: .shortened) ?? "—")
-                                    .font(.system(size: 12, weight: .semibold)).foregroundStyle(.white.opacity(0.75))
-                            }
-                        }
-                        .foregroundStyle(Color(red: 0.98, green: 0.66, blue: 0.47))
-                    } else {
-                        Text("Radarhistorik visas här när data har hämtats.")
-                            .font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.7))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
@@ -902,7 +868,8 @@ struct RadarMapView: View {
 
     private func legendItem(_ title: String, color: Color, count: Int) -> some View {
         HStack(spacing: 5) {
-            Circle().fill(color).frame(width: 9, height: 9)
+            Image(systemName: title == "Regn" ? "drop.fill" : title == "Snö" ? "snowflake" : "cloud.sleet.fill")
+                .font(.system(size: 12, weight: .bold)).foregroundStyle(color).frame(width: 14)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title).font(.system(size: 10, weight: .bold)).foregroundStyle(.white)
                 Text("\(count) punkter").font(.system(size: 9, weight: .medium)).foregroundStyle(.white.opacity(0.58))
@@ -1324,57 +1291,51 @@ private struct RegnvaktMapView: UIViewRepresentable {
             guard identity != appliedCloudIdentity else { return }
             appliedCloudIdentity = identity
 
-            if let layer = style.layer(withIdentifier: "regnvakt-cloud-layer") { style.removeLayer(layer) }
-            if let source = style.source(withIdentifier: "regnvakt-cloud-source") { style.removeSource(source) }
-            guard cloudsVisible, !latestCloudSamples.isEmpty else { return }
-
             let features: [MLNPointFeature] = latestCloudSamples.map { sample in
                 let feature = MLNPointFeature()
                 feature.coordinate = CLLocationCoordinate2D(latitude: sample.latitude, longitude: sample.longitude)
                 feature.attributes = ["cloudCover": NSNumber(value: sample.cloudCover)]
                 return feature
             }
-            let source = MLNShapeSource(
-                identifier: "regnvakt-cloud-source",
-                shape: MLNShapeCollectionFeature(shapes: features),
-                options: nil
-            )
-            let layer = MLNCircleStyleLayer(identifier: "regnvakt-cloud-layer", source: source)
-            // A soft blue cloud veil whose opacity follows the actual modelled
-            // cloud percentage. Circle layers avoid the opaque white heatmap
-            // and are only rebuilt when visibility or sample values change.
-            layer.circleColor = NSExpression(forConstantValue: UIColor(red: 0.42, green: 0.66, blue: 0.88, alpha: 1))
-            layer.circleOpacity = NSExpression(format: "cloudCover / 100.0 * 0.34")
-            layer.circleRadius = NSExpression(forConstantValue: 54)
-            layer.circleBlur = NSExpression(forConstantValue: 0.82)
-            style.addSource(source)
-            style.addLayer(layer)
+            let shape = MLNShapeCollectionFeature(shapes: features)
+            let sourceID = "regnvakt-cloud-source"
+            let source: MLNShapeSource
+            if let existing = style.source(withIdentifier: sourceID) as? MLNShapeSource {
+                existing.shape = shape
+                source = existing
+            } else {
+                source = MLNShapeSource(identifier: sourceID, shape: shape, options: nil)
+                style.addSource(source)
+            }
+            let layerID = "regnvakt-cloud-layer"
+            if style.layer(withIdentifier: layerID) == nil {
+                let layer = MLNCircleStyleLayer(identifier: layerID, source: source)
+                // Small, geographically anchored points prevent the sampled
+                // field from blending into one oversized blob.
+                layer.circleColor = NSExpression(forConstantValue: UIColor(red: 0.38, green: 0.68, blue: 0.94, alpha: 1))
+                layer.circleOpacity = NSExpression(format: "cloudCover / 100.0 * 0.30")
+                layer.circleRadius = NSExpression(forConstantValue: 19)
+                layer.circleBlur = NSExpression(forConstantValue: 0.28)
+                style.addLayer(layer)
+            }
+            if let layer = style.layer(withIdentifier: layerID) {
+                layer.isVisible = cloudsVisible
+            }
         }
 
         func applyPrecipitationTypesIfReady() {
             guard styleReady, let style = mapView?.style else { return }
             let identity = precipitationTypesVisible
-                ? latestCloudSamples.map { "\($0.id):\(String(format: "%.4f", $0.latitude)),\(String(format: "%.4f", $0.longitude)):\($0.precipitationType):\(Int(($0.precipitation * 10).rounded()))" }.joined(separator: "|")
+                ? latestCloudSamples.map { "\($0.id):\(String(format: "%.4f", $0.latitude)),\(String(format: "%.4f", $0.longitude)):\($0.precipitationType):\($0.precipitation >= 0.05)" }.joined(separator: "|")
                 : "hidden"
             guard identity != appliedPrecipitationIdentity else { return }
             appliedPrecipitationIdentity = identity
 
-            let typeLayers = ["rain", "snow", "mixed"].map { name in "regnvakt-precip-type-\(name)-layer" }
-            let typeSources = ["rain", "snow", "mixed"].map { name in "regnvakt-precip-type-\(name)-source" }
-            for identifier in typeLayers {
-                if let layer = style.layer(withIdentifier: identifier) { style.removeLayer(layer) }
-            }
-            for identifier in typeSources {
-                if let source = style.source(withIdentifier: identifier) { style.removeSource(source) }
-            }
-            guard precipitationTypesVisible else { return }
-
             let definitions: [(name: String, type: Int, color: UIColor)] = [
-                ("rain", 1, UIColor(red: 0.18, green: 0.58, blue: 0.96, alpha: 1)),
-                ("snow", 2, UIColor(red: 0.82, green: 0.92, blue: 1.0, alpha: 1)),
-                ("mixed", 3, UIColor(red: 0.68, green: 0.42, blue: 0.88, alpha: 1))
+                ("rain", 1, UIColor(red: 0.12, green: 0.56, blue: 0.98, alpha: 1)),
+                ("snow", 2, UIColor(red: 0.82, green: 0.93, blue: 1.0, alpha: 1)),
+                ("mixed", 3, UIColor(red: 0.72, green: 0.42, blue: 0.92, alpha: 1))
             ]
-
             for definition in definitions {
                 let features: [MLNPointFeature] = latestCloudSamples.compactMap { sample in
                     guard sample.precipitationType == definition.type,
@@ -1384,24 +1345,32 @@ private struct RegnvaktMapView: UIViewRepresentable {
                     feature.attributes = ["precipitation": NSNumber(value: sample.precipitation)]
                     return feature
                 }
-                guard !features.isEmpty else { continue }
-
                 let sourceID = "regnvakt-precip-type-\(definition.name)-source"
                 let layerID = "regnvakt-precip-type-\(definition.name)-layer"
-                let source = MLNShapeSource(
-                    identifier: sourceID,
-                    shape: MLNShapeCollectionFeature(shapes: features),
-                    options: nil
-                )
-                let layer = MLNCircleStyleLayer(identifier: layerID, source: source)
-                // Distinct translucent coloured patches replace the white,
-                // flashing heatmap. The blur blends neighbouring model points.
-                layer.circleColor = NSExpression(forConstantValue: definition.color)
-                layer.circleOpacity = NSExpression(forConstantValue: 0.62)
-                layer.circleRadius = NSExpression(forConstantValue: 48)
-                layer.circleBlur = NSExpression(forConstantValue: 0.78)
-                style.addSource(source)
-                style.addLayer(layer)
+                let shape = MLNShapeCollectionFeature(shapes: features)
+                let source: MLNShapeSource
+                if let existing = style.source(withIdentifier: sourceID) as? MLNShapeSource {
+                    existing.shape = shape
+                    source = existing
+                } else {
+                    source = MLNShapeSource(identifier: sourceID, shape: shape, options: nil)
+                    style.addSource(source)
+                }
+                if style.layer(withIdentifier: layerID) == nil {
+                    let layer = MLNCircleStyleLayer(identifier: layerID, source: source)
+                    // Crisp outlined markers are readable and do not pulse
+                    // like the former large blurred heatmap spots.
+                    layer.circleColor = NSExpression(forConstantValue: definition.color)
+                    layer.circleOpacity = NSExpression(forConstantValue: 0.88)
+                    layer.circleRadius = NSExpression(forConstantValue: 12)
+                    layer.circleBlur = NSExpression(forConstantValue: 0.08)
+                    layer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
+                    layer.circleStrokeWidth = NSExpression(forConstantValue: 1.8)
+                    style.addLayer(layer)
+                }
+                if let layer = style.layer(withIdentifier: layerID) {
+                    layer.isVisible = precipitationTypesVisible
+                }
             }
         }
 
