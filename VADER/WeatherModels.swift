@@ -98,7 +98,7 @@ struct WeatherRiskAssessment {
             snow: snow,
             thunder: thunder,
             wind: wind,
-            frost: currentFrost || forecastFrost || wetNearFreeze,
+            frost: currentFrost || forecastFrost || wetNearFreezeHour != nil,
             wetNearFreeze: wetNearFreezeHour != nil,
             wetNearFreezeHour: wetNearFreezeHour,
             forecastFrostHour: upcoming.first { hour in
