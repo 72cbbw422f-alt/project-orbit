@@ -15,6 +15,96 @@ enum WeatherWatchRules {
     }
 }
 
+
+struct WeatherRiskAssessment {
+    let rain: Bool
+    let snow: Bool
+    let thunder: Bool
+    let wind: Bool
+    let frost: Bool
+    let wetNearFreeze: Bool
+    let hasForecastData: Bool
+    let hasOfficialWarning: Bool
+    let hasRedOfficialWarning: Bool
+
+    var anyRisk: Bool {
+        rain || snow || thunder || wind || frost || hasOfficialWarning
+    }
+
+    var isRed: Bool { hasRedOfficialWarning }
+
+    static func evaluate(
+        weather: WeatherSnapshot,
+        hours: [HourForecast],
+        smhiActive: Bool,
+        smhiLevel: String,
+        now: Date = Date()
+    ) -> WeatherRiskAssessment {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        let horizon = WeatherWatchRules.forecastHorizon(from: now)
+        let upcoming = hours.filter { hour in
+            guard let date = formatter.date(from: hour.id) else { return false }
+            return date >= now && date <= horizon
+        }
+
+        let rain = upcoming.contains { hour in
+            let condition = hour.condition.lowercased()
+            let isRain = condition.contains("regn") || condition.contains("duggregn") || condition.contains("skur")
+            return isRain && (hour.precipitationChance >= 40 || hour.precipitation >= 0.3)
+        }
+        let snow = upcoming.contains {
+            $0.condition.localizedCaseInsensitiveContains("snö")
+                && ($0.precipitationChance >= 40 || $0.precipitation >= 0.2)
+        }
+        let thunder = upcoming.contains { $0.condition.localizedCaseInsensitiveContains("åska") }
+        let maxGust = max(weather.windGust, upcoming.map(\\.gust).max() ?? 0)
+        let maxWind = max(weather.wind, upcoming.map(\\.wind).max() ?? 0)
+        let wind = maxGust >= WeatherWatchRules.windGustThreshold || maxWind >= 11
+
+        let currentHour = Calendar.current.component(.hour, from: now)
+        let currentThreshold = (currentHour >= 18 || currentHour < 9) ? 1 : 0
+        let currentFrost = weather.temperature <= currentThreshold
+        let forecastFrost = upcoming.contains { hour in
+            guard let date = formatter.date(from: hour.id) else { return false }
+            let localHour = Calendar.current.component(.hour, from: date)
+            return hour.temperature <= ((localHour >= 18 || localHour < 9) ? 1 : 0)
+        }
+        let wetNearFreeze = upcoming.enumerated().contains { index, hour in
+            guard hour.temperature <= 1 else { return false }
+            let condition = hour.condition.lowercased()
+            let wetCondition = condition.contains("regn") || condition.contains("dugg") ||
+                condition.contains("skur") || condition.contains("snö") || condition.contains("underkylt")
+            let wetNow = hour.precipitation >= 0.2 || (hour.precipitationChance >= 50 && wetCondition)
+            let recentWet = upcoming[..<index].suffix(3).contains { previous in
+                let previousCondition = previous.condition.lowercased()
+                let previousWetCondition = previousCondition.contains("regn") || previousCondition.contains("dugg") ||
+                    previousCondition.contains("skur") || previousCondition.contains("snö") ||
+                    previousCondition.contains("underkylt")
+                return previous.precipitation >= 0.2 ||
+                    (previous.precipitationChance >= 50 && previousWetCondition)
+            }
+            return wetNow || recentWet || condition.contains("underkylt")
+        }
+
+        let level = smhiLevel.lowercased()
+        let redWarning = smhiActive && (level.contains("röd") || level.contains("red"))
+        return WeatherRiskAssessment(
+            rain: rain,
+            snow: snow,
+            thunder: thunder,
+            wind: wind,
+            frost: currentFrost || forecastFrost || wetNearFreeze,
+            wetNearFreeze: wetNearFreeze,
+            hasForecastData: !upcoming.isEmpty,
+            hasOfficialWarning: smhiActive,
+            hasRedOfficialWarning: redWarning
+        )
+    }
+}
+
 struct WeatherSnapshot: Codable {
     let place: String
     let condition: String
