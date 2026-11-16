@@ -29,7 +29,8 @@ private actor SMHIWarningNotificationGate {
     private let persistenceKey = "Regnvakt.smhi.warningSignatures.v1"
     private let notificationEpochKey = "Regnvakt.smhi.notificationEpoch.v1"
 
-    func prepare(current: Set<String>, persisted: Set<String>) {
+    func prepare(current: Set<String>, persisted: Set<String>, epoch: String) {
+        guard (UserDefaults.standard.string(forKey: notificationEpochKey) ?? "") == epoch else { return }
         // Merge persisted claims instead of replacing actor state. A slower,
         // overlapping refresh must never erase a claim committed by a faster one.
         scheduled.formUnion(persisted.intersection(current))
@@ -43,16 +44,18 @@ private actor SMHIWarningNotificationGate {
         UserDefaults.standard.removeObject(forKey: persistenceKey)
     }
 
-    func claim(_ signature: String) -> UUID? {
-        guard !scheduled.contains(signature), inFlight[signature] == nil else { return nil }
+    func claim(_ signature: String, epoch: String) -> UUID? {
+        guard (UserDefaults.standard.string(forKey: notificationEpochKey) ?? "") == epoch,
+              !scheduled.contains(signature), inFlight[signature] == nil else { return nil }
         let token = UUID()
         inFlight[signature] = token
         return token
     }
 
-    func finish(_ signature: String, token: UUID, accepted: Bool) -> Set<String> {
+    func finish(_ signature: String, token: UUID, epoch: String, accepted: Bool) -> Set<String> {
         guard inFlight[signature] == token else { return scheduled }
         inFlight.removeValue(forKey: signature)
+        guard (UserDefaults.standard.string(forKey: notificationEpochKey) ?? "") == epoch else { return scheduled }
         if accepted { scheduled.insert(signature) }
         UserDefaults.standard.set(Array(scheduled), forKey: persistenceKey)
         return scheduled
@@ -167,6 +170,7 @@ enum SMHIWarningService {
         // Invalidate any asynchronous cleanup that began during the previous opt-out.
         let epoch = UUID().uuidString
         UserDefaults.standard.set(epoch, forKey: notificationEpochKey)
+        UserDefaults.standard.removeObject(forKey: warningSignaturesKey)
         // Reset in-memory deduplication too. If an old request is still pending,
         // the next refresh will recognize it by identifier instead of duplicating it.
         Task {
@@ -264,7 +268,8 @@ enum SMHIWarningService {
             // two concurrent checks from scheduling the same active warning.
             await SMHIWarningNotificationGate.shared.prepare(
                 current: currentSignatures,
-                persisted: persistedSignatures
+                persisted: persistedSignatures,
+                epoch: notificationEpoch
             )
             // SMHI notifications are an eight-request reserve inside the app's
             // local-notification headroom. Severity is sorted red, orange, yellow;
@@ -317,13 +322,13 @@ enum SMHIWarningService {
 
                 // Recover a request accepted by iOS just before an app interruption.
                 if pendingSMHIIDs.contains(identifier) {
-                    if let claimToken = await SMHIWarningNotificationGate.shared.claim(signature) {
-                        _ = await SMHIWarningNotificationGate.shared.finish(signature, token: claimToken, accepted: true)
+                    if let claimToken = await SMHIWarningNotificationGate.shared.claim(signature, epoch: notificationEpoch) {
+                        _ = await SMHIWarningNotificationGate.shared.finish(signature, token: claimToken, epoch: notificationEpoch, accepted: true)
                     }
                     continue
                 }
                 guard queuedSMHIWarnings < availableSMHISlots else { break }
-                guard let claimToken = await SMHIWarningNotificationGate.shared.claim(signature) else { continue }
+                guard let claimToken = await SMHIWarningNotificationGate.shared.claim(signature, epoch: notificationEpoch) else { continue }
 
                 let content = UNMutableNotificationContent()
                 content.title = "SMHI: \(warning.level)"
@@ -342,14 +347,14 @@ enum SMHIWarningService {
                         && (defaults.string(forKey: notificationEpochKey) ?? "") == notificationEpoch
                     guard stillEnabled else {
                         center.removePendingNotificationRequests(withIdentifiers: [request.identifier])
-                        _ = await SMHIWarningNotificationGate.shared.finish(signature, token: claimToken, accepted: false)
+                        _ = await SMHIWarningNotificationGate.shared.finish(signature, token: claimToken, epoch: notificationEpoch, accepted: false)
                         continue
                     }
-                    _ = await SMHIWarningNotificationGate.shared.finish(signature, token: claimToken, accepted: true)
+                    _ = await SMHIWarningNotificationGate.shared.finish(signature, token: claimToken, epoch: notificationEpoch, accepted: true)
                     queuedSMHIWarnings += 1
                     defaults.set(true, forKey: "Regnvakt.notifications.hasUnread")
                 } catch {
-                    _ = await SMHIWarningNotificationGate.shared.finish(signature, token: claimToken, accepted: false)
+                    _ = await SMHIWarningNotificationGate.shared.finish(signature, token: claimToken, epoch: notificationEpoch, accepted: false)
                     // Leave the signature uncommitted so the next check retries.
                 }
             }
