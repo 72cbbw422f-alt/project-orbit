@@ -271,6 +271,9 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
             if !isDuplicate { coordinates.append(coordinate) }
         }
         guard !coordinates.isEmpty else {
+            UserDefaults.standard.set(false, forKey: "Regnvakt.smhi.active")
+            UserDefaults.standard.set("Välj en plats för att visa lokala SMHI-varningar", forKey: "Regnvakt.smhi.summary")
+            UserDefaults.standard.set("", forKey: "Regnvakt.smhi.level")
             SMHIWarningService.clearPendingNotifications()
             return
         }
