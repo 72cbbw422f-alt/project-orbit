@@ -172,7 +172,7 @@ struct NotificationSettingsView: View {
     }
 
     private func watchToggle(_ title: String, subtitle: String, icon: String, value: Binding<Bool>) -> some View {
-        let isEnabled = value.wrappedValue
+        let isEnabled = notificationsEnabled && value.wrappedValue
         let activeGreen = Color(red: 0.24, green: 0.66, blue: 0.43)
         return HStack(spacing: 10) {
             Image(systemName: icon)
