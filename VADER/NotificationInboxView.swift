@@ -26,15 +26,19 @@ private actor SMHIWarningNotificationGate {
     private var scheduled = Set<String>()
     private var inFlight = Set<String>()
 
+    private let persistenceKey = "Regnvakt.smhi.warningSignatures.v1"
+
     func prepare(current: Set<String>, persisted: Set<String>) {
         // Merge persisted claims instead of replacing actor state. A slower,
         // overlapping refresh must never erase a claim committed by a faster one.
         scheduled.formUnion(persisted.intersection(current))
         // Do not discard in-flight claims based on a possibly stale response.
+        UserDefaults.standard.set(Array(scheduled.intersection(current)), forKey: persistenceKey)
     }
 
     func clearScheduled() {
         scheduled.removeAll()
+        UserDefaults.standard.removeObject(forKey: persistenceKey)
     }
 
     func claim(_ signature: String) -> Bool {
@@ -46,6 +50,7 @@ private actor SMHIWarningNotificationGate {
     func finish(_ signature: String, accepted: Bool) -> Set<String> {
         inFlight.remove(signature)
         if accepted { scheduled.insert(signature) }
+        UserDefaults.standard.set(Array(scheduled), forKey: persistenceKey)
         return scheduled
     }
 }
@@ -152,6 +157,7 @@ enum SMHIWarningService {
     }
 
     static func clearPendingNotifications() {
+        Task { await SMHIWarningNotificationGate.shared.clearScheduled() }
         UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
             let ids = requests.map(\.identifier).filter { $0.hasPrefix("smhi.") }
             UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
@@ -232,8 +238,6 @@ enum SMHIWarningService {
                 current: currentSignatures,
                 persisted: persistedSignatures
             )
-            let prepared = persistedSignatures.intersection(currentSignatures)
-            defaults.set(Array(prepared), forKey: key)
             // SMHI notifications are an eight-request reserve inside the app's
             // local-notification headroom. Severity is sorted red, orange, yellow;
             // lower-priority active warnings remain visible and can be notified
@@ -273,12 +277,10 @@ enum SMHIWarningService {
                         defaults.set(Array(acceptedSignatures), forKey: key)
                         continue
                     }
-                    let acceptedSignatures = await SMHIWarningNotificationGate.shared.finish(signature, accepted: true)
-                    defaults.set(Array(acceptedSignatures), forKey: key)
+                    _ = await SMHIWarningNotificationGate.shared.finish(signature, accepted: true)
                     defaults.set(true, forKey: "Regnvakt.notifications.hasUnread")
                 } catch {
-                    let acceptedSignatures = await SMHIWarningNotificationGate.shared.finish(signature, accepted: false)
-                    defaults.set(Array(acceptedSignatures), forKey: key)
+                    _ = await SMHIWarningNotificationGate.shared.finish(signature, accepted: false)
                     // Leave the signature uncommitted so the next check retries.
                 }
             }
