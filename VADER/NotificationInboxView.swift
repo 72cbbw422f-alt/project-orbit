@@ -162,7 +162,13 @@ enum SMHIWarningService {
 
     static func notificationsReenabled() {
         // Invalidate any asynchronous cleanup that began during the previous opt-out.
-        UserDefaults.standard.set(UUID().uuidString, forKey: notificationEpochKey)
+        let epoch = UUID().uuidString
+        UserDefaults.standard.set(epoch, forKey: notificationEpochKey)
+        // Reset in-memory deduplication too. If an old request is still pending,
+        // the next refresh will recognize it by identifier instead of duplicating it.
+        Task {
+            await SMHIWarningNotificationGate.shared.clearScheduled(ifEpoch: epoch)
+        }
     }
 
     static func clearPendingNotifications() {
