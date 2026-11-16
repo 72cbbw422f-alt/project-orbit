@@ -550,7 +550,7 @@ struct RadarMapView: View {
                 }
                 .padding(.horizontal, 12)
                 .frame(maxWidth: .infinity)
-                .frame(height: 390)
+                .frame(height: 430)
 
                 VStack(spacing: 13) {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
@@ -780,24 +780,24 @@ struct RadarMapView: View {
                                 .font(.system(size: 11, weight: .semibold).monospacedDigit()).foregroundStyle(.white.opacity(0.55))
                         }
                         Text(nowcastStatus)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.88))
-                            .lineLimit(3)
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.90))
+                            .lineLimit(4)
                             .fixedSize(horizontal: false, vertical: true)
                         if !nowcastPoints.isEmpty {
                             HStack(alignment: .bottom, spacing: 5) {
                                 ForEach(nowcastPoints.prefix(6)) { point in
                                     VStack(spacing: 2) {
                                         Text(String(format: "%.1f", point.precipitationRate ?? 0))
-                                            .font(.system(size: 11, weight: .bold).monospacedDigit())
+                                            .font(.system(size: 13, weight: .bold).monospacedDigit())
                                             .foregroundStyle(.white)
                                         Capsule()
                                             .fill(Color.cyan.opacity(0.9))
                                             .frame(maxWidth: 38)
                                             .frame(height: max(3, min(30, CGFloat(point.precipitationRate ?? 0) * 18)))
                                         Text(point.time.formatted(date: .omitted, time: .shortened))
-                                            .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                                            .foregroundStyle(.white.opacity(0.82))
+                                            .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                                            .foregroundStyle(.white.opacity(0.88))
                                             .lineLimit(1)
                                             .minimumScaleFactor(0.8)
                                     }
@@ -1154,6 +1154,9 @@ private struct RegnvaktMapView: UIViewRepresentable {
     }
 
     func updateUIView(_ map: MLNMapView, context: Context) {
+        // SMHI supplies a full-resolution national image, so allow closer inspection.
+        // RainViewer tiles remain capped at the provider-supported zoom level.
+        map.maximumZoomLevel = radarTileURL == nil ? 10 : 7
         context.coordinator.latestImage = radarImage
         context.coordinator.latestTileURL = radarTileURL
         context.coordinator.latestCloudSamples = cloudSamples
