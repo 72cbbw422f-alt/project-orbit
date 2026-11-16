@@ -810,8 +810,6 @@ struct RadarMapView: View {
                     .padding(12)
                     .background(Color(red: 0.12, green: 0.16, blue: 0.21), in: RoundedRectangle(cornerRadius: 15))
 
-                    }
-
                     HStack {
                         Text(provider == .smhi ? "Radar: SMHI • 5 min" : "Reservradar: RainViewer")
                         Spacer()
