@@ -172,6 +172,9 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                         hours: forecast.hours,
                         currentTemperature: forecast.current.temperature
                     )
+                    // Reconcile every monitored place against the updated
+                    // shared notification budget when the watch list changes.
+                    WeatherNotificationScheduler.refreshFromStoredForecast()
                 } catch {
                     status = "Kunde inte uppdatera bevakningen för \(place.name)."
                 }
