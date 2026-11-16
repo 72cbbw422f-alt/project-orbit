@@ -424,6 +424,7 @@ struct RadarMapView: View {
     @State private var frames: [RadarFrame] = []
     @State private var selectedIndex = 0
     @State private var selectedImage: UIImage?
+    @State private var imageLoadID = UUID()
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var lastUpdated: Date?
@@ -926,16 +927,24 @@ struct RadarMapView: View {
 
     @MainActor
     private func loadSelectedImage() async {
+        let requestID = UUID()
+        imageLoadID = requestID
         guard let frame = selectedFrame else { selectedImage = nil; return }
         guard frame.provider == .smhi else { selectedImage = nil; return }
         do {
-            selectedImage = try await RadarService.loadImage(for: frame)
+            let image = try await RadarService.loadImage(for: frame)
+            // Playback can advance several frames while a slower image request is
+            // still in flight. Only the currently selected frame may be displayed.
+            guard imageLoadID == requestID, selectedFrame?.id == frame.id else { return }
+            selectedImage = image
             errorMessage = nil
         } catch {
+            guard imageLoadID == requestID, selectedFrame?.id == frame.id else { return }
             selectedImage = nil
             errorMessage = "SMHI-bilden kunde inte hämtas. Försöker använda reservradarn."
             do {
                 let (host, fallback) = try await RadarService.loadRainViewerFrames()
+                guard imageLoadID == requestID, selectedFrame?.id == frame.id else { return }
                 radarHost = host
                 provider = .rainViewer
                 frames = fallback
@@ -943,6 +952,7 @@ struct RadarMapView: View {
                 errorMessage = nil
                 await refreshRadarAtPlace()
             } catch {
+                guard imageLoadID == requestID else { return }
                 errorMessage = "SMHI-bilden kunde inte hämtas och reservradarn är inte tillgänglig."
             }
         }
