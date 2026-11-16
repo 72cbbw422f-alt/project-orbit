@@ -444,7 +444,6 @@ struct RadarMapView: View {
     @State private var windStatus = "Hämtar vindfält…"
     @State private var windUpdated: Date?
     @State private var windMapCenter: CLLocationCoordinate2D?
-    @State private var windSamplesCenter: CLLocationCoordinate2D?
     @State private var windRequestID = UUID()
     @State private var windRefreshTask: Task<Void, Never>?
 
@@ -543,7 +542,7 @@ struct RadarMapView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     WindFieldOverlay(
                         samples: windSamples,
-                        center: windSamplesCenter ?? mapCoordinate,
+                        center: windMapCenter ?? mapCoordinate,
                         show: showWind,
                         gustMode: windLayer == .gust
                     )
@@ -1135,7 +1134,6 @@ struct RadarMapView: View {
 
             guard !Task.isCancelled, windRequestID == requestID else { return }
             windSamples = results.sorted { $0.id < $1.id }
-            windSamplesCenter = center
             windUpdated = Date()
             windStatus = results.count == offsets.count
                 ? (showClouds ? "Molntäcke • 25 geografiskt placerade modellpunkter" : "Vindfält • 25 modellpunkter runt kartans mittpunkt")
