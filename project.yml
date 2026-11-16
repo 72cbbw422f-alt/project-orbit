@@ -23,6 +23,12 @@ targets:
     platform: iOS
     sources:
       - path: VADER
+    info:
+      properties:
+        BGTaskSchedulerPermittedIdentifiers:
+          - app.walnut8211.vadra.weather-refresh
+        UIBackgroundModes:
+          - fetch
     dependencies:
       - package: MapLibre
         product: MapLibre
