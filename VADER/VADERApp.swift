@@ -5,7 +5,7 @@ import UserNotifications
 final class RegnvaktNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     static let shared = RegnvaktNotificationDelegate()
 
-    func userNotificationCenter(
+    nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
