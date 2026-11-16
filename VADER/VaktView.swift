@@ -54,20 +54,18 @@ struct VaktDashboard: View {
 
     private var watches: [WatchItem] {
         let upcoming = nearTermHours
-        let conditions = upcoming.map { $0.condition.lowercased() }
-        let rain = upcoming.contains { hour in
-            let condition = hour.condition.lowercased()
-            let isRain = condition.contains("regn") || condition.contains("duggregn") || condition.contains("skur")
-            return isRain && (hour.precipitationChance >= 40 || hour.precipitation >= 0.3)
-        }
-        let snow = upcoming.contains { hour in
-            hour.condition.localizedCaseInsensitiveContains("snö")
-                && (hour.precipitationChance >= 40 || hour.precipitation >= 0.2)
-        }
-        let thunder = conditions.contains { $0.contains("åska") }
+        let assessment = WeatherRiskAssessment.evaluate(
+            weather: weather,
+            hours: hours,
+            smhiActive: smhiActive,
+            smhiLevel: smhiLevel
+        )
+        let rain = assessment.rain
+        let snow = assessment.snow
+        let thunder = assessment.thunder
         let maxGust = max(weather.windGust, upcoming.map(\.gust).max() ?? 0)
         let maxWind = max(weather.wind, upcoming.map(\.wind).max() ?? 0)
-        let wind = maxGust >= WeatherWatchRules.windGustThreshold || maxWind >= 11
+        let wind = assessment.wind
         let dateFormatter = DateFormatter()
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
         dateFormatter.timeZone = .current
@@ -98,7 +96,7 @@ struct VaktDashboard: View {
         let currentHourOfDay = Calendar.current.component(.hour, from: Date())
         let currentFrostThreshold = (currentHourOfDay >= 18 || currentHourOfDay < 9) ? 1 : 0
         let currentFrost = weather.temperature <= currentFrostThreshold
-        let frost = currentFrost || frostHour != nil || wetNearFreeze != nil
+        let frost = assessment.frost
         let precipitationTitle = "NEDERBÖRDSVAKTEN"
         let firstPrecipitation = upcoming.first { hour in
             let condition = hour.condition.lowercased()
