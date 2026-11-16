@@ -1318,7 +1318,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
         func applyCloudsIfReady() {
             guard styleReady, let style = mapView?.style else { return }
             let identity = cloudsVisible
-                ? latestCloudSamples.map { "\($0.id):\(Int($0.cloudCover.rounded()))" }.joined(separator: "|")
+                ? latestCloudSamples.map { "\($0.id):\(String(format: "%.4f", $0.latitude)),\(String(format: "%.4f", $0.longitude)):\(Int($0.cloudCover.rounded()))" }.joined(separator: "|")
                 : "hidden"
             guard identity != appliedCloudIdentity else { return }
             appliedCloudIdentity = identity
@@ -1353,7 +1353,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
         func applyPrecipitationTypesIfReady() {
             guard styleReady, let style = mapView?.style else { return }
             let identity = precipitationTypesVisible
-                ? latestCloudSamples.map { "\($0.id):\($0.precipitationType):\(Int(($0.precipitation * 10).rounded()))" }.joined(separator: "|")
+                ? latestCloudSamples.map { "\($0.id):\(String(format: "%.4f", $0.latitude)),\(String(format: "%.4f", $0.longitude)):\($0.precipitationType):\(Int(($0.precipitation * 10).rounded()))" }.joined(separator: "|")
                 : "hidden"
             guard identity != appliedPrecipitationIdentity else { return }
             appliedPrecipitationIdentity = identity
