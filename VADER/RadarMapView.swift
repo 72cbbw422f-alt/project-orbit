@@ -444,6 +444,8 @@ struct RadarMapView: View {
     @State private var windStatus = "Hämtar vindfält…"
     @State private var windUpdated: Date?
     @State private var windMapCenter: CLLocationCoordinate2D?
+    @State private var windSamplesCenter: CLLocationCoordinate2D?
+    @State private var windRequestID = UUID()
     @State private var windRefreshTask: Task<Void, Never>?
 
     private let playback = Timer.publish(every: 0.75, on: .main, in: .common).autoconnect()
@@ -525,6 +527,8 @@ struct RadarMapView: View {
                         showPrecipitationTypes: showPrecipitationTypes,
                         onRegionChange: { center in
                             windMapCenter = center
+                            // Invalidate any response for the previous camera position immediately.
+                            windRequestID = UUID()
                             if showWind || showClouds || showPrecipitationTypes {
                                 // Debounce intermediate map-camera updates during a pan.
                                 windRefreshTask?.cancel()
@@ -539,7 +543,7 @@ struct RadarMapView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     WindFieldOverlay(
                         samples: windSamples,
-                        center: windMapCenter ?? mapCoordinate,
+                        center: windSamplesCenter ?? mapCoordinate,
                         show: showWind,
                         gustMode: windLayer == .gust
                     )
@@ -1055,6 +1059,8 @@ struct RadarMapView: View {
 
     @MainActor
     private func refreshWindField(center requestedCenter: CLLocationCoordinate2D? = nil) async {
+        let requestID = UUID()
+        windRequestID = requestID
         windStatus = "Hämtar vinddata över området…"
         let center = requestedCenter ?? windMapCenter ?? mapCoordinate
         windMapCenter = center
@@ -1087,7 +1093,7 @@ struct RadarMapView: View {
             request.timeoutInterval = 20
             request.cachePolicy = .reloadIgnoringLocalCacheData
             let (data, response) = try await URLSession.shared.data(for: request)
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, windRequestID == requestID else { return }
             guard (response as? HTTPURLResponse)?.statusCode == 200,
                   let locations = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
                 throw URLError(.cannotParseResponse)
@@ -1127,14 +1133,15 @@ struct RadarMapView: View {
                 ))
             }
 
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, windRequestID == requestID else { return }
             windSamples = results.sorted { $0.id < $1.id }
+            windSamplesCenter = center
             windUpdated = Date()
             windStatus = results.count == offsets.count
                 ? (showClouds ? "Molntäcke • 25 geografiskt placerade modellpunkter" : "Vindfält • 25 modellpunkter runt kartans mittpunkt")
                 : (showClouds ? "Molntäcke delvis tillgängligt • \(results.count) av 25 punkter" : "Vindfält delvis tillgängligt • \(results.count) av 25 punkter")
         } catch {
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, windRequestID == requestID else { return }
             windStatus = "Kunde inte hämta vinddata för kartområdet. Försök igen."
         }
     }
