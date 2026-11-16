@@ -273,7 +273,10 @@ enum SMHIWarningService {
                 let safeID = warning.id.replacingOccurrences(
                     of: "[^A-Za-z0-9.-]", with: "-", options: .regularExpression
                 )
-                return "smhi.\(safeID).\(warning.level)"
+                let safeStart = warning.start.replacingOccurrences(
+                    of: "[^A-Za-z0-9-]", with: "-", options: .regularExpression
+                )
+                return "smhi.\(safeID).\(warning.level).\(safeStart)"
             })
             let allPendingRequests = await center.pendingNotificationRequests()
             let pendingSMHIRequests = allPendingRequests.filter { $0.identifier.hasPrefix("smhi.") }
@@ -296,7 +299,10 @@ enum SMHIWarningService {
                 let safeID = warning.id.replacingOccurrences(
                     of: "[^A-Za-z0-9.-]", with: "-", options: .regularExpression
                 )
-                let identifier = "smhi.\(safeID).\(warning.level)"
+                let safeStart = warning.start.replacingOccurrences(
+                    of: "[^A-Za-z0-9-]", with: "-", options: .regularExpression
+                )
+                let identifier = "smhi.\(safeID).\(warning.level).\(safeStart)"
 
                 // Recover a request accepted by iOS just before an app interruption.
                 if pendingSMHIIDs.contains(identifier) {
