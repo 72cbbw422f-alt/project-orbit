@@ -269,11 +269,27 @@ enum SMHIWarningService {
                 if leftStart != rightStart { return leftStart < rightStart }
                 return $0.id < $1.id
             }
-            let pendingSMHIRequests = await center.pendingNotificationRequests().filter {
-                $0.identifier.hasPrefix("smhi.")
+            let activeNotificationIDs = Set(active.map { warning in
+                let safeID = warning.id.replacingOccurrences(
+                    of: "[^A-Za-z0-9.-]", with: "-", options: .regularExpression
+                )
+                return "smhi.\(safeID).\(warning.level)"
+            })
+            let allPendingRequests = await center.pendingNotificationRequests()
+            let pendingSMHIRequests = allPendingRequests.filter { $0.identifier.hasPrefix("smhi.") }
+            // Remove queued alerts that no longer affect any currently monitored
+            // coordinate, including warnings that ended or belonged to a removed place.
+            let staleSMHIIDs = pendingSMHIRequests
+                .filter { !activeNotificationIDs.contains($0.identifier) }
+                .map(\.identifier)
+            if !staleSMHIIDs.isEmpty {
+                center.removePendingNotificationRequests(withIdentifiers: staleSMHIIDs)
             }
-            let pendingSMHIIDs = Set(pendingSMHIRequests.map(\.identifier))
-            let availableSMHISlots = max(0, 8 - pendingSMHIRequests.count)
+            let currentPendingSMHIRequests = pendingSMHIRequests.filter {
+                activeNotificationIDs.contains($0.identifier)
+            }
+            let pendingSMHIIDs = Set(currentPendingSMHIRequests.map(\.identifier))
+            let availableSMHISlots = max(0, 8 - currentPendingSMHIRequests.count)
             var queuedSMHIWarnings = 0
             for warning in prioritizedActive {
                 let signature = warning.id + "|" + warning.level + "|" + warning.title + "|" + warning.start
