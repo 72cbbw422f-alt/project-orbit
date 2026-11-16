@@ -83,7 +83,21 @@ enum WeatherNotificationScheduler {
         // The legacy single-place cache is only valid before explicit-place
         // monitoring migration. Never resurrect a removed/unmonitored location.
         let migrationKey = "Regnvakt.notifications.explicitPlaceMonitoringMigration.v1"
-        guard !defaults.bool(forKey: migrationKey) else { return }
+        if defaults.bool(forKey: migrationKey) {
+            // No registered forecasts means no monitored place currently has a
+            // schedulable forecast. Clear any orphaned weather requests and status.
+            let registrySnapshot = registryData
+            Task {
+                let pending = await UNUserNotificationCenter.current().pendingNotificationRequests()
+                guard defaults.data(forKey: forecastRegistryKey) == registrySnapshot else { return }
+                let ids = pending.map(\\.identifier).filter { $0.hasPrefix(prefix) }
+                UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
+                defaults.set(0, forKey: scheduledCountKey)
+                defaults.set(Date().timeIntervalSince1970, forKey: scheduleUpdatedKey)
+                defaults.set("Inga bevakade platser med sparad prognos", forKey: scheduleStatusKey)
+            }
+            return
+        }
 
         // Migrate installations that only have the former single-place cache.
         if let data = defaults.data(forKey: forecastKey),
