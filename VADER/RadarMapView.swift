@@ -539,6 +539,12 @@ struct RadarMapView: View {
                             // Invalidate any response for the previous camera position immediately.
                             windRequestID = UUID()
                             if showWind || showClouds || showPrecipitationTypes {
+                                // Never project old samples onto a new map center while the
+                                // debounced request is waiting; that would show a convincing
+                                // but geographically incorrect wind/cloud field.
+                                windSamples = []
+                                windUpdated = nil
+                                windStatus = "Kartområdet ändras – hämtar nya modellvärden…"
                                 // Debounce intermediate map-camera updates during a pan.
                                 windRefreshTask?.cancel()
                                 windRefreshTask = Task { @MainActor in
