@@ -27,8 +27,14 @@ private actor SMHIWarningNotificationGate {
     private var inFlight = Set<String>()
 
     func prepare(current: Set<String>, persisted: Set<String>) {
-        scheduled = persisted.intersection(current)
-        inFlight.formIntersection(current)
+        // Merge persisted claims instead of replacing actor state. A slower,
+        // overlapping refresh must never erase a claim committed by a faster one.
+        scheduled.formUnion(persisted.intersection(current))
+        // Do not discard in-flight claims based on a possibly stale response.
+    }
+
+    func clearScheduled() {
+        scheduled.removeAll()
     }
 
     func claim(_ signature: String) -> Bool {
@@ -228,7 +234,19 @@ enum SMHIWarningService {
             )
             let prepared = persistedSignatures.intersection(currentSignatures)
             defaults.set(Array(prepared), forKey: key)
-            for warning in active {
+            // SMHI notifications are an eight-request reserve inside the app's
+            // local-notification headroom. Severity is sorted red, orange, yellow;
+            // lower-priority active warnings remain visible and can be notified
+            // on a later refresh as higher-priority requests clear.
+            let prioritizedActive = active.sorted {
+                let left = rank($0.level), right = rank($1.level)
+                if left != right { return left > right }
+                let leftStart = parseSMHIDate($0.start) ?? .distantPast
+                let rightStart = parseSMHIDate($1.start) ?? .distantPast
+                if leftStart != rightStart { return leftStart < rightStart }
+                return $0.id < $1.id
+            }
+            for warning in prioritizedActive.prefix(8) {
                 let signature = warning.id + "|" + warning.level + "|" + warning.title
                 guard await SMHIWarningNotificationGate.shared.claim(signature) else { continue }
 
@@ -247,6 +265,14 @@ enum SMHIWarningService {
                 )
                 do {
                     try await center.add(request)
+                    let stillEnabled = (defaults.object(forKey: "Regnvakt.notifications.enabled") as? Bool ?? true)
+                        && (defaults.object(forKey: "Regnvakt.notifications.smhi") as? Bool ?? true)
+                    guard stillEnabled else {
+                        center.removePendingNotificationRequests(withIdentifiers: [request.identifier])
+                        let acceptedSignatures = await SMHIWarningNotificationGate.shared.finish(signature, accepted: false)
+                        defaults.set(Array(acceptedSignatures), forKey: key)
+                        continue
+                    }
                     let acceptedSignatures = await SMHIWarningNotificationGate.shared.finish(signature, accepted: true)
                     defaults.set(Array(acceptedSignatures), forKey: key)
                     defaults.set(true, forKey: "Regnvakt.notifications.hasUnread")
