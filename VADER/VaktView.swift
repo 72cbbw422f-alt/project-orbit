@@ -468,6 +468,7 @@ struct ActiveWatchSummary: View {
     let days: [DayForecast]
     let hours: [HourForecast]
     @AppStorage("Regnvakt.smhi.active") private var smhiActive = false
+    @AppStorage("Regnvakt.smhi.level") private var smhiLevel = ""
     @AppStorage("Regnvakt.notifications.rain") private var rainEnabled = true
     @AppStorage("Regnvakt.notifications.snow") private var snowEnabled = true
     @AppStorage("Regnvakt.notifications.wind") private var windEnabled = true
@@ -477,46 +478,19 @@ struct ActiveWatchSummary: View {
     @AppStorage("Regnvakt.notifications.enabled") private var notificationsEnabled = true
 
     private var activeTitles: [(String, String, Bool)] {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = .current
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
-        let now = Date()
-        let horizon = WeatherWatchRules.forecastHorizon(from: now)
-        let nearTermHours = hours.filter { hour in
-            guard let date = formatter.date(from: hour.id) else { return false }
-            return date >= now && date <= horizon
-        }
-        let text = nearTermHours.map { $0.condition.lowercased() }.joined(separator: " ")
+        let assessment = WeatherRiskAssessment.evaluate(
+            weather: weather,
+            hours: hours,
+            smhiActive: smhiActive,
+            smhiLevel: smhiLevel
+        )
         var result: [(String, String, Bool)] = []
-        let snowRisk = nearTermHours.contains { $0.condition.localizedCaseInsensitiveContains("snö") && ($0.precipitationChance >= 40 || $0.precipitation >= 0.2) }
-        let rainRisk = nearTermHours.contains {
-            let condition = $0.condition.lowercased()
-            let isRain = condition.contains("regn") || condition.contains("duggregn") || condition.contains("skur")
-            return isRain && ($0.precipitationChance >= 40 || $0.precipitation >= 0.3)
-        }
-        if snowRisk { result.append(("SNÖVAKTEN", "cloud.snow.fill", notificationsEnabled && snowEnabled)) }
-        if rainRisk { result.append(("REGNVAKTEN", "cloud.rain.fill", notificationsEnabled && rainEnabled)) }
-        if text.contains("åska") { result.append(("ÅSKVAKTEN", "cloud.bolt.rain.fill", notificationsEnabled && thunderEnabled)) }
-
-        let gust = max(weather.windGust, nearTermHours.map(\.gust).max() ?? 0)
-        if gust >= WeatherWatchRules.windGustThreshold || max(weather.wind, nearTermHours.map(\.wind).max() ?? 0) >= 11 {
-            result.append(("VINDVAKTEN", "wind", notificationsEnabled && windEnabled))
-        }
-
-        let nowHour = Calendar.current.component(.hour, from: Date())
-        let currentThreshold = (nowHour >= 18 || nowHour < 9) ? 1 : 0
-        let currentFrost = weather.temperature <= currentThreshold
-        let forecastFrost = nearTermHours.contains { hour in
-            guard let date = formatter.date(from: hour.id) else { return false }
-            let hourOfDay = Calendar.current.component(.hour, from: date)
-            let threshold = (hourOfDay >= 18 || hourOfDay < 9) ? 1 : 0
-            return hour.temperature <= threshold
-        }
-        if currentFrost || forecastFrost {
-            result.append(("FROSTVAKTEN", "thermometer.snowflake", notificationsEnabled && frostEnabled))
-        }
-        if smhiActive { result.append(("SMHI-VARNING", "exclamationmark.triangle.fill", notificationsEnabled && smhiEnabled)) }
+        if assessment.snow { result.append(("SNÖVAKTEN", "cloud.snow.fill", notificationsEnabled && snowEnabled)) }
+        if assessment.rain { result.append(("REGNVAKTEN", "cloud.rain.fill", notificationsEnabled && rainEnabled)) }
+        if assessment.thunder { result.append(("ÅSKVAKTEN", "cloud.bolt.rain.fill", notificationsEnabled && thunderEnabled)) }
+        if assessment.wind { result.append(("VINDVAKTEN", "wind", notificationsEnabled && windEnabled)) }
+        if assessment.frost { result.append(("FROSTVAKTEN", "thermometer.snowflake", notificationsEnabled && frostEnabled)) }
+        if assessment.hasOfficialWarning { result.append(("SMHI-VARNING", "exclamationmark.triangle.fill", notificationsEnabled && smhiEnabled)) }
         return result
     }
 
