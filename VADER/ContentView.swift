@@ -53,6 +53,7 @@ struct ContentView: View {
                         showNationalWarnings: { hasNewNationalWarnings = false; showingNationalWarnings = true },
                         showHourlyForecast: { showingHourlyForecast = true },
                         showPlaceSearch: { showingPlaceSearch = true },
+                        showWatches: { selectedTab = .watch },
                         selectForecastDay: { selectedForecastDay = $0 }
                     )
                     } else {
@@ -189,6 +190,7 @@ private struct ReferenceWeatherHome: View {
     let showNationalWarnings: () -> Void
     let showHourlyForecast: () -> Void
     let showPlaceSearch: () -> Void
+    let showWatches: () -> Void
     let selectForecastDay: (DayForecast) -> Void
     @AppStorage("Regnvakt.notifications.hasUnread") private var hasUnreadNotifications = false
     @AppStorage("Regnvakt.smhi.hasNewNationalWarnings") private var hasNewNationalWarnings = false
@@ -197,6 +199,8 @@ private struct ReferenceWeatherHome: View {
     @AppStorage("Regnvakt.notifications.wind") private var windWatchEnabled = true
     @AppStorage("Regnvakt.notifications.thunder") private var thunderWatchEnabled = true
     @AppStorage("Regnvakt.notifications.frost") private var frostWatchEnabled = true
+    @AppStorage("Regnvakt.smhi.active") private var smhiWarningActive = false
+    @AppStorage("Regnvakt.smhi.level") private var smhiWarningLevel = ""
     private let bars: [CGFloat] = [0.08,0.12,0.16,0.22,0.30,0.38,0.48,0.58,0.70,0.83,0.96,1.0,0.86,0.72,0.64,0.57,0.48,0.36,0.26,0.19,0.16,0.14,0.12,0.10]
     private var watchTitle: String {
         let condition = weather.condition.lowercased()
@@ -220,6 +224,7 @@ private struct ReferenceWeatherHome: View {
                 VStack(spacing: 11) {
                     brandHeader
                     locationHeader
+                    homeRiskIndicator
                     currentConditions
                     mainCards(width: geo.size.width - 28)
                     ActiveWatchSummary(weather: weather, days: days, hours: hours)
@@ -349,6 +354,76 @@ private struct ReferenceWeatherHome: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("Uppdatera väder och varningar")
                 }
+            }
+        }
+    }
+
+    private var homeRiskStatus: (color: Color, label: String)? {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        let now = Date()
+        let horizon = WeatherWatchRules.forecastHorizon(from: now)
+        let upcoming = hours.filter { hour in
+            guard let date = formatter.date(from: hour.id) else { return false }
+            return date >= now && date <= horizon
+        }
+        guard !upcoming.isEmpty else { return nil }
+
+        let rainOrSnow = upcoming.contains { hour in
+            let condition = hour.condition.lowercased()
+            let wet = condition.contains("regn") || condition.contains("dugg") ||
+                condition.contains("skur") || condition.contains("snö")
+            let threshold = condition.contains("snö") ? 0.2 : 0.3
+            return wet && (hour.precipitationChance >= 40 || hour.precipitation >= threshold)
+        }
+        let thunder = upcoming.contains { $0.condition.localizedCaseInsensitiveContains("åska") }
+        let wind = max(weather.windGust, upcoming.map(\\.gust).max() ?? 0) >= WeatherWatchRules.windGustThreshold
+            || max(weather.wind, upcoming.map(\\.wind).max() ?? 0) >= 11
+        let currentHour = Calendar.current.component(.hour, from: now)
+        let frostThreshold = (currentHour >= 18 || currentHour < 9) ? 1 : 0
+        let frost = weather.temperature <= frostThreshold || upcoming.contains { hour in
+            guard let date = formatter.date(from: hour.id) else { return false }
+            let hourOfDay = Calendar.current.component(.hour, from: date)
+            return hour.temperature <= ((hourOfDay >= 18 || hourOfDay < 9) ? 1 : 0)
+        }
+
+        if smhiWarningActive && (smhiWarningLevel.localizedCaseInsensitiveContains("röd") || smhiWarningLevel.localizedCaseInsensitiveContains("red")) {
+            return (Color(red: 0.96, green: 0.29, blue: 0.27), "RÖD SMHI-VARNING")
+        }
+        if rainOrSnow || thunder || wind || frost || smhiWarningActive {
+            return (Color(red: 0.98, green: 0.60, blue: 0.22), "RISK I PROGNOS")
+        }
+        return (Color(red: 0.24, green: 0.66, blue: 0.43), "INGA RISKER UPPTÄCKTA")
+    }
+
+    private var homeRiskIndicator: some View {
+        Group {
+            if let status = homeRiskStatus {
+                Button(action: showWatches) {
+                    HStack(spacing: 8) {
+                        Circle().fill(status.color).frame(width: 8, height: 8)
+                        Text(status.label)
+                            .font(.system(size: 11, weight: .heavy))
+                            .tracking(0.55)
+                            .foregroundStyle(status.color)
+                        Spacer()
+                        Text("VÄDERVAKTER")
+                            .font(.system(size: 10, weight: .bold))
+                            .tracking(0.5)
+                            .foregroundStyle(RTheme.muted)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(RTheme.muted)
+                    }
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 9)
+                    .background(.white.opacity(0.045), in: Capsule())
+                    .overlay(Capsule().stroke(.white.opacity(0.10), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\\(status.label). Öppna vädervakter")
             }
         }
     }
