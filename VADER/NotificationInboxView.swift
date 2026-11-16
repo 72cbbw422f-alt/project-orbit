@@ -24,7 +24,7 @@ struct SMHIWarning: Identifiable {
 private actor SMHIWarningNotificationGate {
     static let shared = SMHIWarningNotificationGate()
     private var scheduled = Set<String>()
-    private var inFlight = Set<String>()
+    private var inFlight = [String: UUID]()
 
     private let persistenceKey = "Regnvakt.smhi.warningSignatures.v1"
     private let notificationEpochKey = "Regnvakt.smhi.notificationEpoch.v1"
@@ -39,17 +39,20 @@ private actor SMHIWarningNotificationGate {
     func clearScheduled(ifEpoch epoch: String) {
         guard UserDefaults.standard.string(forKey: notificationEpochKey) == epoch else { return }
         scheduled.removeAll()
+        inFlight.removeAll()
         UserDefaults.standard.removeObject(forKey: persistenceKey)
     }
 
-    func claim(_ signature: String) -> Bool {
-        guard !scheduled.contains(signature), !inFlight.contains(signature) else { return false }
-        inFlight.insert(signature)
-        return true
+    func claim(_ signature: String) -> UUID? {
+        guard !scheduled.contains(signature), inFlight[signature] == nil else { return nil }
+        let token = UUID()
+        inFlight[signature] = token
+        return token
     }
 
-    func finish(_ signature: String, accepted: Bool) -> Set<String> {
-        inFlight.remove(signature)
+    func finish(_ signature: String, token: UUID, accepted: Bool) -> Set<String> {
+        guard inFlight[signature] == token else { return scheduled }
+        inFlight.removeValue(forKey: signature)
         if accepted { scheduled.insert(signature) }
         UserDefaults.standard.set(Array(scheduled), forKey: persistenceKey)
         return scheduled
@@ -282,7 +285,8 @@ enum SMHIWarningService {
                 let safeStart = warning.start.replacingOccurrences(
                     of: "[^A-Za-z0-9-]", with: "-", options: .regularExpression
                 )
-                return "smhi.\(safeID).\(warning.level).\(safeStart)"
+                let safeEpoch = notificationEpoch.isEmpty ? "initial" : notificationEpoch
+                return "smhi.\(safeID).\(warning.level).\(safeStart).\(safeEpoch)"
             })
             let allPendingRequests = await center.pendingNotificationRequests()
             let pendingSMHIRequests = allPendingRequests.filter { $0.identifier.hasPrefix("smhi.") }
@@ -308,17 +312,18 @@ enum SMHIWarningService {
                 let safeStart = warning.start.replacingOccurrences(
                     of: "[^A-Za-z0-9-]", with: "-", options: .regularExpression
                 )
-                let identifier = "smhi.\(safeID).\(warning.level).\(safeStart)"
+                let safeEpoch = notificationEpoch.isEmpty ? "initial" : notificationEpoch
+                let identifier = "smhi.\(safeID).\(warning.level).\(safeStart).\(safeEpoch)"
 
                 // Recover a request accepted by iOS just before an app interruption.
                 if pendingSMHIIDs.contains(identifier) {
-                    if await SMHIWarningNotificationGate.shared.claim(signature) {
-                        _ = await SMHIWarningNotificationGate.shared.finish(signature, accepted: true)
+                    if let claimToken = await SMHIWarningNotificationGate.shared.claim(signature) {
+                        _ = await SMHIWarningNotificationGate.shared.finish(signature, token: claimToken, accepted: true)
                     }
                     continue
                 }
                 guard queuedSMHIWarnings < availableSMHISlots else { break }
-                guard await SMHIWarningNotificationGate.shared.claim(signature) else { continue }
+                guard let claimToken = await SMHIWarningNotificationGate.shared.claim(signature) else { continue }
 
                 let content = UNMutableNotificationContent()
                 content.title = "SMHI: \(warning.level)"
@@ -337,14 +342,14 @@ enum SMHIWarningService {
                         && (defaults.string(forKey: notificationEpochKey) ?? "") == notificationEpoch
                     guard stillEnabled else {
                         center.removePendingNotificationRequests(withIdentifiers: [request.identifier])
-                        _ = await SMHIWarningNotificationGate.shared.finish(signature, accepted: false)
+                        _ = await SMHIWarningNotificationGate.shared.finish(signature, token: claimToken, accepted: false)
                         continue
                     }
-                    _ = await SMHIWarningNotificationGate.shared.finish(signature, accepted: true)
+                    _ = await SMHIWarningNotificationGate.shared.finish(signature, token: claimToken, accepted: true)
                     queuedSMHIWarnings += 1
                     defaults.set(true, forKey: "Regnvakt.notifications.hasUnread")
                 } catch {
-                    _ = await SMHIWarningNotificationGate.shared.finish(signature, accepted: false)
+                    _ = await SMHIWarningNotificationGate.shared.finish(signature, token: claimToken, accepted: false)
                     // Leave the signature uncommitted so the next check retries.
                 }
             }
