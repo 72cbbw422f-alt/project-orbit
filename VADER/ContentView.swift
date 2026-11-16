@@ -379,8 +379,8 @@ private struct ReferenceWeatherHome: View {
             return wet && (hour.precipitationChance >= 40 || hour.precipitation >= threshold)
         }
         let thunder = upcoming.contains { $0.condition.localizedCaseInsensitiveContains("åska") }
-        let wind = max(weather.windGust, upcoming.map(\\.gust).max() ?? 0) >= WeatherWatchRules.windGustThreshold
-            || max(weather.wind, upcoming.map(\\.wind).max() ?? 0) >= 11
+        let wind = max(weather.windGust, upcoming.map(\.gust).max() ?? 0) >= WeatherWatchRules.windGustThreshold
+            || max(weather.wind, upcoming.map(\.wind).max() ?? 0) >= 11
         let currentHour = Calendar.current.component(.hour, from: now)
         let frostThreshold = (currentHour >= 18 || currentHour < 9) ? 1 : 0
         let frost = weather.temperature <= frostThreshold || upcoming.contains { hour in
