@@ -163,13 +163,22 @@ enum WeatherNotificationScheduler {
         let key = "Regnvakt.notifications.explicitPlaceMonitoringMigration.v1"
         let defaults = UserDefaults.standard
         guard !defaults.bool(forKey: key) else { return }
-        // Invalidate any legacy-cache schedule already running before clearing
-        // its requests, so it cannot add them back after the migration cleanup.
-        defaults.set(UUID().uuidString, forKey: globalScheduleTokenKey)
+
+        let registry = defaults.data(forKey: forecastRegistryKey)
+            .flatMap { try? JSONDecoder().decode([String: StoredForecast].self, from: $0) } ?? [:]
+        let validPlacePrefixes = registry.values.map {
+            prefix + $0.locationID.replacingOccurrences(of: ",", with: "_") + "."
+        }
+        // Mark migration complete before the asynchronous notification-center
+        // read, so a legacy cache cannot be scheduled again during cleanup.
+        defaults.set(true, forKey: key)
+
         UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
-            let ids = requests.map(\.identifier).filter { $0.hasPrefix(prefix) }
+            let ids = requests.map(\.identifier).filter { identifier in
+                identifier.hasPrefix(prefix) &&
+                    !validPlacePrefixes.contains(where: { identifier.hasPrefix($0) })
+            }
             UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
-            defaults.set(true, forKey: key)
         }
     }
 
