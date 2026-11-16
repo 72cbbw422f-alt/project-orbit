@@ -193,13 +193,14 @@ struct VaktDashboard: View {
         let activeGreen = Color(red: 0.24, green: 0.66, blue: 0.43)
         let enabledBackground = Color(red: 0.025, green: 0.105, blue: 0.075)
         let cardBackground = watch.isEnabled ? enabledBackground : WatchPalette.panel
-        let iconTint = watch.isEnabled
-            ? (watch.id == "official" ? watch.tint : activeGreen)
-            : WatchPalette.muted
+        let hasActiveSMHIWarning = watch.id == "official" && watch.riskDetected
+        let iconTint = hasActiveSMHIWarning
+            ? watch.tint
+            : (watch.isEnabled ? activeGreen : WatchPalette.muted)
         let statusTint = watch.isEnabled ? activeGreen : WatchPalette.muted.opacity(0.55)
-        let levelTint = watch.isEnabled
-            ? (watch.id == "official" ? watch.tint : activeGreen)
-            : WatchPalette.muted
+        let levelTint = hasActiveSMHIWarning
+            ? watch.tint
+            : (watch.isEnabled ? activeGreen : WatchPalette.muted)
 
         HStack(spacing: 13) {
             ZStack {
