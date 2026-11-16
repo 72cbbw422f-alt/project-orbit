@@ -359,40 +359,18 @@ private struct ReferenceWeatherHome: View {
     }
 
     private var homeRiskStatus: (color: Color, label: String)? {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = .current
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
-        let now = Date()
-        let horizon = WeatherWatchRules.forecastHorizon(from: now)
-        let upcoming = hours.filter { hour in
-            guard let date = formatter.date(from: hour.id) else { return false }
-            return date >= now && date <= horizon
-        }
-        guard !upcoming.isEmpty else { return nil }
+        let assessment = WeatherRiskAssessment.evaluate(
+            weather: weather,
+            hours: hours,
+            smhiActive: smhiWarningActive,
+            smhiLevel: smhiWarningLevel
+        )
+        guard assessment.hasForecastData else { return nil }
 
-        let rainOrSnow = upcoming.contains { hour in
-            let condition = hour.condition.lowercased()
-            let wet = condition.contains("regn") || condition.contains("dugg") ||
-                condition.contains("skur") || condition.contains("snö")
-            let threshold = condition.contains("snö") ? 0.2 : 0.3
-            return wet && (hour.precipitationChance >= 40 || hour.precipitation >= threshold)
-        }
-        let thunder = upcoming.contains { $0.condition.localizedCaseInsensitiveContains("åska") }
-        let wind = max(weather.windGust, upcoming.map(\.gust).max() ?? 0) >= WeatherWatchRules.windGustThreshold
-            || max(weather.wind, upcoming.map(\.wind).max() ?? 0) >= 11
-        let currentHour = Calendar.current.component(.hour, from: now)
-        let frostThreshold = (currentHour >= 18 || currentHour < 9) ? 1 : 0
-        let frost = weather.temperature <= frostThreshold || upcoming.contains { hour in
-            guard let date = formatter.date(from: hour.id) else { return false }
-            let hourOfDay = Calendar.current.component(.hour, from: date)
-            return hour.temperature <= ((hourOfDay >= 18 || hourOfDay < 9) ? 1 : 0)
-        }
-
-        if smhiWarningActive && (smhiWarningLevel.localizedCaseInsensitiveContains("röd") || smhiWarningLevel.localizedCaseInsensitiveContains("red")) {
+        if assessment.isRed {
             return (Color(red: 0.96, green: 0.29, blue: 0.27), "RÖD SMHI-VARNING")
         }
-        if rainOrSnow || thunder || wind || frost || smhiWarningActive {
+        if assessment.anyRisk {
             return (Color(red: 0.98, green: 0.60, blue: 0.22), "RISK I PROGNOS")
         }
         return (Color(red: 0.24, green: 0.66, blue: 0.43), "INGA RISKER UPPTÄCKTA")
