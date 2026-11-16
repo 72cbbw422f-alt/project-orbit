@@ -190,6 +190,7 @@ private enum WindLayer: String, CaseIterable {
 
 private struct WindFieldOverlay: View {
     let samples: [WindSample]
+    let center: CLLocationCoordinate2D
     let show: Bool
     let gustMode: Bool
 
@@ -225,8 +226,11 @@ private struct WindFieldOverlay: View {
                         var v = 0.0
                         var speed = 0.0
                         for sample in samples {
-                            let sx = 0.5 + (sample.longitude - samples[samples.count / 2].longitude) / 2.0
-                            let sy = 0.5 - (sample.latitude - samples[samples.count / 2].latitude) / 1.2
+                            // Anchor every sample to the actual camera center, not
+                            // the middle element of the response array. The center sample
+                            // can be missing when one of the parallel requests fails.
+                            let sx = 0.5 + (sample.longitude - center.longitude) / 2.0
+                            let sy = 0.5 - (sample.latitude - center.latitude) / 1.2
                             let dx = px - sx
                             let dy = py - sy
                             let weight = 1.0 / max(dx * dx + dy * dy, 0.0025)
@@ -530,7 +534,12 @@ struct RadarMapView: View {
                         }
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    WindFieldOverlay(samples: windSamples, show: showWind, gustMode: windLayer == .gust)
+                    WindFieldOverlay(
+                        samples: windSamples,
+                        center: windMapCenter ?? mapCoordinate,
+                        show: showWind,
+                        gustMode: windLayer == .gust
+                    )
                         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     HStack(spacing: 7) {
                         Circle().fill(Color(red: 0.35, green: 0.88, blue: 0.83)).frame(width: 7, height: 7)
