@@ -294,6 +294,7 @@ enum SMHIWarningService {
                 return "smhi.\(safeID).\(warning.level).\(safeStart).\(safeEpoch)"
             })
             let allPendingRequests = await center.pendingNotificationRequests()
+            guard (defaults.string(forKey: notificationEpochKey) ?? "") == notificationEpoch else { return }
             let pendingSMHIRequests = allPendingRequests.filter { $0.identifier.hasPrefix("smhi.") }
             // Remove queued alerts that no longer affect any currently monitored
             // coordinate, including warnings that ended or belonged to a removed place.
