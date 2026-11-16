@@ -85,7 +85,7 @@ enum SMHIWarningService {
     }
 
     private static func fetchWarnings(
-        filterCoordinates filterCoordinates: [CLLocationCoordinate2D]?,
+        filterCoordinates: [CLLocationCoordinate2D]?,
         includeUpcoming: Bool = true
     ) async throws -> [SMHIWarning] {
         var request = URLRequest(url: endpoint)
