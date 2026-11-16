@@ -149,6 +149,29 @@ Följande problem har rapporterats vid test och ska följas tills de verifierats
 - De nya statusfärgerna och startsidans indikator har committats efter build #383. Ny CI-build måste verifieras innan ändringarna betraktas som kompilerade.
 - Inte testat på fysisk iPhone. Kontrollera särskilt att statusraden inte tränger undan plats-/väderinformationen, att tryck navigerar till Vädervakter, att röd endast används för röd SMHI-varning och att risk/status visas korrekt när en bevakning är avstängd.
 
+## Gemensam regelmotor för riskbedömning – 2026-11-16
+
+### Ändring
+
+- WeatherModels.swift: infört WeatherRiskAssessment.evaluate(...) som gemensam källa för riskerna regn, snö, åska, vind, frost/halkrisk och officiell SMHI-varning.
+- Samma sex timmars prognoshorisont och samma nederbörds-, vind- och frosttrösklar används nu av startsidans statusindikator, Vädervakternas kort och sammanfattningen på startsidan.
+- Röd status härleds centralt och används endast när en aktiv officiell SMHI-varning har röd nivå. Övriga upptäckta risker ger orange status.
+- Startsidan döljer indikatorn om det saknas timprognosdata, så frånvaro av data inte misstas för grönt/lugnt väder.
+- Vädervakternas detaljerade förklaringar behålls; själva riskbeslutet kommer från den gemensamma bedömningen.
+
+### Kvarstående granskning
+
+- Kontrollera att SMHI:s lagrade nivåvärden konsekvent innehåller igenkännbara nivånamn (röd/red, orange etc.).
+- Kontrollera trösklarna mot aviseringsmotorn och säkerställ att bevakningskort, startsidesammanfattning och notisschemaläggning inte driver isär.
+- Frost/halkriskens förklarande text beräknas fortfarande lokalt i VaktView, medan själva riskflaggan kommer från den gemensamma regelmotorn. Nästa refaktor bör låta även detaljorsaken komma från samma bedömningsresultat.
+
+### Verifieringsstatus
+
+- Kod och dokumentation uppdaterade på feature/frost-notification-audit.
+- CI för den samlade regelmotorändringen ska verifieras separat.
+- Ingen fysisk iPhone-testning genomförd ännu.
+- Testfall: regn på gränsvärde, snö på gränsvärde, vind/byvind på gränsvärde, frost dag/natt, fukt nära nollgradigt, aktiv SMHI-varning med röd nivå, annan SMHI-varning, tom timprognos och risk när respektive bevakning är avstängd.
+
 ## Arbetsregel för kommande ändringar
 
 Varje arbetsomgång ska dokumentera:
