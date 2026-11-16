@@ -281,6 +281,14 @@ enum WeatherNotificationScheduler {
                 day.timeZone = .current
                 day.dateFormat = "yyyyMMdd"
                 stamp = day.string(from: Date())
+            } else if event.type == "frost" {
+                // Stable local-day identity: refreshed hourly forecasts must
+                // update one frost warning, never create a new alert per hour.
+                let day = DateFormatter()
+                day.calendar = Calendar.current
+                day.timeZone = .current
+                day.dateFormat = "yyyyMMdd"
+                stamp = day.string(from: Calendar.current.startOfDay(for: event.date))
             } else {
                 stamp = String(Int(event.date.timeIntervalSince1970))
             }
@@ -384,7 +392,7 @@ enum WeatherNotificationScheduler {
         let now = Date()
         // Only schedule forecast-driven alerts inside the rolling 6-hour window.
         // The current-temperature frost check above remains immediate and separate.
-        let forecastHorizon = WeatherWatchRules.forecastHorizon(from: now)
+        let forecastHorizon = WeatherWatchRules.notificationForecastHorizon(from: now)
         let currentHour = Calendar.current.component(.hour, from: now)
         let currentOvernight = currentHour >= 18 || currentHour < 9
         let currentThreshold = currentOvernight ? 1 : 0
