@@ -414,6 +414,9 @@ private struct WatchDetailSheet: View {
             if watch.id == "precipitation" {
                 return request.identifier.hasPrefix("regnvakt.weather.rain.") || request.identifier.hasPrefix("regnvakt.weather.snow.")
             }
+            if watch.id == "official" {
+                return request.identifier.hasPrefix("smhi.")
+            }
             return request.identifier.hasPrefix("regnvakt.weather.\(watch.id).")
         }
         notificationStatus = matching.isEmpty ? "Inga väntande aviseringar för den här vakten just nu." : "\(matching.count) väntande avisering(ar) i iOS."
