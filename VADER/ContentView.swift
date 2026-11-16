@@ -59,7 +59,7 @@ struct ContentView: View {
                         WeatherLoadingHome(status: weatherModel.status)
                     }
                 case .radar: RadarMapView(coordinate: weatherModel.currentCoordinate, place: weatherModel.snapshot?.place ?? "Hudiksvall")
-                case .watch: if let snapshot = weatherModel.snapshot { VaktDashboard(weather: snapshot, days: weatherModel.days, hours: weatherModel.hours) } else { RPlaceholder(title: "Vädervakter", subtitle: "Inväntar riktiga väderdata", icon: "bell.badge") }
+                case .watch: if let snapshot = weatherModel.snapshot { VaktDashboard(weather: snapshot, days: weatherModel.days, hours: weatherModel.hours, refreshSMHIWarnings: { weatherModel.refreshSMHIWarnings() }) } else { RPlaceholder(title: "Vädervakter", subtitle: "Inväntar riktiga väderdata", icon: "bell.badge") }
                 case .places: SavedPlacesView(model: weatherModel, onAddPlace: { showingPlaceSearch = true }, onSelectPlace: { selectedTab = .weather })
                 case .more: NotificationSettingsView(refreshSMHIWarnings: { weatherModel.refreshSMHIWarnings() })
                 }
