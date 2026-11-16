@@ -47,7 +47,7 @@ struct HourForecast: Identifiable, Codable {
 }
 
 struct DayForecast: Identifiable, Codable {
-    let id = UUID()
+    var id: Date { date }
     let date: Date
     let day: String
     let symbol: String
