@@ -630,14 +630,34 @@ struct NotificationInboxView: View {
             catch { errorMessage = "Kunde inte hämta SMHI-varningar. Kontrollera anslutningen och försök igen." }
         } else { errorMessage = "Väntar på en giltig position från vädertjänsten." }
         let center = UNUserNotificationCenter.current()
-        delivered = await center.deliveredNotifications().sorted { $0.date > $1.date }
-        pending = await center.pendingNotificationRequests()
+        let allDelivered = await center.deliveredNotifications().sorted { $0.date > $1.date }
+        var deliveredFrostDays = Set<String>()
+        delivered = allDelivered.filter { item in
+            let info = item.request.content.userInfo
+            guard (info["watch"] as? String) == "frost" else { return true }
+            let place = (info["place"] as? String) ?? ""
+            let date = (info["alertDay"] as? Date) ?? item.date
+            let day = Calendar.current.startOfDay(for: date).timeIntervalSince1970
+            return deliveredFrostDays.insert("\\(place)|\\(day)").inserted
+        }
+
+        let allPending = await center.pendingNotificationRequests()
             .filter { $0.identifier.hasPrefix("regnvakt.weather.") || $0.identifier.hasPrefix("smhi.") }
             .sorted {
                 let a = ($0.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() ?? .distantFuture
                 let b = ($1.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() ?? .distantFuture
                 return a < b
             }
+        var pendingFrostDays = Set<String>()
+        pending = allPending.filter { request in
+            let info = request.content.userInfo
+            guard (info["watch"] as? String) == "frost" else { return true }
+            let place = (info["place"] as? String) ?? ""
+            let date = (info["alertDay"] as? Date)
+                ?? ((info["forecastEventDate"] as? TimeInterval).map { Date(timeIntervalSince1970: $0) } ?? Date())
+            let day = Calendar.current.startOfDay(for: date).timeIntervalSince1970
+            return pendingFrostDays.insert("\\(place)|\\(day)").inserted
+        }
         isLoading = false
     }
 }
