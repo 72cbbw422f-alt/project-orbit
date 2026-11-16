@@ -184,3 +184,12 @@ Varje arbetsomgång ska dokumentera:
 - kvarstående risker och nästa steg.
 
 Ändra inte status från “byggt” till “löst” förrän relevant funktion har verifierats. En lyckad CI-build är inte samma sak som ett godkänt användartest.
+
+
+## Frostbedömning och notifieringsregler – uppföljning 2026-11-16
+
+- Build #394 (run 43949248526, commit 49bcb79c832513261add6f62af61daacdec51d1d) slutfördes med `success`: gemensam riskmotor kompilerar och osignerad IPA paketerades.
+- Frostvakten använde tidigare samma beräkningsmönster i både `WeatherRiskAssessment` och `VaktDashboard`, men detaljkortet räknade ut första frostdygnet och fukt nära noll separat. Detaljvärdena flyttas nu till resultatet från riskbedömningen så att status och förklaring har samma källa.
+- Aviseringsmotorn använder samma risktrösklar för regn (40 % eller 0,3 mm), snö (40 % eller 0,2 mm), vind (15 m/s byvind eller 11 m/s medelvind), åska och frost (1 °C nattetid, 0 °C dagtid). Notiserna har avsiktligt 24 timmars horisont medan skärmens sammanfattning använder 6 timmar; det är en skillnad i framförhållning, inte i tröskelvärden.
+- Halknotisen har ett separat säkerhetsvillkor: fukt/nederbörd nu eller inom tre prognostimmar, alternativt underkyld nederbörd. Detta motsvarar riskmotorns halkbedömning, med notifieringens övergångs-/dedupliceringslogik ovanpå.
+- Fysisk enhetstestning återstår. Verifiera särskilt att detaljtexten för frost/halkrisk överensstämmer med statusen och att aviseringar inom 24 timmar inte ger falska förväntningar om att samma risk måste visas i 6-timmarssammanfattningen.
