@@ -66,33 +66,8 @@ struct VaktDashboard: View {
         let maxGust = max(weather.windGust, upcoming.map(\.gust).max() ?? 0)
         let maxWind = max(weather.wind, upcoming.map(\.wind).max() ?? 0)
         let wind = assessment.wind
-        let dateFormatter = DateFormatter()
-        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
-        dateFormatter.timeZone = .current
-        dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
-
-        let frostHour = upcoming.first { hour in
-            guard let date = dateFormatter.date(from: hour.id) else { return false }
-            let localHour = Calendar.current.component(.hour, from: date)
-            let overnight = localHour >= 18 || localHour < 9
-            return hour.temperature <= (overnight ? 1 : 0)
-        }
-        let wetNearFreeze = upcoming.enumerated().first { index, hour in
-            guard hour.temperature <= 1 else { return false }
-            let condition = hour.condition.lowercased()
-            let isWetCondition = condition.contains("regn") || condition.contains("dugg") ||
-                condition.contains("skur") || condition.contains("snö") || condition.contains("underkylt")
-            let wetNow = hour.precipitation >= 0.2 || (hour.precipitationChance >= 50 && isWetCondition)
-            let recentWet = upcoming[..<index].suffix(3).contains { previous in
-                let previousCondition = previous.condition.lowercased()
-                let previousWetCondition = previousCondition.contains("regn") || previousCondition.contains("dugg") ||
-                    previousCondition.contains("skur") || previousCondition.contains("snö") ||
-                    previousCondition.contains("underkylt")
-                return previous.precipitation >= 0.2 ||
-                    (previous.precipitationChance >= 50 && previousWetCondition)
-            }
-            return wetNow || recentWet || condition.contains("underkylt")
-        }?.element
+        let frostHour = assessment.forecastFrostHour
+        let wetNearFreeze = assessment.wetNearFreezeHour
         let currentHourOfDay = Calendar.current.component(.hour, from: Date())
         let currentFrostThreshold = (currentHourOfDay >= 18 || currentHourOfDay < 9) ? 1 : 0
         let currentFrost = weather.temperature <= currentFrostThreshold
