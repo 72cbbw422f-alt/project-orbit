@@ -175,8 +175,21 @@ struct VaktDashboard: View {
                     watchCard(watch)
                 }
 
-                Text("Väderprognosen visar vilka bevakningar som är aktiva. SMHI-varningar är officiella och visas separat när de berör vald plats.")
-                    .font(.system(size: 14, weight: .medium)).foregroundStyle(WatchPalette.muted).fixedSize(horizontal: false, vertical: true).padding(.horizontal, 3)
+                VStack(alignment: .leading, spacing: 9) {
+                    Text("SÅ TOLKAR DU STATUSEN")
+                        .font(.system(size: 11, weight: .heavy)).tracking(0.9)
+                        .foregroundStyle(WatchPalette.muted)
+                    statusLegendRow(color: Color(red: 0.24, green: 0.66, blue: 0.43), title: "Grön", detail: "Bevakningen är på")
+                    statusLegendRow(color: Color(red: 0.98, green: 0.60, blue: 0.22), title: "Orange", detail: "Risk upptäckt i prognosen")
+                    statusLegendRow(color: Color(red: 0.96, green: 0.29, blue: 0.27), title: "Röd", detail: "Officiell röd SMHI-varning")
+                    statusLegendRow(color: WatchPalette.muted.opacity(0.55), title: "Grå", detail: "Bevakningen är avstängd")
+                    Text("En bevakning kan vara på även när prognosen är lugn. Risk visas separat.")
+                        .font(.system(size: 12, weight: .medium)).foregroundStyle(WatchPalette.muted)
+                        .fixedSize(horizontal: false, vertical: true).padding(.top, 2)
+                }
+                .padding(13)
+                .background(WatchPalette.panel, in: RoundedRectangle(cornerRadius: 15))
+                .overlay(RoundedRectangle(cornerRadius: 15).stroke(WatchPalette.line, lineWidth: 1))
                 Text("PROGNOS: OPEN-METEO  •  VARNINGAR: SMHI").font(.system(size: 14, weight: .bold)).tracking(0.7).foregroundStyle(WatchPalette.muted.opacity(0.7)).frame(maxWidth: .infinity).padding(.top, 3).padding(.bottom, 20)
             }
             .padding(.horizontal, 14).padding(.top, 22)
@@ -190,23 +203,37 @@ struct VaktDashboard: View {
         }
     }
 
+    private func statusPill(color: Color, title: String) -> some View {
+        HStack(spacing: 5) {
+            Circle().fill(color).frame(width: 6, height: 6)
+            Text(title).foregroundStyle(color)
+        }
+        .font(.system(size: 10, weight: .heavy))
+        .tracking(0.45)
+    }
+
+    private func statusLegendRow(color: Color, title: String, detail: String) -> some View {
+        HStack(spacing: 8) {
+            Circle().fill(color).frame(width: 7, height: 7)
+            Text(title).font(.system(size: 12, weight: .bold)).foregroundStyle(.white).frame(width: 48, alignment: .leading)
+            Text(detail).font(.system(size: 12, weight: .medium)).foregroundStyle(WatchPalette.muted)
+            Spacer(minLength: 0)
+        }
+    }
+
     @ViewBuilder private func watchCard(_ watch: WatchItem) -> some View {
         let activeGreen = Color(red: 0.24, green: 0.66, blue: 0.43)
-        let enabledBackground = Color(red: 0.025, green: 0.105, blue: 0.075)
-        let cardBackground = watch.isEnabled ? enabledBackground : WatchPalette.panel
+        let riskOrange = Color(red: 0.98, green: 0.60, blue: 0.22)
+        let disabledGray = WatchPalette.muted.opacity(0.55)
         let hasActiveSMHIWarning = watch.id == "official" && watch.riskDetected
-        let iconTint = hasActiveSMHIWarning
-            ? watch.tint
-            : (watch.isEnabled ? activeGreen : WatchPalette.muted)
-        let statusTint = watch.isEnabled ? activeGreen : WatchPalette.muted.opacity(0.55)
-        let levelTint = hasActiveSMHIWarning
-            ? watch.tint
-            : (watch.isEnabled ? activeGreen : WatchPalette.muted)
+        let isRedSMHIWarning = hasActiveSMHIWarning && (smhiLevel.localizedCaseInsensitiveContains("röd") || smhiLevel.localizedCaseInsensitiveContains("red"))
+        let iconTint = hasActiveSMHIWarning ? watch.tint : WatchPalette.cyan
+        let riskTint = isRedSMHIWarning ? Color(red: 0.96, green: 0.29, blue: 0.27) : (hasActiveSMHIWarning ? watch.tint : riskOrange)
 
         HStack(spacing: 13) {
             ZStack {
                 RoundedRectangle(cornerRadius: 15)
-                    .fill(watch.isEnabled ? activeGreen.opacity(0.12) : WatchPalette.cyan.opacity(0.10))
+                    .fill(WatchPalette.cyan.opacity(0.10))
                 Image(systemName: watch.symbol)
                     .font(.system(size: 34, weight: .medium))
                     .symbolRenderingMode(.hierarchical)
@@ -219,26 +246,26 @@ struct VaktDashboard: View {
                 Text(watch.title).font(.system(size: 13, weight: .heavy)).foregroundStyle(.white)
                 Text(watch.subtitle).font(.system(size: 14, weight: .medium)).foregroundStyle(WatchPalette.muted).lineLimit(2)
                 Text(watch.detail).font(.system(size: 14, weight: .medium)).foregroundStyle(.white.opacity(0.88)).lineLimit(2)
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(statusTint)
-                        .frame(width: 6, height: 6)
-                    Text(watch.level)
-                        .foregroundStyle(levelTint)
+                HStack(spacing: 10) {
+                    statusPill(color: watch.isEnabled ? activeGreen : disabledGray,
+                               title: watch.isEnabled ? "BEVAKNING PÅ" : "AVSTÄNGD")
+                    if watch.riskDetected {
+                        statusPill(color: riskTint, title: watch.level)
+                    } else if watch.isEnabled {
+                        Text("INGEN RISK JUST NU")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(WatchPalette.muted)
+                    }
                 }
-                .font(.system(size: 13, weight: .heavy))
-                .tracking(0.6)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
             }
             Spacer(minLength: 0)
         }
         .padding(10)
-        .background(cardBackground, in: RoundedRectangle(cornerRadius: 19))
-        .overlay(
-            RoundedRectangle(cornerRadius: 19)
-                .stroke(watch.isEnabled ? activeGreen.opacity(0.34) : WatchPalette.line, lineWidth: 1)
-        )
-        .shadow(color: watch.isEnabled ? activeGreen.opacity(0.10) : .black.opacity(0.2),
-                radius: watch.isEnabled ? 9 : 10, y: 5)
+        .background(WatchPalette.panel, in: RoundedRectangle(cornerRadius: 19))
+        .overlay(RoundedRectangle(cornerRadius: 19).stroke(WatchPalette.line, lineWidth: 1))
+        .shadow(color: .black.opacity(0.2), radius: 10, y: 5)
         .contentShape(RoundedRectangle(cornerRadius: 19))
         .onTapGesture { selectedWatch = watch }
         .accessibilityElement(children: .combine)
