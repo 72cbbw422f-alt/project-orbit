@@ -235,9 +235,12 @@ private struct WindFieldOverlay: View {
                             let dy = py - sy
                             let weight = 1.0 / max(dx * dx + dy * dy, 0.0025)
                             let magnitude = gustMode ? sample.gust : sample.speed
-                            let radians = (sample.direction + 180) * .pi / 180
+                            // Open-Meteo reports the direction the wind comes FROM.
+                            // Convert it to a screen-space vector pointing where it blows:
+                            // east is positive X; north is negative Y on the map canvas.
+                            let radians = sample.direction * .pi / 180
                             u += -sin(radians) * magnitude * weight
-                            v += cos(radians) * magnitude * weight
+                            v += -cos(radians) * magnitude * weight
                             speed += magnitude * weight
                             total += weight
                         }
