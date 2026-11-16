@@ -15,9 +15,9 @@ struct NotificationSettingsView: View {
     @State private var permissionStatus = "Kontrollerar behörighet…"
     @State private var requestingPermission = false
     @State private var testNotificationMessage = ""
-    @AppStorage("Regnvakt.notifications.scheduleStatus.v1") private var scheduleStatus = "Kontrollerar schemaläggning…"
-    @AppStorage("Regnvakt.notifications.scheduledCount.v1") private var scheduledCount = 0
-    @AppStorage("Regnvakt.notifications.scheduleUpdated.v1") private var scheduleUpdatedTimestamp = 0.0
+    @AppStorage("Regnvakt.notifications.scheduleStatus") private var scheduleStatus = "Kontrollerar schemaläggning…"
+    @AppStorage("Regnvakt.notifications.scheduledCount") private var scheduledCount = 0
+    @AppStorage("Regnvakt.notifications.scheduleUpdated") private var scheduleUpdatedTimestamp = 0.0
 
     private let cyan = Color(red: 0.04, green: 0.78, blue: 0.98)
     private let muted = Color(red: 0.69, green: 0.78, blue: 0.88)
