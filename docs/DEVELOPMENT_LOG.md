@@ -85,6 +85,37 @@ Följande problem har rapporterats vid test och ska följas tills de verifierats
 - Att frostnotiser inte längre dubbleras i alla kombinationer av aktuell temperatur, prognos, väntande notiser och redan levererade notiser.
 - Att lokala notiser faktiskt levereras när appen är stängd.
 
+## Frostfix – uppföljning efter build #380
+
+**Utgångsläge:** Build #380 slutfördes med resultat `success` den 2026-11-16. Den bekräftar kompilering och paketering av dokumentationsändringen, inte enhetstest.
+
+### Rotorsak som hittats i koden
+
+- Aktuell frost och prognosfrost hade olika notis-ID:n: `.frost.current.yyyyMMdd` respektive `.frost.yyyyMMdd`.
+- Prognosens dagsmängd startade tom även när aktuell frost redan var aktiv. Samma plats och dag kunde därför ge både en omedelbar notis och en prognosnotis.
+- När aktuell temperatur blev inaktuell kunde en redan schemalagd aktuell frostnotis bevaras samtidigt som prognosnotisen återskapades.
+- Inkorgens tidigare deduplicering använde två separata mängder för levererade respektive väntande notiser. Samma frostvarning kunde därför synas i båda avsnitten.
+- Dessutom var interpoleringen i dedupliceringsnyckeln felaktigt escapad i Swift-strängen, så nyckeln riskerade att bli en bokstavlig sträng i stället för plats och dag.
+
+### Ändringar genomförda
+
+- `WeatherNotificationScheduler.swift`: dagens lokala kalenderdag markeras som redan täckt av frost när aktuell frost är aktiv **eller** när en aktuell frostnotis redan har schemalagts för dagen. Prognosloopen skapar då inte en andra frostnotis för samma dag.
+- Kommentar om prognoshorisonten uppdaterades så att den inte felaktigt anger sex timmar.
+- `NotificationInboxView.swift`: levererade och väntande notiser använder nu en gemensam dedupliceringsmängd. Levererad notis prioriteras framför väntande notis för samma plats/dag.
+- Frostnyckeln använder korrekt Swift-interpolering.
+
+### Commits
+
+- `7dcfca4d0fdb4bd67a974f0236a0e78e06f606aa` – schemaläggningslogik.
+- `6fc3435f0a008e06345d039a7fd6dedfb5a0c770` – inkorgens gemensamma deduplicering.
+
+### Verifieringsstatus
+
+- Källkod uppdaterad på `feature/frost-notification-audit`.
+- CI för dessa ändringar inväntar körning/slutresultat.
+- Inte testat på fysisk iPhone ännu. Testa särskilt: aktuell temperatur under frostgränsen, inaktuell temperatur med redan schemalagd aktuell frostnotis, prognosfrost senare samma dag samt kombinationen levererad + väntande notis.
+- Kontrollera att olika bevakade platser fortfarande får separata notiser; dedupliceringen ska endast gälla samma plats och lokala kalenderdag.
+
 ## Nästa åtgärder
 
 1. Granska frostlogiken så att aktuell frost och prognosfrost för samma plats och kalenderdag inte kan skapa två notiser med olika identifierare.
