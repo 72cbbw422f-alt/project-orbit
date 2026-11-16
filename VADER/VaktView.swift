@@ -14,6 +14,7 @@ private struct WatchItem: Identifiable {
     let subtitle: String
     let symbol: String
     let active: Bool
+    let isEnabled: Bool
     let riskDetected: Bool
     let detail: String
     let level: String
@@ -110,16 +111,27 @@ struct VaktDashboard: View {
                 : rain ? "Regn når aviseringsgränsen i timprognosen"
                 : "Ingen nederbörd når aviseringsgränsen kommande timmar")
         return [
-            WatchItem(id: "precipitation", title: precipitationTitle, subtitle: "Nederbörd · regn · snö · duggregn", symbol: snow ? "cloud.snow.fill" : "cloud.rain.fill", active: (rain && rainEnabled) || (snow && snowEnabled), riskDetected: rain || snow, detail: precipitationDetail, level: !(rainEnabled || snowEnabled) ? "AVSTÄNGD" : ((rain && rainEnabled) || (snow && snowEnabled)) ? "RISK I PROGNOS" : (rain || snow) ? "RISK FINNS · VAKT AV" : "LUGNT", tint: WatchPalette.cyan),
-            WatchItem(id: "thunder", title: "ÅSKVAKTEN", subtitle: "Åska · blixtar · åskrisk", symbol: "cloud.bolt.rain.fill", active: thunder && thunderEnabled, riskDetected: thunder, detail: thunder ? "Åska förekommer i prognosen" : "Ingen åska identifierad i prognosen", level: !thunderEnabled ? "AVSTÄNGD" : thunder ? "RISK I PROGNOS" : "LUGNT", tint: Color.orange),
-            WatchItem(id: "wind", title: "VINDVAKTEN", subtitle: "Vindstyrka · hårda vindbyar", symbol: "wind", active: wind && windEnabled, riskDetected: wind, detail: String(format: "Vind upp till %.1f m/s • byvind %.1f m/s", maxWind, maxGust), level: !windEnabled ? "AVSTÄNGD" : wind ? "FÖRHÖJD VIND" : "LUGNT", tint: Color(red: 0.54, green: 0.72, blue: 1.0)),
-            WatchItem(id: "frost", title: "FROSTVAKTEN", subtitle: "Frostbildning · temperatur · separat halkrisk", symbol: "thermometer.snowflake", active: frost && frostEnabled, riskDetected: frost, detail: wetNearFreeze.map { "Fukt/nederbörd och cirka \($0.temperature)° omkring kl. \($0.time) – risk för halka" } ?? (currentFrost ? "Frostrisk just nu: cirka \(weather.temperature)°. Frost kan bildas även utan nederbörd." : frostHour.map { "Frostrisk: cirka \($0.temperature)° kl. \($0.time). Frost kan bildas även utan nederbörd." } ?? "Ingen tydlig frostrisk i timprognosen"), level: !frostEnabled ? "AVSTÄNGD" : wetNearFreeze != nil ? "HALKRISK" : frost ? "FROSTRISK" : "LUGNT", tint: Color.cyan),
-            WatchItem(id: "official", title: "SMHI:S VÄDERVARNINGAR", subtitle: "Officiella varningar som berör vald plats", symbol: "exclamationmark.triangle.fill", active: smhiActive && smhiNotificationsEnabled, riskDetected: smhiActive, detail: smhiSummary + (smhiUpdated.isEmpty ? "" : " • Uppdaterad " + smhiUpdated), level: !smhiNotificationsEnabled ? "AVSTÄNGD" : smhiActive ? (smhiLevel.isEmpty ? "AKTIV VARNING" : smhiLevel + " VARNING") : "INGEN AKTIV VARNING", tint: Color.yellow)
+            WatchItem(id: "precipitation", title: precipitationTitle, subtitle: "Nederbörd · regn · snö · duggregn", symbol: snow ? "cloud.snow.fill" : "cloud.rain.fill", active: (rain && rainEnabled) || (snow && snowEnabled), isEnabled: snow ? snowEnabled : rainEnabled, riskDetected: rain || snow, detail: precipitationDetail, level: !(rainEnabled || snowEnabled) ? "AVSTÄNGD" : ((rain && rainEnabled) || (snow && snowEnabled)) ? "RISK I PROGNOS" : (rain || snow) ? "RISK FINNS · VAKT AV" : "LUGNT", tint: WatchPalette.cyan),
+            WatchItem(id: "thunder", title: "ÅSKVAKTEN", subtitle: "Åska · blixtar · åskrisk", symbol: "cloud.bolt.rain.fill", active: thunder && thunderEnabled, isEnabled: thunderEnabled, riskDetected: thunder, detail: thunder ? "Åska förekommer i prognosen" : "Ingen åska identifierad i prognosen", level: !thunderEnabled ? "AVSTÄNGD" : thunder ? "RISK I PROGNOS" : "LUGNT", tint: Color.orange),
+            WatchItem(id: "wind", title: "VINDVAKTEN", subtitle: "Vindstyrka · hårda vindbyar", symbol: "wind", active: wind && windEnabled, isEnabled: windEnabled, riskDetected: wind, detail: String(format: "Vind upp till %.1f m/s • byvind %.1f m/s", maxWind, maxGust), level: !windEnabled ? "AVSTÄNGD" : wind ? "FÖRHÖJD VIND" : "LUGNT", tint: Color(red: 0.54, green: 0.72, blue: 1.0)),
+            WatchItem(id: "frost", title: "FROSTVAKTEN", subtitle: "Frostbildning · temperatur · separat halkrisk", symbol: "thermometer.snowflake", active: frost && frostEnabled, isEnabled: frostEnabled, riskDetected: frost, detail: wetNearFreeze.map { "Fukt/nederbörd och cirka \($0.temperature)° omkring kl. \($0.time) – risk för halka" } ?? (currentFrost ? "Frostrisk just nu: cirka \(weather.temperature)°. Frost kan bildas även utan nederbörd." : frostHour.map { "Frostrisk: cirka \($0.temperature)° kl. \($0.time). Frost kan bildas även utan nederbörd." } ?? "Ingen tydlig frostrisk i timprognosen"), level: !frostEnabled ? "AVSTÄNGD" : wetNearFreeze != nil ? "HALKRISK" : frost ? "FROSTRISK" : "LUGNT", tint: Color.cyan),
+            WatchItem(id: "official", title: "SMHI:S VÄDERVARNINGAR", subtitle: "Officiella varningar som berör vald plats", symbol: "exclamationmark.triangle.fill", active: smhiActive && smhiNotificationsEnabled, isEnabled: smhiNotificationsEnabled, riskDetected: smhiActive, detail: smhiSummary + (smhiUpdated.isEmpty ? "" : " • Uppdaterad " + smhiUpdated), level: !smhiNotificationsEnabled ? "AVSTÄNGD" : smhiActive ? (smhiLevel.isEmpty ? "AKTIV VARNING" : smhiLevel + " VARNING") : "INGEN AKTIV VARNING", tint: smhiSeverityTint)
         ]
     }
 
     private var activeWatches: [WatchItem] { watches.filter(\.active) }
     private var riskWatches: [WatchItem] { watches.filter(\.riskDetected) }
+
+    private var smhiSeverityTint: Color {
+        let level = smhiLevel.lowercased()
+        if level.contains("röd") || level.contains("red") {
+            return Color(red: 0.96, green: 0.29, blue: 0.27)
+        }
+        if level.contains("orange") {
+            return Color(red: 0.98, green: 0.56, blue: 0.20)
+        }
+        return Color(red: 0.96, green: 0.78, blue: 0.25)
+    }
     private var enabledWatchCount: Int {
         [rainEnabled, snowEnabled, thunderEnabled, windEnabled, frostEnabled, smhiNotificationsEnabled]
             .filter { $0 }.count
@@ -175,22 +187,53 @@ struct VaktDashboard: View {
     }
 
     @ViewBuilder private func watchCard(_ watch: WatchItem) -> some View {
+        let activeGreen = Color(red: 0.24, green: 0.66, blue: 0.43)
+        let enabledBackground = Color(red: 0.025, green: 0.105, blue: 0.075)
+        let cardBackground = watch.isEnabled ? enabledBackground : WatchPalette.panel
+        let iconTint = watch.isEnabled
+            ? (watch.id == "official" ? watch.tint : activeGreen)
+            : WatchPalette.muted
+        let statusTint = watch.isEnabled ? activeGreen : WatchPalette.muted.opacity(0.55)
+        let levelTint = watch.isEnabled
+            ? (watch.id == "official" ? watch.tint : activeGreen)
+            : WatchPalette.muted
+
         HStack(spacing: 13) {
             ZStack {
-                RoundedRectangle(cornerRadius: 15).fill(watch.tint.opacity(0.12))
-                Image(systemName: watch.symbol).font(.system(size: 34, weight: .medium)).symbolRenderingMode(.hierarchical).foregroundStyle(watch.tint).shadow(color: watch.tint.opacity(0.4), radius: 10)
-            }.frame(width: 76, height: 82)
+                RoundedRectangle(cornerRadius: 15)
+                    .fill(watch.isEnabled ? activeGreen.opacity(0.12) : WatchPalette.cyan.opacity(0.10))
+                Image(systemName: watch.symbol)
+                    .font(.system(size: 34, weight: .medium))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(iconTint)
+                    .shadow(color: iconTint.opacity(watch.isEnabled ? 0.20 : 0.08), radius: watch.isEnabled ? 5 : 2)
+            }
+            .frame(width: 76, height: 82)
+
             VStack(alignment: .leading, spacing: 5) {
                 Text(watch.title).font(.system(size: 13, weight: .heavy)).foregroundStyle(.white)
                 Text(watch.subtitle).font(.system(size: 14, weight: .medium)).foregroundStyle(WatchPalette.muted).lineLimit(2)
                 Text(watch.detail).font(.system(size: 14, weight: .medium)).foregroundStyle(.white.opacity(0.88)).lineLimit(2)
-                HStack(spacing: 5) { Circle().fill(watch.active ? watch.tint : WatchPalette.muted.opacity(0.55)).frame(width: 6, height: 6).shadow(color: watch.active ? watch.tint : .clear, radius: watch.active ? 6 : 0); Text(watch.level) }.font(.system(size: 13, weight: .heavy)).tracking(0.6).foregroundStyle(watch.active ? watch.tint : WatchPalette.muted)
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(statusTint)
+                        .frame(width: 6, height: 6)
+                    Text(watch.level)
+                        .foregroundStyle(levelTint)
+                }
+                .font(.system(size: 13, weight: .heavy))
+                .tracking(0.6)
             }
             Spacer(minLength: 0)
         }
-        .padding(10).background(WatchPalette.panel, in: RoundedRectangle(cornerRadius: 19))
-        .overlay(RoundedRectangle(cornerRadius: 19).stroke(watch.active ? watch.tint.opacity(0.9) : WatchPalette.line, lineWidth: watch.active ? 1.6 : 1))
-        .shadow(color: watch.active ? watch.tint.opacity(0.20) : .black.opacity(0.2), radius: watch.active ? 13 : 10, y: 5)
+        .padding(10)
+        .background(cardBackground, in: RoundedRectangle(cornerRadius: 19))
+        .overlay(
+            RoundedRectangle(cornerRadius: 19)
+                .stroke(watch.isEnabled ? activeGreen.opacity(0.34) : WatchPalette.line, lineWidth: 1)
+        )
+        .shadow(color: watch.isEnabled ? activeGreen.opacity(0.10) : .black.opacity(0.2),
+                radius: watch.isEnabled ? 9 : 10, y: 5)
         .contentShape(RoundedRectangle(cornerRadius: 19))
         .onTapGesture { selectedWatch = watch }
         .accessibilityElement(children: .combine)
