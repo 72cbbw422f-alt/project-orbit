@@ -23,6 +23,8 @@ struct WeatherRiskAssessment {
     let wind: Bool
     let frost: Bool
     let wetNearFreeze: Bool
+    let wetNearFreezeHour: HourForecast?
+    let forecastFrostHour: HourForecast?
     let hasForecastData: Bool
     let hasOfficialWarning: Bool
     let hasRedOfficialWarning: Bool
@@ -72,7 +74,7 @@ struct WeatherRiskAssessment {
             let localHour = Calendar.current.component(.hour, from: date)
             return hour.temperature <= ((localHour >= 18 || localHour < 9) ? 1 : 0)
         }
-        let wetNearFreeze = upcoming.enumerated().contains { index, hour in
+        let wetNearFreezeHour = upcoming.enumerated().first { index, hour in
             guard hour.temperature <= 1 else { return false }
             let condition = hour.condition.lowercased()
             let wetCondition = condition.contains("regn") || condition.contains("dugg") ||
@@ -87,7 +89,7 @@ struct WeatherRiskAssessment {
                     (previous.precipitationChance >= 50 && previousWetCondition)
             }
             return wetNow || recentWet || condition.contains("underkylt")
-        }
+        }?.element
 
         let level = smhiLevel.lowercased()
         let redWarning = smhiActive && (level.contains("röd") || level.contains("red"))
@@ -97,7 +99,13 @@ struct WeatherRiskAssessment {
             thunder: thunder,
             wind: wind,
             frost: currentFrost || forecastFrost || wetNearFreeze,
-            wetNearFreeze: wetNearFreeze,
+            wetNearFreeze: wetNearFreezeHour != nil,
+            wetNearFreezeHour: wetNearFreezeHour,
+            forecastFrostHour: upcoming.first { hour in
+                guard let date = formatter.date(from: hour.id) else { return false }
+                let localHour = Calendar.current.component(.hour, from: date)
+                return hour.temperature <= ((localHour >= 18 || localHour < 9) ? 1 : 0)
+            },
             hasForecastData: !upcoming.isEmpty,
             hasOfficialWarning: smhiActive,
             hasRedOfficialWarning: redWarning
