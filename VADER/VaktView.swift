@@ -211,11 +211,25 @@ struct VaktDashboard: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 15)
                     .fill(WatchPalette.cyan.opacity(0.10))
-                Image(systemName: watch.symbol)
-                    .font(.system(size: 34, weight: .medium))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(iconTint)
-                    .shadow(color: iconTint.opacity(watch.isEnabled ? 0.20 : 0.08), radius: watch.isEnabled ? 5 : 2)
+                if watch.id == "official" {
+                    VStack(spacing: 1) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 31, weight: .semibold))
+                            .foregroundStyle(watch.riskDetected ? watch.tint : WatchPalette.cyan)
+                        Text("SMHI")
+                            .font(.system(size: 11, weight: .black, design: .rounded))
+                            .tracking(1.2)
+                            .foregroundStyle(.white.opacity(0.9))
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("SMHI:s officiella vädervarningar")
+                } else {
+                    Image(systemName: watch.symbol)
+                        .font(.system(size: 34, weight: .medium))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(iconTint)
+                        .shadow(color: iconTint.opacity(watch.isEnabled ? 0.20 : 0.08), radius: watch.isEnabled ? 5 : 2)
+                }
             }
             .frame(width: 76, height: 82)
 

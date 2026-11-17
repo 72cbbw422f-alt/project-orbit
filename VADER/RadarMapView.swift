@@ -232,15 +232,15 @@ private struct WindFieldOverlay: View {
     }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !show || samples.count < 9)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 15.0, paused: !show || samples.count < 9)) { timeline in
             Canvas { context, size in
                 guard show, samples.count >= 9 else { return }
 
                 // Build a continuous vector field once per frame. Bilinear sampling
                 // between grid cells avoids the stepped direction changes of nearest-cell
                 // lookup, while keeping the 25 Open-Meteo observations as the only input.
-                let nx = 36
-                let ny = 28
+                let nx = 20
+                let ny = 16
                 typealias WindVector = (u: Double, v: Double, speed: Double)
                 var fieldGrid = [WindVector](repeating: (0, 0, 0), count: nx * ny)
 
@@ -299,7 +299,7 @@ private struct WindFieldOverlay: View {
                 let now = timeline.date.timeIntervalSinceReferenceDate
                 // Fewer, longer-lived trails create a calmer visual field and
                 // leave more rendering headroom on older iPhones.
-                let particleCount = 132
+                let particleCount = 76
                 for index in 0..<particleCount {
                     // Deterministic pseudo-random seed points; particles drift continuously
                     // through the interpolated Open-Meteo wind field and then respawn.
@@ -308,7 +308,7 @@ private struct WindFieldOverlay: View {
                     let seed = CGPoint(x: seedX * size.width, y: seedY * size.height)
                     let duration = 4.8 + Double((index * 7) % 13) * 0.43
                     let phase = (now / duration + Double(index) * 0.137).truncatingRemainder(dividingBy: 1.0)
-                    let progress = phase * 68.0
+                    let progress = phase * 48.0
                     let steps = Int(progress)
                     let remainder = progress - Double(steps)
                     var point = seed

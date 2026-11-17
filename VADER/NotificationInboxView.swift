@@ -702,11 +702,9 @@ struct NotificationInboxView: View {
             // different timestamps and notification IDs. Use the displayed
             // event description as well as its local hour to collapse copies.
             let hour = Int(stamp / 3600)
-            let normalizedBody = content.body
-                .replacingOccurrences(of: place, with: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased()
-            return "\(watch)|\(place)|\(hour)|\(normalizedBody)"
+            // Forecast refreshes may change probability/wording while describing
+            // the same watch, place and event hour. Those are one inbox event.
+            return "\(watch)|\(place)|\(hour)"
         }
         let normalizedBody = content.body
             .trimmingCharacters(in: .whitespacesAndNewlines)

@@ -350,3 +350,11 @@ Varje arbetsomgång ska dokumentera:
 - Build #453 (run 44111422700) slutfördes med `success`: Xcode-projektet genererades, iOS Release kompilerades, osignerad IPA paketerades och artefakten `Regnvakt-unsigned-IPA` laddades upp.
 - Artefakt: 4 549 465 byte. SHA-256: `6d3501d7459d41eb32ff3cd2ae86c356e5820ddc5cde65a1b89c6d6a426cd256`. Artefakt-ID 14340373438. Utgångsdatum 2026-12-01 15:16 UTC.
 - Detta verifierar CI-kompilering och paketering, inte installation eller funktion på fysisk iPhone. Testa särskilt SMHI-bildrutor, RainViewer-reserv, platsavläsning, uppspelning/paus, panorering och lagerövergångar på enheten.
+
+
+## Dubbletter i aviseringsinkorgen, SMHI-symbol och lättare vindrendering – 2026-11-17
+
+- Aviseringar för samma prognoshändelse grupperas nu efter vakttyp, plats och händelsetimme. Förändrad sannolikhet eller text vid en prognosuppdatering skapar inte längre ett extra kort för samma regnhändelse.
+- SMHI-vakten får en egen tydlig varningstriangel med SMHI-ordmärke i kortets ikonruta. Varningens allvarlighetsfärg behålls.
+- Vindfältets Canvas-rendering har sänkts från 30 till 15 uppdateringar per sekund. Det beräknade interpolationsfältet har minskats från 36×28 till 20×16 celler och antalet partiklar från 132 till 76. Avsikten är att minska CPU-arbetet och visuellt släp på iPhone utan att ta bort vindlagret.
+- Detta är kodändringar. CI-kompilering och fysisk iPhone-kontroll av lagerbyten, Typ-lagret och vindanimationen återstår.
