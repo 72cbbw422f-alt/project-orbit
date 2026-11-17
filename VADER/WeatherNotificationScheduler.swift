@@ -285,7 +285,7 @@ enum WeatherNotificationScheduler {
             let stamp: String
             if event.immediate {
                 let day = DateFormatter()
-                day.calendar = Calendar.current
+                day.calendar = swedishCalendar
                 day.timeZone = swedishTimeZone
                 day.dateFormat = "yyyyMMdd"
                 stamp = day.string(from: Date())
@@ -293,7 +293,7 @@ enum WeatherNotificationScheduler {
                 // Stable local-day identity: refreshed hourly forecasts must
                 // update one frost warning, never create a new alert per hour.
                 let day = DateFormatter()
-                day.calendar = Calendar.current
+                day.calendar = swedishCalendar
                 day.timeZone = swedishTimeZone
                 day.dateFormat = "yyyyMMdd"
                 stamp = day.string(from: swedishCalendar.startOfDay(for: event.date))
