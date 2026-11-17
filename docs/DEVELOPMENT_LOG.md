@@ -488,3 +488,13 @@ Varje arbetsomgång ska dokumentera:
 - Kodändringar är committade på `feature/frost-notification-audit`.
 - CI-kompilering och IPA-paketering ska kontrolleras separat.
 - Ingen fysisk iPhone-verifiering av den nya 7-dagarsvyn eller radarutseendet är ännu utförd.
+
+
+## Tätare geografiskt modellfält för radarens väderlager – 2026-11-18
+
+- Open-Meteo-fältet för vind, molntäcke och nederbördstyp har ändrats från 5×5 (25) till 9×9 (81) koordinater.
+- Samma geografiska utbredning runt kartans mittpunkt behålls; avståndet mellan modellpunkterna minskar.
+- Alla koordinater hämtas i ett samlat multi-location-anrop. Resultatstatusen visar nu 81 punkter och hanterar partiella svar.
+- Detta ska ge ett tätare visuellt underlag och minska glappen mellan nederbördstypspunkter. Det är fortfarande modellbaserad interpolation/visualisering och inte en radarprodukt eller 81 oberoende observationer.
+- Vindfältets interpolering använder samma provpunkter och samma geografiska utbredning, så dess normalisering behöver inte ändras.
+- Kontrollera API-svarstid, svarsstorlek och rendering på fysisk iPhone. Ingen sådan prestandaverifiering är ännu utförd.
