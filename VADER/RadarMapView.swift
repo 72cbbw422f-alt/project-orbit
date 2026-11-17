@@ -589,7 +589,7 @@ struct RadarMapView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     HStack(spacing: 7) {
                         Circle().fill(Color(red: 0.35, green: 0.88, blue: 0.83)).frame(width: 7, height: 7)
-                        Text(showWind ? "VIND • OPEN-METEO" : (showClouds ? "MOLNTÄCKE • OPEN-METEO" : "RADAR • \(provider.rawValue.uppercased())"))
+                        Text(showWind ? "VIND • OPEN-METEO" : (showPrecipitationTypes ? "NEDERBÖRDSTYP • OPEN-METEO" : (showClouds ? "MOLNTÄCKE • OPEN-METEO" : "RADAR • \(provider.rawValue.uppercased())")))
                             .font(.system(size: 12, weight: .heavy))
                             .tracking(0.8)
                             .foregroundStyle(.white)
@@ -706,7 +706,10 @@ struct RadarMapView: View {
                             showWind = false
                             showClouds = false
                             showPrecipitationTypes = true
-                            showRadar = true
+                            // Type mode is a forecast-model layer, not a radar-image
+                            // overlay. Hide the radar raster so it cannot mask or muddy
+                            // the rain/snow/mixed classification beneath it.
+                            showRadar = false
                             Task { await refreshWindField(center: windMapCenter ?? mapCoordinate) }
                         } label: {
                             Label("Typ", systemImage: "cloud.snow.fill")

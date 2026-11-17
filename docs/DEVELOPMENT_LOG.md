@@ -358,3 +358,10 @@ Varje arbetsomgång ska dokumentera:
 - SMHI-vakten får en egen tydlig varningstriangel med SMHI-ordmärke i kortets ikonruta. Varningens allvarlighetsfärg behålls.
 - Vindfältets Canvas-rendering har sänkts från 30 till 15 uppdateringar per sekund. Det beräknade interpolationsfältet har minskats från 36×28 till 20×16 celler och antalet partiklar från 132 till 76. Avsikten är att minska CPU-arbetet och visuellt släp på iPhone utan att ta bort vindlagret.
 - Detta är kodändringar. CI-kompilering och fysisk iPhone-kontroll av lagerbyten, Typ-lagret och vindanimationen återstår.
+
+
+## Typ-läget frikopplat från radarbilder – 2026-11-17
+
+- Typ-läget stänger nu av SMHI-/RainViewer-rasterbilden och visar endast nederbördstypens Open-Meteo-lager ovanpå baskartan. Det undviker att en radarbilderuta visuellt konkurrerar med eller skymmer modellklassificeringen.
+- Kartans källrad visar uttryckligen ”NEDERBÖRDSTYP • OPEN-METEO” i detta läge, så användaren ser vilken datakälla och vilken typ av lager som visas.
+- Detta är en kodmässig korrigering av Typ-lägets lagerlogik. Kompilering och kontroll av att regn/snö/blandat faktiskt syns på iPhone återstår.
