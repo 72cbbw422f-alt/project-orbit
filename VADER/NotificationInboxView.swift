@@ -137,7 +137,12 @@ enum SMHIWarningService {
                     areaName.localizedCaseInsensitiveContains("Östersjön") ||
                     areaName.localizedCaseInsensitiveContains("Kvarken") ||
                     areaName.localizedCaseInsensitiveContains("Ålands hav") ||
-                    areaName.localizedCaseInsensitiveContains("Rigabukten")
+                    areaName.localizedCaseInsensitiveContains("Rigabukten") ||
+                    areaName.localizedCaseInsensitiveContains("Skärgårdshavet") ||
+                    areaName.localizedCaseInsensitiveContains("Finska Viken") ||
+                    areaName.localizedCaseInsensitiveContains("Bälten") ||
+                    areaName.localizedCaseInsensitiveContains("Öresund") ||
+                    areaName.localizedCaseInsensitiveContains("Vänern")
                 if let filterCoordinates, !filterCoordinates.contains(where: { coordinate in
                     contains(coordinate, geometryType: type, coordinates: coordinates)
                         || isWithinDistance(
