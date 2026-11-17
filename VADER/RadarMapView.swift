@@ -464,6 +464,8 @@ struct RadarMapView: View {
     @State private var typeDetail = "Modellbedömning vid vald plats"
     @State private var radarAtPlace = "Kontrollerar radar över vald plats…"
     @State private var radarPlaceRequestID = UUID()
+    @State private var precipitationTypeRequestID = UUID()
+    @State private var nowcastRequestID = UUID()
     @State private var showTypeInfo = false
     @State private var nowcastPoints: [NowcastPoint] = []
     @State private var nowcastStatus = "Hämtar närprognos…"
@@ -888,9 +890,10 @@ struct RadarMapView: View {
             }
         }
         .onChange(of: coordinateKey) { _, _ in
-            // Invalidate an in-flight radar inspection as soon as the map moves
-            // to a different selected place.
+            // Invalidate every location-bound response as soon as the map moves.
             radarPlaceRequestID = UUID()
+            precipitationTypeRequestID = UUID()
+            nowcastRequestID = UUID()
             // A newly selected town is a new geographic map context.
             Task {
                 await refreshWindField(center: mapCoordinate)
@@ -1043,33 +1046,62 @@ struct RadarMapView: View {
     }
 
     @MainActor
+    @MainActor
     private func refreshPrecipitationType() async {
+        let requestID = UUID()
+        precipitationTypeRequestID = requestID
+        let requestedCoordinate = mapCoordinate
+        let requestedPlace = place
+
         var components = URLComponents(string: "https://api.open-meteo.com/v1/forecast")!
         components.queryItems = [
-            URLQueryItem(name: "latitude", value: String(mapCoordinate.latitude)),
-            URLQueryItem(name: "longitude", value: String(mapCoordinate.longitude)),
+            URLQueryItem(name: "latitude", value: String(requestedCoordinate.latitude)),
+            URLQueryItem(name: "longitude", value: String(requestedCoordinate.longitude)),
             URLQueryItem(name: "current", value: "temperature_2m,weather_code,precipitation,rain,showers,snowfall"),
             URLQueryItem(name: "timezone", value: "auto")
         ]
-        guard let url = components.url else { return }
+        guard let url = components.url else {
+            guard precipitationTypeRequestID == requestID else { return }
+            precipitationType = "Nederbördstyp saknas"
+            typeDetail = "Kunde inte skapa modellbegäran"
+            return
+        }
+
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 15
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard !Task.isCancelled, precipitationTypeRequestID == requestID,
+                  coordinateKey == String(format: "%.5f,%.5f", requestedCoordinate.latitude, requestedCoordinate.longitude) else { return }
             guard (response as? HTTPURLResponse)?.statusCode == 200,
                   let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let current = root["current"] as? [String: Any] else { return }
-            let temp = (current["temperature_2m"] as? NSNumber)?.doubleValue ?? 0
-            let code = (current["weather_code"] as? NSNumber)?.intValue ?? 0
+                  let current = root["current"] as? [String: Any],
+                  let temperature = (current["temperature_2m"] as? NSNumber)?.doubleValue,
+                  temperature.isFinite,
+                  let code = (current["weather_code"] as? NSNumber)?.intValue else {
+                throw URLError(.cannotParseResponse)
+            }
+
+            // Optional precipitation components may be absent in a valid model
+            // response; the WMO code remains the fallback classification.
             let rain = (current["rain"] as? NSNumber)?.doubleValue ?? 0
             let showers = (current["showers"] as? NSNumber)?.doubleValue ?? 0
             let snow = (current["snowfall"] as? NSNumber)?.doubleValue ?? 0
+            guard rain.isFinite, showers.isFinite, snow.isFinite else {
+                throw URLError(.cannotParseResponse)
+            }
+
+            guard !Task.isCancelled, precipitationTypeRequestID == requestID else { return }
             precipitationType = Self.precipitationName(
                 code: code,
-                temperature: temp,
-                rain: rain + showers,
-                snow: snow
+                temperature: temperature,
+                rain: max(0, rain) + max(0, showers),
+                snow: max(0, snow)
             )
-            typeDetail = "Modellbedömning • \(Int(temp.rounded()))°C vid \(place)"
+            typeDetail = "Modellbedömning • \(Int(temperature.rounded()))°C vid \(requestedPlace)"
         } catch {
+            guard !Task.isCancelled, precipitationTypeRequestID == requestID else { return }
             precipitationType = "Nederbördstyp saknas"
             typeDetail = "Kunde inte hämta modellbedömning"
         }
@@ -1077,12 +1109,21 @@ struct RadarMapView: View {
 
     @MainActor
     private func refreshNowcast() async {
+        let requestID = UUID()
+        nowcastRequestID = requestID
+        let requestedCoordinate = mapCoordinate
+
         var components = URLComponents(string: "https://api.met.no/weatherapi/nowcast/2.0/complete")!
         components.queryItems = [
-            URLQueryItem(name: "lat", value: String(mapCoordinate.latitude)),
-            URLQueryItem(name: "lon", value: String(mapCoordinate.longitude))
+            URLQueryItem(name: "lat", value: String(requestedCoordinate.latitude)),
+            URLQueryItem(name: "lon", value: String(requestedCoordinate.longitude))
         ]
-        guard let url = components.url else { return }
+        guard let url = components.url else {
+            guard nowcastRequestID == requestID else { return }
+            nowcastPoints = []
+            nowcastStatus = "Kunde inte skapa närprognosbegäran."
+            return
+        }
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
         request.cachePolicy = .reloadIgnoringLocalCacheData
@@ -1090,13 +1131,13 @@ struct RadarMapView: View {
         request.setValue("application/geo+json, application/json", forHTTPHeaderField: "Accept")
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
+            guard !Task.isCancelled, nowcastRequestID == requestID,
+                  coordinateKey == String(format: "%.5f,%.5f", requestedCoordinate.latitude, requestedCoordinate.longitude) else { return }
             guard (response as? HTTPURLResponse)?.statusCode == 200,
                   let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let properties = root["properties"] as? [String: Any],
                   let timeseries = properties["timeseries"] as? [[String: Any]] else {
-                nowcastPoints = []
-                nowcastStatus = "Närprognosen är inte tillgänglig just nu."
-                return
+                throw URLError(.cannotParseResponse)
             }
 
             let meta = properties["meta"] as? [String: Any]
@@ -1112,8 +1153,13 @@ struct RadarMapView: View {
                 let nextHour = data["next_1_hours"] as? [String: Any]
                 let nextDetails = nextHour?["details"] as? [String: Any]
                 let amount = (nextDetails?["precipitation_amount"] as? NSNumber)?.doubleValue
-                return NowcastPoint(time: date, precipitationRate: rate, amountNextHour: amount)
+                return NowcastPoint(
+                    time: date,
+                    precipitationRate: rate?.isFinite == true ? max(0, rate!) : nil,
+                    amountNextHour: amount?.isFinite == true ? max(0, amount!) : nil
+                )
             }
+            guard !Task.isCancelled, nowcastRequestID == requestID else { return }
             nowcastPoints = Array(parsed.prefix(8))
             nowcastUpdated = Date()
 
@@ -1134,11 +1180,11 @@ struct RadarMapView: View {
                     : "Modellprognos tillgänglig; radarbaserad nederbördsintensitet saknas."
             }
         } catch {
+            guard !Task.isCancelled, nowcastRequestID == requestID else { return }
             nowcastPoints = []
             nowcastStatus = "Kunde inte hämta MET Norways närprognos."
         }
     }
-
 
     @MainActor
     private func refreshWindField(center requestedCenter: CLLocationCoordinate2D? = nil) async {

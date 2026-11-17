@@ -331,3 +331,13 @@ Varje arbetsomgång ska dokumentera:
 - Uppföljande granskning identifierade ett kompletterande kantfall: en platsavläsning som startat före uppspelning kunde fortfarande bli aktuell igen om användaren hann pausa efter att tidslinjen gått vidare.
 - RadarMapView.swift invaliderar därför nu pågående platsavläsningar direkt när uppspelning startar. När uppspelningen pausas görs en ny avläsning för aktuell bildruta och koordinat.
 - Detta är en defensiv komplettering till request-ID-kontrollen. Fysisk iPhone-testning av snabb uppspelning, paus och bildrutevarvning återstår.
+
+
+## Skydd mot inaktuella modellresultat i radarkartan – 2026-11-17
+
+- Lade till separata request-ID:n för nederbördstyp från Open-Meteo och närprognos från MET Norway.
+- När kartans valda koordinat ändras ogiltigförklaras båda pågående begärandena direkt. Ett sent svar från föregående plats får därmed inte skriva över den nya platsens värden.
+- Båda hämtningarna kontrollerar begärandets identitet och koordinat efter nätverksanropet samt före uppdatering av gränssnittet.
+- Nederbördstypen kräver nu giltig temperatur och WMO-väderkod. Saknade temperaturvärden ersätts inte längre med 0 °C och kan därför inte ge en falsk klassificering.
+- Ogiltiga/icke-finita nederbörds- och närprognosvärden filtreras bort i stället för att visas.
+- Ingen fysisk iPhone-verifiering är utförd. CI-resultat inväntas för denna commit.
