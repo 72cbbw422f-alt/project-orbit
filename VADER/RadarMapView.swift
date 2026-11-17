@@ -890,9 +890,13 @@ struct RadarMapView: View {
             .safeAreaPadding(.top, 10)
         }
         .task {
-            await refreshRadar()
-            await refreshPrecipitationType()
-            await refreshNowcast()
+            // These three requests are independent. Start them together so the
+            // radar, point classification and nowcast do not wait in a serial
+            // network queue during first presentation.
+            async let radarLoad: Void = refreshRadar()
+            async let typeLoad: Void = refreshPrecipitationType()
+            async let nowcastLoad: Void = refreshNowcast()
+            _ = await (radarLoad, typeLoad, nowcastLoad)
             // Wind/cloud/type grid data is fetched on demand when its layer is
             // selected. Do not make a 25-point model request on radar startup.
         }
