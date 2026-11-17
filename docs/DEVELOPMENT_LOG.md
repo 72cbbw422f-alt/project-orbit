@@ -459,3 +459,12 @@ Varje arbetsomgång ska dokumentera:
 - WeatherNotificationScheduler.swift använder nu svensk lokal timme (Europe/Stockholm, yyyyMMddHH) i identifieraren för vanliga prognosnotiser. Samma plats, vakttyp och händelsetimme får därmed samma ID och en uppdatering ersätter den väntande notisen i stället för att skapa en ny. Omedelbar frost och dagsbaserad prognosfrost behåller sina separata identitetsregler.
 - Detta är en sannolik rotorsak som stöds av identifieringslogiken och skärmbilden; den faktiska historiska leveransvägen kan inte bevisas enbart från skärmbilden.
 - Kodändringen är pushad. CI-kompilering och nytt iPhone-test återstår. Redan levererade dubbletter tas inte bort retroaktivt av ändringen.
+
+
+## 2026-11-17 — Stabiliserad platsidentitet för prognosnotiser
+
+- Fortsatt granskning av dubblettskärmbilden visade en andra möjlig källa: när telefonens GPS-position används direkt som plats-ID kan små positionsförändringar skapa flera koordinatnycklar för samma sparade/bevakade ort. Dessa nycklar ger olika iOS-notis-ID trots identiskt ortsnamn och prognosinnehåll.
+- När den aktuella GPS-positionen matchar en sparad och aktivt bevakad plats schemaläggs notiser nu med den sparade platsens fasta koordinater och namn i stället för den rörliga GPS-fixen.
+- Detta kompletterar timbaserad händelseidentitet i WeatherNotificationScheduler.swift. Ändringen förhindrar att nya GPS-avvikelser skapar nya identiteter för samma bevakade plats.
+- Hypotesen om redan lagrade äldre koordinatnycklar är inte bekräftad mot användarens enhetsdata. Befintliga historiska dubbletter/nycklar rensas inte automatiskt av denna ändring.
+- Kod pushad. CI-kompilering och iPhone-test återstår.
