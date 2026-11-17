@@ -1311,9 +1311,11 @@ private struct RegnvaktMapView: UIViewRepresentable {
                 // Small, geographically anchored points prevent the sampled
                 // field from blending into one oversized blob.
                 layer.circleColor = NSExpression(forConstantValue: UIColor(red: 0.38, green: 0.68, blue: 0.94, alpha: 1))
-                layer.circleOpacity = NSExpression(format: "cloudCover / 100.0 * 0.30")
-                layer.circleRadius = NSExpression(forConstantValue: 19)
-                layer.circleBlur = NSExpression(forConstantValue: 0.28)
+                layer.circleOpacity = NSExpression(format: "cloudCover / 100.0 * 0.22")
+                // The samples are model grid points, not cloud-shaped polygons.
+                // Keep their footprint restrained so the basemap remains readable.
+                layer.circleRadius = NSExpression(forConstantValue: 8)
+                layer.circleBlur = NSExpression(forConstantValue: 0.85)
                 style.addLayer(layer)
             }
             if let layer = style.layer(withIdentifier: layerID) {
@@ -1356,14 +1358,14 @@ private struct RegnvaktMapView: UIViewRepresentable {
                 }
                 if style.layer(withIdentifier: layerID) == nil {
                     let layer = MLNCircleStyleLayer(identifier: layerID, source: source)
-                    // Crisp outlined markers are readable and do not pulse
-                    // like the former large blurred heatmap spots.
+                    // Keep precipitation-type samples small: the radar remains the primary
+                    // observation layer, while these dots are only model guidance.
                     layer.circleColor = NSExpression(forConstantValue: definition.color)
-                    layer.circleOpacity = NSExpression(forConstantValue: 0.88)
-                    layer.circleRadius = NSExpression(forConstantValue: 12)
-                    layer.circleBlur = NSExpression(forConstantValue: 0.08)
-                    layer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
-                    layer.circleStrokeWidth = NSExpression(forConstantValue: 1.8)
+                    layer.circleOpacity = NSExpression(forConstantValue: 0.68)
+                    layer.circleRadius = NSExpression(forConstantValue: 5)
+                    layer.circleBlur = NSExpression(forConstantValue: 0.18)
+                    layer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white.withAlphaComponent(0.72))
+                    layer.circleStrokeWidth = NSExpression(forConstantValue: 0.8)
                     style.addLayer(layer)
                 }
                 if let layer = style.layer(withIdentifier: layerID) {
