@@ -450,3 +450,12 @@ Varje arbetsomgång ska dokumentera:
 - Avoid invoking the legacy full-image loading path when the selected frame is a RainViewer tile frame. Frame changes continue to update the tile URL through SwiftUI state and still invalidate/update the selected-place radar inspection.
 - The legacy SMHI image path remains isolated for future use only; it is not the active live radar source.
 - Build verification is pending GitHub Actions runner availability. No IPA or device verification is claimed by this source change.
+
+
+## 2026-11-17 — Deduplicering av prognosnotiser per händelsetimme
+
+- Användarens iPhone-skärmbild visar två identiska regnnotiser för Hudiksvall, med samma prognostimme, sannolikhet och nederbördsmängd, levererade med två minuters mellanrum.
+- Kodgranskningen visade att inkorgen redan grupperade prognoshändelser per lokal timme, men själva iOS-notisernas identifierare använde prognosdatumets exakta Unix-sekund. Om en prognosuppdatering justerade händelsetiden några sekunder/minuter kunde iOS därför behandla samma visade timhändelse som en ny notis.
+- WeatherNotificationScheduler.swift använder nu svensk lokal timme (Europe/Stockholm, yyyyMMddHH) i identifieraren för vanliga prognosnotiser. Samma plats, vakttyp och händelsetimme får därmed samma ID och en uppdatering ersätter den väntande notisen i stället för att skapa en ny. Omedelbar frost och dagsbaserad prognosfrost behåller sina separata identitetsregler.
+- Detta är en sannolik rotorsak som stöds av identifieringslogiken och skärmbilden; den faktiska historiska leveransvägen kan inte bevisas enbart från skärmbilden.
+- Kodändringen är pushad. CI-kompilering och nytt iPhone-test återstår. Redan levererade dubbletter tas inte bort retroaktivt av ändringen.
