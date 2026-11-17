@@ -1519,6 +1519,7 @@ private struct SevenDayForecastDetail: View {
     let days: [DayForecast]
     let place: String
     @Environment(\.dismiss) private var dismiss
+    @State private var expandedDay: Date?
 
     var body: some View {
         NavigationStack {
@@ -1548,6 +1549,11 @@ private struct SevenDayForecastDetail: View {
                             LazyVStack(spacing: 10) {
                                 ForEach(days) { day in
                                     VStack(alignment: .leading, spacing: 10) {
+                                        Button {
+                                            withAnimation(.easeInOut(duration: 0.22)) {
+                                                expandedDay = expandedDay == day.date ? nil : day.date
+                                            }
+                                        } label: {
                                         HStack(spacing: 12) {
                                             Image(systemName: day.symbol)
                                                 .symbolRenderingMode(.palette)
@@ -1578,6 +1584,27 @@ private struct SevenDayForecastDetail: View {
                                             forecastMetricColumn(icon: "cloud.rain.fill", label: "Nederbörd", value: String(format: "%.1f mm", day.precipitation))
                                             forecastMetricColumn(icon: "wind", label: "Vind", value: String(format: "%.1f m/s", day.wind))
                                             forecastMetricColumn(icon: "sun.max.fill", label: "UV", value: String(format: "%.0f", day.uv))
+                                        }
+                                        }
+                                        .buttonStyle(.plain)
+                                        if expandedDay == day.date {
+                                            Rectangle().fill(.white.opacity(0.09)).frame(height: 1)
+                                            Text("DAGENS VÄDERDETALJER")
+                                                .font(.system(size: 11, weight: .heavy)).tracking(1)
+                                                .foregroundStyle(RTheme.cyan)
+                                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                                                forecastMetricColumn(icon: "thermometer.high", label: "Högsta temperatur", value: "\(day.high)°")
+                                                forecastMetricColumn(icon: "thermometer.low", label: "Lägsta temperatur", value: "\(day.low)°")
+                                                forecastMetricColumn(icon: "wind", label: "Medelvind", value: String(format: "%.1f m/s", day.wind))
+                                                forecastMetricColumn(icon: "wind", label: "Byvind", value: String(format: "%.1f m/s", day.gust))
+                                                forecastMetricColumn(icon: "drop.fill", label: "Regnrisk", value: "\(day.precipitationChance)%")
+                                                forecastMetricColumn(icon: "cloud.rain.fill", label: "Total nederbörd", value: String(format: "%.1f mm", day.precipitation))
+                                                forecastMetricColumn(icon: "sun.max.fill", label: "UV-index", value: String(format: "%.1f", day.uv))
+                                            }
+                                            Text("Dygnsvärden från Open-Meteo. Timprognosen visas separat under Dagens väder när den finns tillgänglig.")
+                                                .font(.system(size: 11, weight: .medium))
+                                                .foregroundStyle(RTheme.muted)
+                                                .fixedSize(horizontal: false, vertical: true)
                                         }
                                     }
                                     .padding(12)
