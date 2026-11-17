@@ -281,3 +281,12 @@ Varje arbetsomgång ska dokumentera:
 - Gallringen görs tidsbaserat och inte genom att ersätta hela mängden med senaste nätverkssvarets varningar. Därmed kan en långsammare, äldre refresh inte radera en nyare lyckad notifieringsclaim.
 - Samma SMHI warning-area-ID returneras nu högst en gång även om payloaden innehåller upprepade områdesposter. Resultatet sorteras deterministiskt efter allvarlighetsgrad, starttid och ID.
 - Notis- och områdesändringarna är pushade. Kompilering och verklig SMHI-payload-/iOS-notistestning återstår.
+
+
+## Strikt validering av SMHI GeoJSON – 2026-11-17
+
+- SMHI-geometrins koordinatringar valideras nu innan både punkt-i-polygon och avståndsberäkning används.
+- Varje position måste innehålla numerisk longitud/latitud, båda värdena måste vara ändliga och ligga inom giltiga geografiska intervall.
+- En felaktig vertex gör att hela ringen/geometrin avvisas. Tidigare kunde en saknad koordinat tyst ersättas med 0,0 i punkt-i-polygon-testet, vilket riskerade felaktiga varningsträffar.
+- Polygon och MultiPolygon använder nu samma validerade geometri för både innanför-test och närhetskontroll; hål i polygoner fortsätter att exkluderas från själva varningsytan.
+- Kodändringen är committad. CI-kompilering och test mot riktiga SMHI-payloads återstår. Den befintliga 75 km-närhetsgränsen för marina områden är oförändrad och behöver fortsatt separat geografisk utvärdering.
