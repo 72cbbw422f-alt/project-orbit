@@ -428,3 +428,10 @@ Varje arbetsomgång ska dokumentera:
 - Byte av vald plats uppdaterar fortfarande nederbördstyp, närprognos och radaravläsning. Vind-/modellfältet uppdateras bara när det behövs.
 - Avsikten är färre onödiga nätverksanrop, snabbare start och lägre batteri-/databelastning utan att ta bort någon synlig funktion.
 - CI-kompilering och fysisk iPhone-verifiering återstår.
+
+
+## Parallelliserad startladdning – 2026-11-17
+
+- Radarbilder, aktuell nederbördstyp och MET Norway-närprognos är oberoende nätverksflöden. Startvyn startar nu dessa tre laddningar parallellt i stället för att invänta varje flöde sekventiellt.
+- Vind-/modellrutnätet fortsätter hämtas behovsstyrt när Vind eller Typ aktiveras.
+- Målet är kortare upplevd starttid utan fler nätverksanrop eller ändrad datakvalitet. Fysisk enhetstestning och CI-kompilering krävs fortfarande.
