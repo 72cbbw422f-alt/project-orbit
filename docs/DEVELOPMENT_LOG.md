@@ -411,3 +411,11 @@ Varje arbetsomgång ska dokumentera:
 - Uppdaterade informationsdialogen så den inte längre påstår att SMHI används i första hand. Den anger nu RainViewer som aktiv källa och skiljer tydligt på observerad radar och modellbaserad nederbördstyp.
 - Uppdaterade feltexten när radarmanifestet inte kan hämtas. Den nämner inte längre SMHI som en aktiv reservväg i det normala flödet.
 - Detta är en text-/felhanteringskorrigering efter beslutet att använda RainViewer som primär live-radarkälla tills en öppet åtkomlig SMHI-leverans har verifierats.
+
+
+## Korrekt källstatus och RainViewer-tidslinje – 2026-11-17
+
+- Radarfoterns källtext anger nu `Radar: RainViewer • historik` när RainViewer används. Den kallas inte längre reservradar efter att den blivit aktiv primärkälla.
+- RainViewer-manifestet som appen använder exponerar `radar.past`; appens tidslinje är därför historiska/observerade bildrutor och ska inte beskrivas som en framtidsprognos.
+- Tidslinjen fortsätter använda tillgängliga bildrutor i stigande tidsordning, med senaste bildrutan vald initialt. Uppspelningen stegar genom dessa bildrutor; separat närprognos från MET Norway och nederbördstyp från Open-Meteo behålls som modellprodukter.
+- Kod- och källtextändringen är pushad. CI och fysisk iPhone-kontroll återstår.
