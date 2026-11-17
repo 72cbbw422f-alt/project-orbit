@@ -154,7 +154,11 @@ enum SMHIWarningService {
                 // timestamp to an active warning via a distantPast fallback.
                 guard let startDate = parseSMHIDate(start) else { continue }
                 let now = Date()
-                if !end.isEmpty, let endDate = parseSMHIDate(end), endDate < now { continue }
+                // A supplied end timestamp must also be valid. Otherwise a
+                // malformed end could leave an expired warning active forever.
+                if !end.isEmpty {
+                    guard let endDate = parseSMHIDate(end), endDate >= now else { continue }
+                }
                 if includeUpcoming {
                     if startDate > now.addingTimeInterval(4 * 24 * 3600) { continue }
                 } else if startDate > now {
@@ -221,7 +225,8 @@ enum SMHIWarningService {
             // Keep upcoming items visible in the warning feed, but never mark
             // them active or fire an immediate "active warning" notification.
             let active = current.filter { warning in
-                (parseSMHIDate(warning.start) ?? .distantPast) <= now
+                guard let start = parseSMHIDate(warning.start) else { return false }
+                return start <= now
             }
             let upcoming = current.filter { warning in
                 guard let start = parseSMHIDate(warning.start) else { return false }
