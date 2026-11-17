@@ -492,7 +492,7 @@ struct RadarMapView: View {
                             .font(.system(size: 12, weight: .heavy, design: .rounded))
                             .tracking(2.2)
                             .foregroundStyle(Color(red: 0.98, green: 0.58, blue: 0.40))
-                        Text(showWind ? "Vindradar" : (showClouds ? "Molntäcke" : "Nederbördsradar"))
+                        Text(showWind ? "Vindradar" : "Nederbördsradar")
                             .font(.system(size: 25, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
                         Text(place)
@@ -584,7 +584,7 @@ struct RadarMapView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 340)
 
-                if !showWind && !showClouds, let selectedFrame {
+                if !showWind, let selectedFrame {
                     HStack(spacing: 9) {
                         Button { selectedIndex = max(0, selectedIndex - 1) } label: {
                             Image(systemName: "backward.end.fill").font(.system(size: 12, weight: .bold))
@@ -633,9 +633,9 @@ struct RadarMapView: View {
                             Label("Regn", systemImage: "cloud.rain.fill")
                                 .font(.system(size: 15, weight: .bold))
                                 .frame(maxWidth: .infinity).frame(height: 64)
-                                .foregroundStyle(!showWind && !showClouds && !showPrecipitationTypes ? Color(red: 0.10, green: 0.13, blue: 0.17) : .white)
-                                .background(!showWind && !showClouds && !showPrecipitationTypes ? Color(red: 0.98, green: 0.62, blue: 0.43) : Color(red: 0.15, green: 0.22, blue: 0.31), in: RoundedRectangle(cornerRadius: 13))
-                                .overlay(RoundedRectangle(cornerRadius: 13).stroke(!showWind && !showClouds && !showPrecipitationTypes ? Color.white.opacity(0.55) : Color.white.opacity(0.18), lineWidth: 1))
+                                .foregroundStyle(!showWind && !showPrecipitationTypes ? Color(red: 0.10, green: 0.13, blue: 0.17) : .white)
+                                .background(!showWind && !showPrecipitationTypes ? Color(red: 0.98, green: 0.62, blue: 0.43) : Color(red: 0.15, green: 0.22, blue: 0.31), in: RoundedRectangle(cornerRadius: 13))
+                                .overlay(RoundedRectangle(cornerRadius: 13).stroke(!showWind && !showPrecipitationTypes ? Color.white.opacity(0.55) : Color.white.opacity(0.18), lineWidth: 1))
                         }
                         .buttonStyle(.plain)
 
@@ -655,21 +655,6 @@ struct RadarMapView: View {
                         }
                         .buttonStyle(.plain)
 
-                        Button {
-                            showWind = false
-                            showClouds = true
-                            showPrecipitationTypes = false
-                            showRadar = false
-                            Task { await refreshWindField(center: windMapCenter ?? mapCoordinate) }
-                        } label: {
-                            Label("Moln", systemImage: "cloud.fill")
-                                .font(.system(size: 15, weight: .bold))
-                                .frame(maxWidth: .infinity).frame(height: 64)
-                                .foregroundStyle(showClouds ? Color(red: 0.10, green: 0.13, blue: 0.17) : .white)
-                                .background(showClouds ? Color(red: 0.98, green: 0.62, blue: 0.43) : Color(red: 0.15, green: 0.22, blue: 0.31), in: RoundedRectangle(cornerRadius: 13))
-                                .overlay(RoundedRectangle(cornerRadius: 13).stroke(showClouds ? Color.white.opacity(0.55) : Color.white.opacity(0.18), lineWidth: 1))
-                        }
-                        .buttonStyle(.plain)
 
                         Button {
                             showWind = false
@@ -1121,7 +1106,7 @@ struct RadarMapView: View {
                 let code = (current["weather_code"] as? NSNumber)?.intValue ?? 0
                 let type: Int
                 if snow > 0.02 && rain + showers > 0.02 { type = 3 }
-                else if snow > 0.02 || (71...86).contains(code) { type = 2 }
+                else if snow > 0.02 || (71...77).contains(code) || (85...86).contains(code) { type = 2 }
                 else if rain + showers > 0.02 || (51...67).contains(code) || (80...82).contains(code) { type = 1 }
                 else { type = 0 }
 
