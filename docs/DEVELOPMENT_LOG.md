@@ -229,3 +229,5 @@ Varje arbetsomgång ska dokumentera:
 - Kodändringar: WeatherModels.swift, WeatherNotificationScheduler.swift, RadarMapView.swift.
 - Commitkedja: 80679b2 (8 h horisonter), 3f4f1cb (deduplicering), 8b22c5c (molnkontroll bort + korrigerad nederbördstyp).
 - CI och ny IPA inväntar verifiering. Fysisk iPhone-testning återstår.
+
+- 2026-11-17 uppdaterades platsens aktuella nederbördstext till att även läsa Open-Meteos `rain`, `showers` och `snowfall`. Mängderna prioriteras framför generell väderkod för att kunna skilja regn, snö och blandad nederbörd; WMO-kod används som reserv när mängderna är noll. Detta är fortfarande en modellbedömning, inte radar-pixelklassificering. Kompilering av denna senaste ändring återstår.
