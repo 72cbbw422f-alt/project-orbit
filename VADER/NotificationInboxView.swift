@@ -634,12 +634,20 @@ struct NotificationInboxView: View {
             return "frost|\(place)|\(components.year ?? 0)-\(components.month ?? 0)-\(components.day ?? 0)"
         }
         if let stamp = info["forecastEventDate"] as? TimeInterval {
-            // Forecast refreshes can recreate the same event with a different
-            // notification identifier. Group by watch, place and event hour.
+            // Forecast refreshes can recreate the same event with slightly
+            // different timestamps and notification IDs. Use the displayed
+            // event description as well as its local hour to collapse copies.
             let hour = Int(stamp / 3600)
-            return "\(watch)|\(place)|\(hour)"
+            let normalizedBody = content.body
+                .replacingOccurrences(of: place, with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            return "\(watch)|\(hour)|\(normalizedBody)"
         }
-        return "\(watch)|\(place)|\(content.title)|\(content.body)"
+        let normalizedBody = content.body
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return "\(watch)|\(place)|\(content.title.lowercased())|\(normalizedBody)"
     }
 
     @MainActor private func load() async {
