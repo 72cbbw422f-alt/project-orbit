@@ -893,7 +893,8 @@ struct RadarMapView: View {
             await refreshRadar()
             await refreshPrecipitationType()
             await refreshNowcast()
-            await refreshWindField()
+            // Wind/cloud/type grid data is fetched on demand when its layer is
+            // selected. Do not make a 25-point model request on radar startup.
         }
         .onChange(of: selectedIndex) { _, _ in
             // Invalidate a tile inspection for the previously selected frame
@@ -921,7 +922,9 @@ struct RadarMapView: View {
             nowcastRequestID = UUID()
             // A newly selected town is a new geographic map context.
             Task {
-                await refreshWindField(center: mapCoordinate)
+                if showWind || showClouds || showPrecipitationTypes {
+                    await refreshWindField(center: mapCoordinate)
+                }
                 await refreshPrecipitationType()
                 await refreshNowcast()
                 await refreshRadarAtPlace()
