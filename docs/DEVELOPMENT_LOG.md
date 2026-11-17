@@ -341,3 +341,12 @@ Varje arbetsomgång ska dokumentera:
 - Nederbördstypen kräver nu giltig temperatur och WMO-väderkod. Saknade temperaturvärden ersätts inte längre med 0 °C och kan därför inte ge en falsk klassificering.
 - Ogiltiga/icke-finita nederbörds- och närprognosvärden filtreras bort i stället för att visas.
 - Ingen fysisk iPhone-verifiering är utförd. CI-resultat inväntas för denna commit.
+
+## Återställd projektstruktur och verifierad IPA – 2026-11-17
+
+- Commit 3fb72168e57fbf0affd4d24b4dda74f2153381a7 återställde den kompletta projektstrukturen från senast kompletta byggbara snapshot och behöll senaste radarändringarna i RadarMapView.swift, CI-workflow och utvecklingsloggen. Trädet innehåller åter AppIcon.svg och project.yml.
+- Build #452 (run 44109148542) nådde Swift-kompilering men misslyckades på grund av dubbla `@MainActor`-attribut på `refreshPrecipitationType()` i RadarMapView.swift. Felet var ett kompileringsfel; IPA skapades inte.
+- Commit 22677d95e4fff2273f1e498cac49550bac69c67b tog bort den dubbla attributmarkeringen.
+- Build #453 (run 44111422700) slutfördes med `success`: Xcode-projektet genererades, iOS Release kompilerades, osignerad IPA paketerades och artefakten `Regnvakt-unsigned-IPA` laddades upp.
+- Artefakt: 4 549 465 byte. SHA-256: `6d3501d7459d41eb32ff3cd2ae86c356e5820ddc5cde65a1b89c6d6a426cd256`. Artefakt-ID 14340373438. Utgångsdatum 2026-12-01 15:16 UTC.
+- Detta verifierar CI-kompilering och paketering, inte installation eller funktion på fysisk iPhone. Testa särskilt SMHI-bildrutor, RainViewer-reserv, platsavläsning, uppspelning/paus, panorering och lagerövergångar på enheten.
