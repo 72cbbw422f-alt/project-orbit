@@ -463,6 +463,7 @@ struct RadarMapView: View {
     @State private var precipitationType = "Hämtar nederbördstyp…"
     @State private var typeDetail = "Modellbedömning vid vald plats"
     @State private var radarAtPlace = "Kontrollerar radar över vald plats…"
+    @State private var radarPlaceRequestID = UUID()
     @State private var showTypeInfo = false
     @State private var nowcastPoints: [NowcastPoint] = []
     @State private var nowcastStatus = "Hämtar närprognos…"
@@ -868,6 +869,9 @@ struct RadarMapView: View {
             await refreshWindField()
         }
         .onChange(of: selectedIndex) { _, _ in
+            // Invalidate a tile inspection for the previously selected frame
+            // before the asynchronous image load or place check can complete.
+            radarPlaceRequestID = UUID()
             Task {
                 await loadSelectedImage()
                 await refreshRadarAtPlace()
@@ -880,6 +884,9 @@ struct RadarMapView: View {
             Task { await refreshRadarAtPlace() }
         }
         .onChange(of: coordinateKey) { _, _ in
+            // Invalidate an in-flight radar inspection as soon as the map moves
+            // to a different selected place.
+            radarPlaceRequestID = UUID()
             // A newly selected town is a new geographic map context.
             Task {
                 await refreshWindField(center: mapCoordinate)
@@ -997,19 +1004,36 @@ struct RadarMapView: View {
 
     @MainActor
     private func refreshRadarAtPlace() async {
+        // Each inspection owns a token. Only the newest request for the same
+        // frame and coordinate may publish a result to the UI.
+        let requestID = UUID()
+        radarPlaceRequestID = requestID
+        let requestedCoordinateKey = coordinateKey
+
         guard !isPlaying else { return }
         guard showRadar, let frame = selectedFrame, frame.provider == .rainViewer else {
             radarAtPlace = "Platsavläsning inte tillgänglig för denna radarkälla"
             return
         }
+
         do {
             let hit = try await RadarService.hasPrecipitation(
                 host: radarHost,
                 frame: frame,
                 coordinate: mapCoordinate
             )
+            guard radarPlaceRequestID == requestID,
+                  !isPlaying,
+                  showRadar,
+                  selectedFrame?.id == frame.id,
+                  coordinateKey == requestedCoordinateKey else { return }
             radarAtPlace = hit ? "Radarträff vid vald plats" : "Ingen tydlig radarträff vid vald plats"
         } catch {
+            guard radarPlaceRequestID == requestID,
+                  !isPlaying,
+                  showRadar,
+                  selectedFrame?.id == frame.id,
+                  coordinateKey == requestedCoordinateKey else { return }
             radarAtPlace = "Kunde inte läsa av radar över vald plats"
         }
     }
