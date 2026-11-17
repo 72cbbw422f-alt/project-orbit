@@ -297,3 +297,12 @@ Varje arbetsomgång ska dokumentera:
 - Lageridentiteten inkluderar nu nederbördsmängden, så stil-/datakällan uppdateras även när intensiteten ändras men klassificeringstypen förblir densamma.
 - Detta är en visuell interpolation/utbredning av glesa modellpunkter, inte en högupplöst nederbördskarta eller klassificering av radarbildens pixlar. Fysisk iPhone-granskning krävs för att bedöma om utbredningen blir lagom och inte överdriver täckningen.
 - Kodändringen är committad; CI-kompilering och kartkontroll på enhet återstår.
+
+## Radar-justering och RainViewer-attribution – 2026-11-17
+
+- Build #444 (run 44082008257, commit 6a7d4a18c84aaf8082010b5bb0709df038055281) slutfördes med `success`. iOS-appen kompilerades, osignerad IPA paketerades och artefakten `Regnvakt-unsigned-IPA` laddades upp (4 541 705 byte; SHA-256 `6ee38744b86c6f09e8cc74cf9a3c7dd8a706f847bfa75282d4040b80cadc32c6`). Artefakten löper ut 2026-12-01.
+- Nederbördstypens kartmarkeringar justerades i samma commit till radie 14, opacitet 0,38 och blur 0,88 för att minska överlappning och låta baskartan synas bättre.
+- Radarens leverantörsrad kompletteras nu med den synliga länken `Weather data by RainViewer` när RainViewer är aktiv reservkälla. Attributionen döljs för SMHI samt när vind-/molnvisning används.
+- Attributionen är committad separat efter build #444 och behöver en egen CI-kompilering.
+- Ingen fysisk iPhone-verifiering är utförd. Kontrollera att länken syns endast för RainViewer, går till RainViewer-webbplatsen och inte tränger undan kartans övriga attribution eller kontroller.
+
