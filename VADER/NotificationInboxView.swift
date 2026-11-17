@@ -408,18 +408,54 @@ enum SMHIWarningService {
         if value.contains("röd") { return 3 }; if value.contains("orange") { return 2 }; if value.contains("gul") { return 1 }; return 0
     }
 
+    // Parse GeoJSON coordinates strictly. A single malformed vertex must
+    // invalidate its ring rather than silently becoming longitude/latitude 0.
+    private static func validatedRing(_ raw: Any) -> [[Double]]? {
+        guard let positions = raw as? [Any], positions.count >= 3 else { return nil }
+        var ring: [[Double]] = []
+        ring.reserveCapacity(positions.count)
+        for position in positions {
+            guard let values = position as? [Any], values.count >= 2,
+                  let longitude = values[0] as? NSNumber,
+                  let latitude = values[1] as? NSNumber else { return nil }
+            let lon = longitude.doubleValue
+            let lat = latitude.doubleValue
+            guard lon.isFinite, lat.isFinite,
+                  (-180.0...180.0).contains(lon),
+                  (-90.0...90.0).contains(lat) else { return nil }
+            ring.append([lon, lat])
+        }
+        return ring
+    }
+
+    private static func validatedPolygons(geometryType: String, coordinates: Any) -> [[[[Double]]]]? {
+        guard let raw = coordinates as? [Any] else { return nil }
+        let polygonValues: [[Any]]
+        switch geometryType {
+        case "Polygon":
+            polygonValues = [raw]
+        case "MultiPolygon":
+            polygonValues = raw.compactMap { $0 as? [Any] }
+            guard polygonValues.count == raw.count else { return nil }
+        default:
+            return nil
+        }
+
+        var polygons: [[[[Double]]]] = []
+        polygons.reserveCapacity(polygonValues.count)
+        for polygon in polygonValues {
+            guard !polygon.isEmpty else { return nil }
+            let rings = polygon.compactMap { validatedRing($0) }
+            guard rings.count == polygon.count, !rings.isEmpty else { return nil }
+            polygons.append(rings)
+        }
+        return polygons.isEmpty ? nil : polygons
+    }
+
     private static func contains(_ point: CLLocationCoordinate2D, geometryType: String, coordinates: Any) -> Bool {
-        guard let raw = coordinates as? [Any] else { return false }
-        let polygons: [[[[Double]]]]
-        if geometryType == "Polygon" {
-            let rings = raw.compactMap { $0 as? [[Double]] }
-            polygons = [rings]
-        } else if geometryType == "MultiPolygon" {
-            polygons = raw.compactMap { polygon in
-                guard let parts = polygon as? [Any] else { return nil }
-                return parts.compactMap { $0 as? [[Double]] }
-            }
-        } else { return false }
+        guard let polygons = validatedPolygons(geometryType: geometryType, coordinates: coordinates) else {
+            return false
+        }
         return polygons.contains { polygon in
             guard let outer = polygon.first, pointInRing(point, ring: outer) else { return false }
             // GeoJSON interior rings are holes, not part of the warning area.
@@ -437,22 +473,12 @@ enum SMHIWarningService {
         coordinates: Any,
         maximumDistanceMeters: Double
     ) -> Bool {
-        guard let raw = coordinates as? [Any] else { return false }
-        // Only each polygon's exterior ring defines its boundary. Interior
-        // rings are holes and must not create a false nearby-warning match.
-        let outerRings: [[[Double]]]
-        if geometryType == "Polygon" {
-            guard let outer = raw.first as? [[Double]] else { return false }
-            outerRings = [outer]
-        } else if geometryType == "MultiPolygon" {
-            outerRings = raw.compactMap { polygon in
-                guard let parts = polygon as? [Any],
-                      let outer = parts.first as? [[Double]] else { return nil }
-                return outer
-            }
-        } else {
+        guard let polygons = validatedPolygons(geometryType: geometryType, coordinates: coordinates) else {
             return false
         }
+        // Only each polygon's exterior ring defines its boundary. Interior
+        // rings are holes and must not create a false nearby-warning match.
+        let outerRings = polygons.compactMap(\.first)
 
         let latitudeScale = 110_540.0
         let longitudeScale = 111_320.0 * cos(point.latitude * .pi / 180)
@@ -485,10 +511,10 @@ enum SMHIWarningService {
         var inside = false
         var j = ring.count - 1
         for i in ring.indices {
-            let xi = ring[i].count > 1 ? ring[i][0] : 0
-            let yi = ring[i].count > 1 ? ring[i][1] : 0
-            let xj = ring[j].count > 1 ? ring[j][0] : 0
-            let yj = ring[j].count > 1 ? ring[j][1] : 0
+            let xi = ring[i][0]
+            let yi = ring[i][1]
+            let xj = ring[j][0]
+            let yj = ring[j][1]
             if ((yi > point.latitude) != (yj > point.latitude)) &&
                 (point.longitude < (xj - xi) * (point.latitude - yi) / ((yj - yi) == 0 ? 0.0000001 : (yj - yi)) + xi) { inside.toggle() }
             j = i
