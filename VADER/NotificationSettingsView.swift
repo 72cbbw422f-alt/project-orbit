@@ -134,6 +134,8 @@ struct NotificationSettingsView: View {
                 .padding(14).background(panel, in: RoundedRectangle(cornerRadius: 18))
                 .overlay(RoundedRectangle(cornerRadius: 18).stroke(line, lineWidth: 1))
 
+                LocationPermissionTestView()
+
                 Text("Inställningarna sparas på den här enheten. Ändringar schemalägger om kommande lokala aviseringar från senast hämtade prognos. Frost- och halkvarningar kan skickas även under tysta timmar. iOS kan begränsa bakgrundsuppdateringar, så öppna appen regelbundet för att hålla prognosen aktuell.")
                     .font(.system(size: 12, weight: .medium)).foregroundStyle(muted.opacity(0.85))
                     .fixedSize(horizontal: false, vertical: true)
