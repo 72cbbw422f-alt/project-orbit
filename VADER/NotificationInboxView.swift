@@ -642,7 +642,7 @@ struct NotificationInboxView: View {
                 .replacingOccurrences(of: place, with: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .lowercased()
-            return "\(watch)|\(hour)|\(normalizedBody)"
+            return "\(watch)|\(place)|\(hour)|\(normalizedBody)"
         }
         let normalizedBody = content.body
             .trimmingCharacters(in: .whitespacesAndNewlines)
