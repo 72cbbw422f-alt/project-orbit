@@ -233,3 +233,11 @@ Varje arbetsomgång ska dokumentera:
 - 2026-11-17 uppdaterades platsens aktuella nederbördstext till att även läsa Open-Meteos `rain`, `showers` och `snowfall`. Mängderna prioriteras framför generell väderkod för att kunna skilja regn, snö och blandad nederbörd; WMO-kod används som reserv när mängderna är noll. Detta är fortfarande en modellbedömning, inte radar-pixelklassificering. Kompilering av denna senaste ändring återstår.
 
 - Nederbördsikonen följer nu även den nya klassificeringen: blandad nederbörd får slask-/blandikon och duggregn får egen symbol.
+
+
+## Tidszonssäkring för prognosaviseringar – 2026-11-17
+
+- WeatherNotificationScheduler.swift använder nu Europe/Stockholm konsekvent för frost-dagens jämförelse, datumstämpel i notis-ID, alertDay-metadata och kalenderkomponenterna som skickas till UNCalendarNotificationTrigger.
+- NotificationInboxView.swift använder samma svenska kalenderdygn när frostnotiser dedupliceras mellan levererade och väntande aviseringar.
+- Syftet är att en svensk prognosplats ska behålla samma lokala kalenderdag och aviseringsklockslag även om telefonens systemtidszon är en annan.
+- Kodändringarna är committade men ännu inte CI-kompilerade eller testade på fysisk iPhone. Kontrollera särskilt övergången över svensk midnatt, vinter-/sommartid och enhet med annan systemtidszon.
