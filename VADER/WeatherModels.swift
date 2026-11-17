@@ -76,13 +76,20 @@ struct WeatherRiskAssessment {
             let localHour = swedishCalendar.component(.hour, from: date)
             return hour.temperature <= ((localHour >= 18 || localHour < 9) ? 1 : 0)
         }
-        let wetNearFreezeHour = upcoming.enumerated().first { index, hour in
+        let timedUpcoming = upcoming.compactMap { hour -> (HourForecast, Date)? in
+            guard let date = formatter.date(from: hour.id) else { return nil }
+            return (hour, date)
+        }
+        let wetNearFreezeHour = timedUpcoming.first { candidate in
+            let (hour, date) = candidate
             guard hour.temperature <= 1 else { return false }
             let condition = hour.condition.lowercased()
             let wetCondition = condition.contains("regn") || condition.contains("dugg") ||
                 condition.contains("skur") || condition.contains("snö") || condition.contains("underkylt")
             let wetNow = hour.precipitation >= 0.2 || (hour.precipitationChance >= 50 && wetCondition)
-            let recentWet = upcoming[..<index].suffix(3).contains { previous in
+            let recentWet = timedUpcoming.contains { previous, previousDate in
+                let elapsed = date.timeIntervalSince(previousDate)
+                guard elapsed > 0, elapsed <= 3 * 60 * 60 else { return false }
                 let previousCondition = previous.condition.lowercased()
                 let previousWetCondition = previousCondition.contains("regn") || previousCondition.contains("dugg") ||
                     previousCondition.contains("skur") || previousCondition.contains("snö") ||
@@ -91,7 +98,7 @@ struct WeatherRiskAssessment {
                     (previous.precipitationChance >= 50 && previousWetCondition)
             }
             return wetNow || recentWet || condition.contains("underkylt")
-        }?.element
+        }?.0
 
         let level = smhiLevel.lowercased()
         let redWarning = smhiActive && (level.contains("röd") || level.contains("red"))
