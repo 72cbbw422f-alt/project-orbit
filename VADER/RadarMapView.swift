@@ -873,6 +873,12 @@ struct RadarMapView: View {
                 await refreshRadarAtPlace()
             }
         }
+        .onChange(of: isPlaying) { _, playing in
+            // Avoid downloading a separate place-inspection tile for every
+            // animation frame. Refresh the reading once playback is paused.
+            guard !playing else { return }
+            Task { await refreshRadarAtPlace() }
+        }
         .onChange(of: coordinateKey) { _, _ in
             // A newly selected town is a new geographic map context.
             Task {
@@ -991,6 +997,7 @@ struct RadarMapView: View {
 
     @MainActor
     private func refreshRadarAtPlace() async {
+        guard !isPlaying else { return }
         guard showRadar, let frame = selectedFrame, frame.provider == .rainViewer else {
             radarAtPlace = "Platsavläsning inte tillgänglig för denna radarkälla"
             return
