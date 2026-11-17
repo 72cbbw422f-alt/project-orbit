@@ -383,7 +383,7 @@ enum WeatherNotificationScheduler {
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
 
         var result: [Event] = []
-        var previousTypes = Set<String>()
+        var emittedTypes = Set<String>()
         var forecastFrostDays = Set<Date>()
         var lastWetForecastDate: Date?
 
@@ -411,7 +411,7 @@ enum WeatherNotificationScheduler {
         if currentFrost {
             // Seed the transition detector even when today's immediate alert was
             // already delivered, so the same continuous frost episode is not re-armed.
-            previousTypes.insert("frost")
+            emittedTypes.insert("frost")
         }
         // A current frost alert and a forecast frost alert must never coexist
         // for the same monitored place and local calendar day. The stored day
@@ -524,11 +524,12 @@ enum WeatherNotificationScheduler {
                 }
             }
 
-            let currentTypes = Set(active.map(\.type))
-            for event in active where !previousTypes.contains(event.type) {
+            // Emit at most one alert per risk type during this eight-hour
+            // forecast window. Short gaps in hourly model data must not create
+            // a second near-identical warning for the same ongoing episode.
+            for event in active where emittedTypes.insert(event.type).inserted {
                 result.append(event)
             }
-            previousTypes = currentTypes
 
             if wetNow {
                 lastWetForecastDate = date
