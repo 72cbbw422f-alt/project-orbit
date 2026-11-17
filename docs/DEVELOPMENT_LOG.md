@@ -323,3 +323,11 @@ Varje arbetsomgång ska dokumentera:
 - Resultat och felstatus får bara uppdateras om förfrågan fortfarande är den senaste, samma bildruta och koordinat är valda och uppspelningen inte har startat. Byte av bildruta eller koordinat invaliderar en pågående avläsning direkt.
 - Detta skyddar gränssnittet mot sena svar från äldre nätverksanrop. Själva radarplattans rendering och bildruteväxling ändras inte.
 - Kodändringen är committad. CI-kompilering återstår; fysisk iPhone-verifiering av snabb bildruteväxling, panorering och pausad uppspelning krävs innan beteendet betraktas som verifierat.
+
+
+## Invalidering av platsavläsning vid radaruppspelning – 2026-11-17
+
+- Build #450 (run 44092547270, commit a18fa7cbfe9ce61383b06661b6bf18315d1e16ae) slutfördes med `success`: iOS-enhetsbygget kompilerades, osignerad IPA paketerades och artefakten `Regnvakt-unsigned-IPA` laddades upp (4 547 142 byte; SHA-256 `2c1b591aee228cf6f2106acfbe28e9e0b4a8c24cd4f55f5e0d7355848b40e9df`). Artefakten löper ut 2026-12-01 13:28 UTC.
+- Uppföljande granskning identifierade ett kompletterande kantfall: en platsavläsning som startat före uppspelning kunde fortfarande bli aktuell igen om användaren hann pausa efter att tidslinjen gått vidare.
+- RadarMapView.swift invaliderar därför nu pågående platsavläsningar direkt när uppspelning startar. När uppspelningen pausas görs en ny avläsning för aktuell bildruta och koordinat.
+- Detta är en defensiv komplettering till request-ID-kontrollen. Fysisk iPhone-testning av snabb uppspelning, paus och bildrutevarvning återstår.

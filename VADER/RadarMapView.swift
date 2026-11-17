@@ -878,10 +878,14 @@ struct RadarMapView: View {
             }
         }
         .onChange(of: isPlaying) { _, playing in
-            // Avoid downloading a separate place-inspection tile for every
-            // animation frame. Refresh the reading once playback is paused.
-            guard !playing else { return }
-            Task { await refreshRadarAtPlace() }
+            if playing {
+                // Invalidate any inspection already in flight. Playback may
+                // advance and even wrap around before that network request ends.
+                radarPlaceRequestID = UUID()
+            } else {
+                // Refresh once playback is paused, not on every animation frame.
+                Task { await refreshRadarAtPlace() }
+            }
         }
         .onChange(of: coordinateKey) { _, _ in
             // Invalidate an in-flight radar inspection as soon as the map moves
