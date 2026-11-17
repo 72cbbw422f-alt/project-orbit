@@ -404,3 +404,10 @@ Varje arbetsomgång ska dokumentera:
 - SMHI:s officiella dygnsarkiv erbjuder PNG/TIF ZIP-filer för historiska bilder med femminuterssteg; det är lämpligt för eventuell separat historikfunktion men inte en verifierad direkt live-feed. HDF5 kräver en korrekt parser och georeferering och införs inte utan testdata och validering.
 - RainViewer är enbart historisk radar i den nuvarande manifestmodellen (`radar.past`); ingen nowcast eller framtida nederbördsprognos ska utlovas. Prognos/Typ-lager fortsätter vara separata modellprodukter.
 - CI-kompilering och fysisk iPhone-verifiering av den nya källprioriteringen återstår.
+
+
+## Källinformation anpassad till aktiv RainViewer-drift – 2026-11-17
+
+- Uppdaterade informationsdialogen så den inte längre påstår att SMHI används i första hand. Den anger nu RainViewer som aktiv källa och skiljer tydligt på observerad radar och modellbaserad nederbördstyp.
+- Uppdaterade feltexten när radarmanifestet inte kan hämtas. Den nämner inte längre SMHI som en aktiv reservväg i det normala flödet.
+- Detta är en text-/felhanteringskorrigering efter beslutet att använda RainViewer som primär live-radarkälla tills en öppet åtkomlig SMHI-leverans har verifierats.
