@@ -435,3 +435,11 @@ Varje arbetsomgång ska dokumentera:
 - Radarbilder, aktuell nederbördstyp och MET Norway-närprognos är oberoende nätverksflöden. Startvyn startar nu dessa tre laddningar parallellt i stället för att invänta varje flöde sekventiellt.
 - Vind-/modellrutnätet fortsätter hämtas behovsstyrt när Vind eller Typ aktiveras.
 - Målet är kortare upplevd starttid utan fler nätverksanrop eller ändrad datakvalitet. Fysisk enhetstestning och CI-kompilering krävs fortfarande.
+
+
+## Vilande radarklocka när uppspelning är avstängd – 2026-11-17
+
+- Ersatte den alltid aktiva Combine-timern (1,5 sekunders intervall) med en SwiftUI-task som bara kör medan radaranimationen är aktiv.
+- När användaren pausar eller lämnar vyn avbryts vänteloopen automatiskt. Det eliminerar onödiga timerhändelser när radarn står stilla och ger tydligare livscykelhantering.
+- Bildrutans takt är fortsatt 1,5 sekunder. Ingen ändring av radarens datakälla eller bildruteinnehåll.
+- CI-kompilering och test av uppspelning/paus på iPhone återstår.
