@@ -248,3 +248,11 @@ Varje arbetsomgång ska dokumentera:
 - SMHIWarningService avvisar nu varningsområden där starttiden saknas eller inte kan parsas. Tidigare användes `.distantPast` som reserv, vilket kunde göra en varning med trasigt datum till synes aktiv och därmed utlösa en omedelbar notis.
 - Giltig starttid krävs nu innan varningsområdet tas med i aktiv/kommande-listan och notifieringsflödet. Detta är en defensiv datavalidering; kontrollera verkliga SMHI-payloads så att formatet täcks av parserns ISO-8601-varianter.
 - Ändringen är committad men ännu inte CI-kompilerad eller testad mot live-API på enhet.
+
+
+## Halkriskens tidsfönster – 2026-11-17
+
+- WeatherRiskAssessment räknar nu föregående nederbörd som relevant för halkrisk endast när den faktiska prognostiden ligger inom de senaste tre timmarna före den kalla timmen.
+- Tidigare användes de tre föregående prognosraderna, vilket kunde motsvara längre än tre timmar om prognosserien innehöll luckor. Bedömningen använder nu parsade datum/tider och ett strikt intervall större än 0 och högst 3 timmar.
+- Ändringen gäller riskbedömningen som visas i vakt-/vädergränssnittet. Notisschemaläggaren har sedan tidigare motsvarande kontroll av faktiskt tidsavstånd.
+- Kodändringen är committad. CI-kompilering, syntetiska gränsvärdestester och fysisk iPhone-verifiering återstår.
