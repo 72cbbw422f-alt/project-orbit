@@ -215,3 +215,17 @@ Varje arbetsomgång ska dokumentera:
 - Granska SMHI-tjänstens geografiska täckning och felhantering separat; koordinatbaserad kontroll av vald/bevakad plats är inte samma sak som en nationell varningsöversikt.
 - Lägg till testbar risklogik/testmål och kör gränsvärdestester för regn, snö, vind, frost och halka.
 - Fysisk iPhone-testning av radar, notiser, behörigheter, bakgrundsbeteende och layout återstår.
+
+
+## Vädervakter, nederbördstyp och radarfokus – 2026-11-17
+
+- Användartest på iPhone visade upprepade frost-/halkkort med samma riskbeskrivning men olika prognostider (bl.a. 17:00 och 20:00). Detta är förenligt med att halkrisken kan försvinna en prognostimme och sedan återkomma; den tidigare övergångsdetekteringen kunde då skapa en ny avisering.
+- Gemensam prognoshorisont ändrad till 8 timmar för både skärmens riskbedömning och lokala prognosaviseringar (WeatherWatchRules).
+- Notisschemaläggaren deduplicerar nu per risktyp över hela åttatimmarsfönstret. En risktyp ger högst en prognosavisering per plats och schemaläggningsomgång, även om timserien har korta luckor. Aktuell frostnotis förblir separat och säkerhetskritisk.
+- Molnlagret har tagits bort från de synliga radarkontrollerna. Fokus ligger på nederbördsradar, vind och nederbördstyp.
+- Korrigerat klassificeringsfel i Open-Meteo-fältet: väderkoderna 80–82 (regnskurar) räknades tidigare in i snöintervallet 71–86. Snö klassificeras nu med 71–77 och 85–86; 80–82 går till regn.
+- Nederbördstypens kartpunkter är fortsatt modellbedömningar från Open-Meteo, inte en direkt klassificering av radarbildens pixlar. Blandad nederbörd kräver samtidig regn-/skur- och snöindikering i modellvärdena.
+- Radarproblemet är INTE verifierat löst. Senaste iPhone-bilden visar RainViewer som aktiv reservkälla; separat test av SMHI-bildhämtning, RainViewer-rasterlager, kartpositionering och bildruteväxling återstår.
+- Kodändringar: WeatherModels.swift, WeatherNotificationScheduler.swift, RadarMapView.swift.
+- Commitkedja: 80679b2 (8 h horisonter), 3f4f1cb (deduplicering), 8b22c5c (molnkontroll bort + korrigerad nederbördstyp).
+- CI och ny IPA inväntar verifiering. Fysisk iPhone-testning återstår.
