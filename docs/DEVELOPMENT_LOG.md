@@ -367,9 +367,10 @@ Varje arbetsomgång ska dokumentera:
 - Detta är en kodmässig korrigering av Typ-lägets lagerlogik. Kompilering och kontroll av att regn/snö/blandat faktiskt syns på iPhone återstår.
 
 
-## SMHI-filnamn och tydligare nederbördstypslager – 2026-11-17
+## SMHI QCOMP-kontroll och nederbördstypslager – 2026-11-17
 
-- Livekontroll av SMHI:s officiella radarkatalog visade att PNG-bildrutorna heter `RADAR_SWE_EPSG3006_YYYYMMDDHHMM.png`. Appens regex och URL-byggare sökte felaktigt efter `_QCOMP_`, vilket gjorde att de verkliga PNG-bildrutorna inte matchade kataloglistan.
-- Regex och bildrute-URL använder nu katalogens faktiska filnamnsformat. Detta bör återställa SMHI:s ordinarie bildflöde; faktisk hämtning från iPhone behöver verifieras efter installation.
-- Nederbördstypens Open-Meteo-punkter får större, mjukare cirkelyta (36 px radie, 0,94 blur och 0,30 opacitet) så närliggande modellpunkter kan överlappa och läsas som ett regionalt modellfält. Det är fortfarande en visualisering av glesa modellpunkter, inte radarobservation.
+- En ny kontroll av SMHI:s officiella katalog visade att den publicerar två parallella PNG-serier: standardprodukten `RADAR_SWE_EPSG3006_...` och kvalitetskompositerade `RADAR_SWE_EPSG3006_QCOMP_...`. Appen ska använda QCOMP-serien, vilket också var det ursprungliga avsedda filnamnet.
+- En tillfällig ändring som valde standardserien har därför återställts. Koden matchar åter uttryckligen `RADAR_SWE_EPSG3006_QCOMP_YYYYMMDDHHMM.png`. Den tidigare slutsatsen att QCOMP saknades var felaktig; standardserien och QCOMP-serien finns båda i katalogen.
+- SMHI-bildhämtningen på enheten är fortfarande inte bekräftad. Nästa felsökningssteg är att fånga exakt HTTP-status och bildavkodningsfel från iPhone om QCOMP fortsatt fallerar.
+- Nederbördstypens Open-Meteo-punkter har större, mjukare cirkelyta (36 px radie, 0,94 blur och 0,30 opacitet) för att punkterna ska kunna läsas som ett regionalt modellfält. Detta är fortfarande modellvägledning, inte observerad radar.
 - Kodändringarna är committade; CI-kompilering och fysisk iPhone-verifiering återstår.
