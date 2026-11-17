@@ -231,3 +231,5 @@ Varje arbetsomgång ska dokumentera:
 - CI och ny IPA inväntar verifiering. Fysisk iPhone-testning återstår.
 
 - 2026-11-17 uppdaterades platsens aktuella nederbördstext till att även läsa Open-Meteos `rain`, `showers` och `snowfall`. Mängderna prioriteras framför generell väderkod för att kunna skilja regn, snö och blandad nederbörd; WMO-kod används som reserv när mängderna är noll. Detta är fortfarande en modellbedömning, inte radar-pixelklassificering. Kompilering av denna senaste ändring återstår.
+
+- Nederbördsikonen följer nu även den nya klassificeringen: blandad nederbörd får slask-/blandikon och duggregn får egen symbol.
