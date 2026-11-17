@@ -5,6 +5,13 @@ import UserNotifications
 /// so future alerts are scheduled whenever a fresh forecast is available.
 enum WeatherNotificationScheduler {
     private static let prefix = "regnvakt.weather."
+    private static let swedishTimeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
+
+    private static var swedishCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = swedishTimeZone
+        return calendar
+    }
     private static let forecastKey = "Regnvakt.notifications.lastForecast.v1"
     private static let placeKey = "Regnvakt.notifications.lastPlace.v1"
     private static let locationKey = "Regnvakt.notifications.lastLocation.v1"
@@ -266,8 +273,9 @@ enum WeatherNotificationScheduler {
             content.title = "\(weatherIcon) \(event.title)\(riskLabel)"
             content.body = "\(event.body) • \(place)"
             content.sound = .default
-            content.userInfo = ["watch": event.type, "place": place, "safetyCritical": event.safetyCritical, "immediate": event.immediate, "alertDay": Calendar.current.startOfDay(for: event.date), "forecastEventDate": event.date.timeIntervalSince1970, "leadMinutes": lead]
-            let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
+            content.userInfo = ["watch": event.type, "place": place, "safetyCritical": event.safetyCritical, "immediate": event.immediate, "alertDay": swedishCalendar.startOfDay(for: event.date), "forecastEventDate": event.date.timeIntervalSince1970, "leadMinutes": lead]
+            var components = swedishCalendar.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
+            components.timeZone = swedishTimeZone
             let trigger: UNNotificationTrigger
             if event.immediate {
                 trigger = UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false)
@@ -278,7 +286,7 @@ enum WeatherNotificationScheduler {
             if event.immediate {
                 let day = DateFormatter()
                 day.calendar = Calendar.current
-                day.timeZone = .current
+                day.timeZone = swedishTimeZone
                 day.dateFormat = "yyyyMMdd"
                 stamp = day.string(from: Date())
             } else if event.type == "frost" {
@@ -286,9 +294,9 @@ enum WeatherNotificationScheduler {
                 // update one frost warning, never create a new alert per hour.
                 let day = DateFormatter()
                 day.calendar = Calendar.current
-                day.timeZone = .current
+                day.timeZone = swedishTimeZone
                 day.dateFormat = "yyyyMMdd"
-                stamp = day.string(from: Calendar.current.startOfDay(for: event.date))
+                stamp = day.string(from: swedishCalendar.startOfDay(for: event.date))
             } else {
                 stamp = String(Int(event.date.timeIntervalSince1970))
             }
@@ -390,8 +398,7 @@ enum WeatherNotificationScheduler {
         // Current frost is a separate, immediate safety alert. It is deduplicated
         // by a stable daily identifier and remains armed across forecast refreshes.
         let now = Date()
-        var swedishCalendar = Calendar(identifier: .gregorian)
-        swedishCalendar.timeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
+        let swedishCalendar = Self.swedishCalendar
         let orderedHours = hours.compactMap { hour -> (HourForecast, Date)? in
             guard let date = formatter.date(from: hour.id) else { return nil }
             return (hour, date)
@@ -406,7 +413,7 @@ enum WeatherNotificationScheduler {
             && (currentTemperature.map { $0 <= currentThreshold } ?? false)
         let lastCurrentFrostAlertDay = defaults.object(forKey: frostDayKey) as? Date
         let alreadyAlertedForCurrentFrostToday = lastCurrentFrostAlertDay.map {
-            Calendar.current.isDate($0, inSameDayAs: now)
+            swedishCalendar.isDate($0, inSameDayAs: now)
         } ?? false
         if currentFrost {
             // Seed the transition detector even when today's immediate alert was
