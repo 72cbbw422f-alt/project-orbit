@@ -75,7 +75,7 @@ private enum RadarService {
         }
 
         // SMHI's official QCOMP PNGs are timestamped in UTC and generated every five minutes.
-        let pattern = #"RADAR_SWE_EPSG3006_QCOMP_(\d{12})\.png"#
+        let pattern = #"RADAR_SWE_EPSG3006_(\d{12})\.png"#
         let regex = try NSRegularExpression(pattern: pattern)
         let range = NSRange(html.startIndex..., in: html)
         let formatter = DateFormatter()
@@ -88,7 +88,7 @@ private enum RadarService {
             guard let matchRange = Range(match.range(at: 1), in: html) else { continue }
             let stamp = String(html[matchRange])
             guard let date = formatter.date(from: stamp) else { continue }
-            let filename = "RADAR_SWE_EPSG3006_QCOMP_\(stamp).png"
+            let filename = "RADAR_SWE_EPSG3006_\(stamp).png"
             frames.append(RadarFrame(time: date, path: directory.appendingPathComponent(filename).absoluteString, provider: .smhi))
         }
         let unique = Dictionary(grouping: frames, by: { $0.time })
@@ -1511,9 +1511,12 @@ private struct RegnvaktMapView: UIViewRepresentable {
                     // Soft, geographically anchored forecast field instead of tiny isolated dots.
                     // These samples are model guidance, not classifications of radar pixels.
                     layer.circleColor = NSExpression(forConstantValue: definition.color)
-                    layer.circleOpacity = NSExpression(forConstantValue: 0.38)
-                    layer.circleRadius = NSExpression(forConstantValue: 14)
-                    layer.circleBlur = NSExpression(forConstantValue: 0.88)
+                    layer.circleOpacity = NSExpression(forConstantValue: 0.30)
+                    // A wider soft footprint lets adjacent 5×5 model samples blend
+                    // into a legible regional field instead of isolated glowing dots.
+                    // This remains a visualization of model points, not measured radar.
+                    layer.circleRadius = NSExpression(forConstantValue: 36)
+                    layer.circleBlur = NSExpression(forConstantValue: 0.94)
                     layer.circleStrokeColor = NSExpression(forConstantValue: definition.color.withAlphaComponent(0.18))
                     layer.circleStrokeWidth = NSExpression(forConstantValue: 1.0)
                     style.addLayer(layer)
