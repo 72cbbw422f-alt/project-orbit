@@ -383,3 +383,13 @@ Varje arbetsomgång ska dokumentera:
 - Ny diagnostik: bildbegäran skickas med SMHI:s webbplats som Referer och utan den tidigare specialskrivna User-Agent-strängen. Vid fortsatt fel visas även en kort, sanerad autentiserings-/serversvarshänvisning när sådan finns.
 - Ingen garanti att Referer löser 401; detta är ett avgränsat test av serverns åtkomstpolicy. Om 401 kvarstår behöver SMHI:s officiella portalflöde eller en annan dokumenterad radarleverans användas i stället för att fortsätta gissa headers.
 - QCOMP behålls som förstahandsprodukt. RainViewer fortsätter som reserv.
+
+
+## Bekräftat HTTP 401 Basic realm från iPhone – 2026-11-17
+
+- Användarens test av build #462 visar fortsatt HTTP 401 och autentiseringsutmaningen `Basic realm=Secured` vid hämtning av SMHI:s QCOMP-PNG. RainViewer-reserven fungerar och visar nederbörd över Hudiksvall.
+- Försöket med SMHI-Referer i build #462 löste inte åtkomstfelet. Den spekulativa Referer-headern tas därför bort i nästa kodversion; vi ska inte fortsätta lägga till obekräftade headers.
+- SMHI:s publika radar-README bekräftar att QCOMP levereras som både HDF5 (`RADAR_SWE_2KM_BALTRAD_QCOMP`) och motsvarande PNG (`RADAR_SWE_EPSG3006_QCOMP`), med ny produkt var femte minut och sex timmars tillgänglighet. PNG-bildens georeferens är SWEREF 99 TM / EPSG:3006.
+- Den officiella SMHI-sidan för aktuella och historiska radarbilder erbjuder också dygnsarkiv med PNG/TIFF och femminuterssteg. Det är en alternativ officiell distributionsväg att undersöka, men en direkt, dokumenterad maskin-API-adress för arkiven är ännu inte fastställd.
+- HDF5 är ett möjligt alternativt format men kräver korrekt ODIM_H5/metadata-avkodning och georeferering; ingen sådan parser är implementerad eller verifierad i appen.
+- QCOMP behålls som önskad SMHI-produkt. RainViewer förblir fungerande reserv. Nästa steg är att undersöka den officiella arkiv-/öppna-dataingången innan ytterligare nätverkskod skrivs.
