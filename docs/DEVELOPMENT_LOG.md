@@ -241,3 +241,10 @@ Varje arbetsomgång ska dokumentera:
 - NotificationInboxView.swift använder samma svenska kalenderdygn när frostnotiser dedupliceras mellan levererade och väntande aviseringar.
 - Syftet är att en svensk prognosplats ska behålla samma lokala kalenderdag och aviseringsklockslag även om telefonens systemtidszon är en annan.
 - Kodändringarna är committade men ännu inte CI-kompilerade eller testade på fysisk iPhone. Kontrollera särskilt övergången över svensk midnatt, vinter-/sommartid och enhet med annan systemtidszon.
+
+
+## SMHI-datumvalidering – 2026-11-17
+
+- SMHIWarningService avvisar nu varningsområden där starttiden saknas eller inte kan parsas. Tidigare användes `.distantPast` som reserv, vilket kunde göra en varning med trasigt datum till synes aktiv och därmed utlösa en omedelbar notis.
+- Giltig starttid krävs nu innan varningsområdet tas med i aktiv/kommande-listan och notifieringsflödet. Detta är en defensiv datavalidering; kontrollera verkliga SMHI-payloads så att formatet täcks av parserns ISO-8601-varianter.
+- Ändringen är committad men ännu inte CI-kompilerad eller testad mot live-API på enhet.
