@@ -432,6 +432,7 @@ struct RadarMapView: View {
     @State private var frames: [RadarFrame] = []
     @State private var selectedIndex = 0
     @State private var selectedImage: UIImage?
+    @State private var radarImageCache: [TimeInterval: UIImage] = [:]
     @State private var imageLoadID = UUID()
     @State private var imageLoadingID: UUID?
     @State private var isLoading = false
@@ -457,7 +458,7 @@ struct RadarMapView: View {
     @State private var windRequestID = UUID()
     @State private var windRefreshTask: Task<Void, Never>?
 
-    private let playback = Timer.publish(every: 0.75, on: .main, in: .common).autoconnect()
+    private let playback = Timer.publish(every: 1.5, on: .main, in: .common).autoconnect()
 
     private var mapCoordinate: CLLocationCoordinate2D {
         let value = coordinate ?? CLLocationCoordinate2D(latitude: 61.7274, longitude: 17.1058)
@@ -917,11 +918,21 @@ struct RadarMapView: View {
         defer {
             if imageLoadingID == requestID { imageLoadingID = nil }
         }
+        if let cached = radarImageCache[frame.id] {
+            selectedImage = cached
+            errorMessage = nil
+            return
+        }
         do {
             let image = try await RadarService.loadImage(for: frame)
-            // Playback can advance several frames while a slower image request is
-            // still in flight. Only the currently selected frame may be displayed.
+            // Only the currently selected frame may be displayed. Keep a small
+            // in-memory cache so playback does not redownload frames it revisits.
             guard imageLoadID == requestID, selectedFrame?.id == frame.id else { return }
+            radarImageCache[frame.id] = image
+            if radarImageCache.count > 30,
+               let oldest = radarImageCache.keys.min() {
+                radarImageCache.removeValue(forKey: oldest)
+            }
             selectedImage = image
             errorMessage = nil
         } catch {
