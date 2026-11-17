@@ -393,3 +393,14 @@ Varje arbetsomgång ska dokumentera:
 - Den officiella SMHI-sidan för aktuella och historiska radarbilder erbjuder också dygnsarkiv med PNG/TIFF och femminuterssteg. Det är en alternativ officiell distributionsväg att undersöka, men en direkt, dokumenterad maskin-API-adress för arkiven är ännu inte fastställd.
 - HDF5 är ett möjligt alternativt format men kräver korrekt ODIM_H5/metadata-avkodning och georeferering; ingen sådan parser är implementerad eller verifierad i appen.
 - QCOMP behålls som önskad SMHI-produkt. RainViewer förblir fungerande reserv. Nästa steg är att undersöka den officiella arkiv-/öppna-dataingången innan ytterligare nätverkskod skrivs.
+
+
+## Stabiliserad live-radarleverantör – 2026-11-17
+
+- Beslut: RainViewer används som aktiv live-radarkälla tills SMHI erbjuder en verifierad offentligt åtkomlig bild-/tile-endpoint för appklienter.
+- Underlaget är användarens upprepade iPhone-test av build #461/#462: SMHI:s QCOMP-PNG returnerar HTTP 401 med `WWW-Authenticate: Basic realm=Secured`. Referer-testet i build #462 ändrade inte utfallet. RainViewer-manifest och kartplattor fungerar.
+- Radarens ordinarie laddning försöker därför inte längre SMHI först. Det tar bort en onödig timeout/401 på varje uppdatering och undviker att användaren får ett felkort när reservkällan i praktiken är den fungerande källan.
+- Kartans källmärkning fortsätter att visa `RADAR • RAINVIEWER`. SMHI QCOMP behålls som undersökningsspår men ska inte återaktiveras förrän en offentlig leveransväg har verifierats från iPhone/CI utan autentisering.
+- SMHI:s officiella dygnsarkiv erbjuder PNG/TIF ZIP-filer för historiska bilder med femminuterssteg; det är lämpligt för eventuell separat historikfunktion men inte en verifierad direkt live-feed. HDF5 kräver en korrekt parser och georeferering och införs inte utan testdata och validering.
+- RainViewer är enbart historisk radar i den nuvarande manifestmodellen (`radar.past`); ingen nowcast eller framtida nederbördsprognos ska utlovas. Prognos/Typ-lager fortsätter vara separata modellprodukter.
+- CI-kompilering och fysisk iPhone-verifiering av den nya källprioriteringen återstår.
