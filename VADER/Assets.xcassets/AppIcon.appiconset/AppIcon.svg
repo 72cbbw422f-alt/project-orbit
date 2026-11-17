@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs>
+ <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#08243d"/><stop offset=".55" stop-color="#061a31"/><stop offset="1" stop-color="#031126"/></linearGradient>
+ <radialGradient id="glow"><stop offset="0" stop-color="#00d9ff" stop-opacity=".28"/><stop offset="1" stop-color="#00d9ff" stop-opacity="0"/></radialGradient>
+ <linearGradient id="cyan" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#38e8ff"/><stop offset=".55" stop-color="#00bce9"/><stop offset="1" stop-color="#008bd4"/></linearGradient>
+ <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="22"/></filter>
+</defs>
+<rect width="1024" height="1024" rx="220" fill="url(#bg)"/>
+<circle cx="512" cy="510" r="440" fill="url(#glow)"/>
+<g fill="#20d9ff">
+ <circle cx="330" cy="235" r="22"/><circle cx="512" cy="170" r="22"/><circle cx="694" cy="235" r="22"/>
+</g>
+<path d="M512 340 C340 340 214 462 178 622 C174 641 195 654 211 640 C258 600 307 600 354 640 C370 654 387 654 403 640 C450 600 482 600 512 640 C542 600 574 600 621 640 C637 654 654 654 670 640 C717 600 766 600 813 640 C829 654 850 641 846 622 C810 462 684 340 512 340Z" fill="url(#cyan)"/>
+<path d="M512 340 L512 824 C512 900 468 928 416 928 C363 928 326 890 326 842" fill="none" stroke="url(#cyan)" stroke-width="68" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M512 340 L512 640" stroke="#8af5ff" stroke-opacity=".25" stroke-width="8"/>
+</svg>
