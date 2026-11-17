@@ -374,3 +374,12 @@ Varje arbetsomgång ska dokumentera:
 - SMHI-bildhämtningen på enheten är fortfarande inte bekräftad. Nästa felsökningssteg är att fånga exakt HTTP-status och bildavkodningsfel från iPhone om QCOMP fortsatt fallerar.
 - Nederbördstypens Open-Meteo-punkter har större, mjukare cirkelyta (36 px radie, 0,94 blur och 0,30 opacitet) för att punkterna ska kunna läsas som ett regionalt modellfält. Detta är fortfarande modellvägledning, inte observerad radar.
 - Kodändringarna är committade; CI-kompilering och fysisk iPhone-verifiering återstår.
+
+
+## SMHI 401 från iPhone – diagnostik av bildåtkomst – 2026-11-17
+
+- Test på användarens iPhone visar att kataloghämtningen fungerar men att direkt hämtning av QCOMP-PNG returnerar HTTP 401. Reservkällan RainViewer fungerar samtidigt.
+- Oberoende kontroll av SMHI:s publika katalog visar att QCOMP-PNG-filer publiceras. Direkt öppning av en sådan PNG via webbläsarverktyget returnerar också 401. Det styrker att felet ligger i åtkomsten till själva filresursen, inte i regex eller att filnamnen saknas.
+- Ny diagnostik: bildbegäran skickas med SMHI:s webbplats som Referer och utan den tidigare specialskrivna User-Agent-strängen. Vid fortsatt fel visas även en kort, sanerad autentiserings-/serversvarshänvisning när sådan finns.
+- Ingen garanti att Referer löser 401; detta är ett avgränsat test av serverns åtkomstpolicy. Om 401 kvarstår behöver SMHI:s officiella portalflöde eller en annan dokumenterad radarleverans användas i stället för att fortsätta gissa headers.
+- QCOMP behålls som förstahandsprodukt. RainViewer fortsätter som reserv.
