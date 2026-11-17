@@ -290,3 +290,10 @@ Varje arbetsomgång ska dokumentera:
 - En felaktig vertex gör att hela ringen/geometrin avvisas. Tidigare kunde en saknad koordinat tyst ersättas med 0,0 i punkt-i-polygon-testet, vilket riskerade felaktiga varningsträffar.
 - Polygon och MultiPolygon använder nu samma validerade geometri för både innanför-test och närhetskontroll; hål i polygoner fortsätter att exkluderas från själva varningsytan.
 - Kodändringen är committad. CI-kompilering och test mot riktiga SMHI-payloads återstår. Den befintliga 75 km-närhetsgränsen för marina områden är oförändrad och behöver fortsatt separat geografisk utvärdering.
+## Grafiskt lager för nederbördstyp – 2026-11-17
+
+- Nederbördstypens 25 geografiskt placerade Open-Meteo-modellpunkter visas nu som större, mjukt tonade områden i stället för små isolerade punkter.
+- Regn, snö och blandad nederbörd behåller separata färger/lager. Kartans radarbilder är fortsatt ett separat observationslager.
+- Lageridentiteten inkluderar nu nederbördsmängden, så stil-/datakällan uppdateras även när intensiteten ändras men klassificeringstypen förblir densamma.
+- Detta är en visuell interpolation/utbredning av glesa modellpunkter, inte en högupplöst nederbördskarta eller klassificering av radarbildens pixlar. Fysisk iPhone-granskning krävs för att bedöma om utbredningen blir lagom och inte överdriver täckningen.
+- Kodändringen är committad; CI-kompilering och kartkontroll på enhet återstår.
