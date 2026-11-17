@@ -934,7 +934,7 @@ struct RadarMapView: View {
         .alert("Om nederbördstyp", isPresented: $showTypeInfo) {
             Button("Stäng", role: .cancel) {}
         } message: {
-            Text("Radarn visar observerad nederbörd. SMHI används i första hand. RainViewer används som reserv om SMHI:s radarflöde inte är tillgängligt. Nederbördstypen hämtas separat från en vädermodell och är en bedömning, inte en direkt klassificering av varje radar-pixel.")
+            Text("Radarn visar observerad nederbörd från RainViewer. RainViewer är Regnvakts aktiva radarkälla tills en annan officiell källa kan verifieras som öppet tillgänglig. Nederbördstypen hämtas separat från en vädermodell och är en bedömning, inte en direkt klassificering av varje radar-pixel.")
         }
     }
 
@@ -980,7 +980,7 @@ struct RadarMapView: View {
             frames = []
             selectedImage = nil
             radarSourceStatus = nil
-            errorMessage = "Varken SMHI eller reservradarn kunde nås. Kontrollera anslutningen och försök igen."
+            errorMessage = "RainViewers radardata kunde inte hämtas. Kontrollera internetanslutningen och försök igen."
         }
         isLoading = false
     }
