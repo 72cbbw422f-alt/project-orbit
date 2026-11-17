@@ -1237,10 +1237,11 @@ struct RadarMapView: View {
         let center = requestedCenter ?? windMapCenter ?? mapCoordinate
         windMapCenter = center
 
-        // Keep the 5×5 geographic sample grid, but request all locations in
-        // one Open-Meteo call instead of opening 25 parallel HTTP requests.
-        let latitudeGrid = [-0.60, -0.30, 0.0, 0.30, 0.60]
-        let longitudeGrid = [-1.00, -0.50, 0.0, 0.50, 1.00]
+        // Sample a denser 9×9 geographic grid in one Open-Meteo request.
+        // The same map extent is retained; the additional points reduce the
+        // visible gaps in model overlays without pretending to be radar pixels.
+        let latitudeGrid = (-4...4).map { Double($0) * 0.15 }
+        let longitudeGrid = (-4...4).map { Double($0) * 0.25 }
         let offsets: [(Double, Double)] = latitudeGrid.flatMap { lat in
             longitudeGrid.map { lon in (lat, lon) }
         }
@@ -1309,8 +1310,8 @@ struct RadarMapView: View {
             windSamples = results.sorted { $0.id < $1.id }
             windUpdated = Date()
             windStatus = results.count == offsets.count
-                ? (showClouds ? "Molntäcke • 25 geografiskt placerade modellpunkter" : "Vindfält • 25 modellpunkter runt kartans mittpunkt")
-                : (showClouds ? "Molntäcke delvis tillgängligt • \(results.count) av 25 punkter" : "Vindfält delvis tillgängligt • \(results.count) av 25 punkter")
+                ? (showClouds ? "Molntäcke • 81 geografiskt placerade modellpunkter" : "Vindfält • 81 modellpunkter runt kartans mittpunkt")
+                : (showClouds ? "Molntäcke delvis tillgängligt • \(results.count) av 81 punkter" : "Vindfält delvis tillgängligt • \(results.count) av 81 punkter")
         } catch {
             guard !Task.isCancelled, windRequestID == requestID else { return }
             windStatus = "Kunde inte hämta vinddata för kartområdet. Försök igen."
@@ -1553,7 +1554,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
                     // These samples are model guidance, not classifications of radar pixels.
                     layer.circleColor = NSExpression(forConstantValue: definition.color)
                     layer.circleOpacity = NSExpression(forConstantValue: 0.24)
-                    // A wider soft footprint lets adjacent 5×5 model samples blend
+                    // A wider soft footprint lets adjacent 9×9 model samples blend
                     // into a legible regional field instead of isolated glowing dots.
                     // This remains a visualization of model points, not measured radar.
                     layer.circleRadius = NSExpression(forConstantValue: 46)
