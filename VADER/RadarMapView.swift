@@ -1046,7 +1046,6 @@ struct RadarMapView: View {
     }
 
     @MainActor
-    @MainActor
     private func refreshPrecipitationType() async {
         let requestID = UUID()
         precipitationTypeRequestID = requestID
