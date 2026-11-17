@@ -590,7 +590,13 @@ struct RadarMapView: View {
                             .font(.system(size: 12, weight: .heavy))
                             .tracking(0.8)
                             .foregroundStyle(.white)
-                        Spacer()
+                        if !showWind && !showClouds && provider == .rainViewer {
+                            Link("Weather data by RainViewer", destination: URL(string: "https://www.rainviewer.com")!)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.92))
+                                .lineLimit(1)
+                        }
+                        Spacer(minLength: 6)
                         Text("© OpenStreetMap")
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(.white.opacity(0.85))
