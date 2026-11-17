@@ -256,3 +256,11 @@ Varje arbetsomgång ska dokumentera:
 - Tidigare användes de tre föregående prognosraderna, vilket kunde motsvara längre än tre timmar om prognosserien innehöll luckor. Bedömningen använder nu parsade datum/tider och ett strikt intervall större än 0 och högst 3 timmar.
 - Ändringen gäller riskbedömningen som visas i vakt-/vädergränssnittet. Notisschemaläggaren har sedan tidigare motsvarande kontroll av faktiskt tidsavstånd.
 - Kodändringen är committad. CI-kompilering, syntetiska gränsvärdestester och fysisk iPhone-verifiering återstår.
+
+
+## SMHI-sluttid och aktivstatus – 2026-11-17
+
+- Varningsområden med en angiven sluttid måste nu ha en giltig sluttid som inte redan passerat. Ett felaktigt datum avvisas i stället för att varningen riskerar att ligga kvar som aktiv.
+- Aktivfiltreringen kräver nu uttryckligen en parsbar starttid och använder inte längre `.distantPast` som reserv. Det kompletterar valideringen i själva SMHI-parsern.
+- SMHI-varningar med saknad sluttid tillåts fortfarande, eftersom API:t kan sakna ett sådant värde; om sluttid anges måste den däremot vara giltig.
+- Ändringen är committad. Verifiering mot verkliga SMHI-payloads, CI och iPhone återstår.
