@@ -419,3 +419,12 @@ Varje arbetsomgång ska dokumentera:
 - RainViewer-manifestet som appen använder exponerar `radar.past`; appens tidslinje är därför historiska/observerade bildrutor och ska inte beskrivas som en framtidsprognos.
 - Tidslinjen fortsätter använda tillgängliga bildrutor i stigande tidsordning, med senaste bildrutan vald initialt. Uppspelningen stegar genom dessa bildrutor; separat närprognos från MET Norway och nederbördstyp från Open-Meteo behålls som modellprodukter.
 - Kod- och källtextändringen är pushad. CI och fysisk iPhone-kontroll återstår.
+
+
+## Behovsstyrd hämtning av vind-/modellfält – 2026-11-17
+
+- Radarens startflöde hämtar inte längre 25 geografiska Open-Meteo-punkter för vind/moln/nederbördstyp när användaren bara tittar på radarn.
+- Fältet hämtas när användaren väljer Vind eller Typ och uppdateras vid kartförflyttning endast om ett sådant modellager är aktivt.
+- Byte av vald plats uppdaterar fortfarande nederbördstyp, närprognos och radaravläsning. Vind-/modellfältet uppdateras bara när det behövs.
+- Avsikten är färre onödiga nätverksanrop, snabbare start och lägre batteri-/databelastning utan att ta bort någon synlig funktion.
+- CI-kompilering och fysisk iPhone-verifiering återstår.
