@@ -298,7 +298,16 @@ enum WeatherNotificationScheduler {
                 day.dateFormat = "yyyyMMdd"
                 stamp = day.string(from: swedishCalendar.startOfDay(for: event.date))
             } else {
-                stamp = String(Int(event.date.timeIntervalSince1970))
+                // Forecast feeds can revise the exact timestamp by a few
+                // seconds/minutes while still describing the same displayed
+                // local-hour event. Key the notification by Swedish local hour
+                // so a refresh replaces that event instead of delivering a copy.
+                let hourStamp = DateFormatter()
+                hourStamp.calendar = swedishCalendar
+                hourStamp.timeZone = swedishTimeZone
+                hourStamp.locale = Locale(identifier: "en_US_POSIX")
+                hourStamp.dateFormat = "yyyyMMddHH"
+                stamp = hourStamp.string(from: event.date)
             }
             let locationToken = locationID.replacingOccurrences(of: ",", with: "_")
             let identifier = prefix + locationToken + "." + event.type + (event.immediate ? ".current." : ".") + stamp
