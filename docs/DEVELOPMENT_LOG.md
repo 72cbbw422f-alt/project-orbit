@@ -468,3 +468,23 @@ Varje arbetsomgång ska dokumentera:
 - Detta kompletterar timbaserad händelseidentitet i WeatherNotificationScheduler.swift. Ändringen förhindrar att nya GPS-avvikelser skapar nya identiteter för samma bevakade plats.
 - Hypotesen om redan lagrade äldre koordinatnycklar är inte bekräftad mot användarens enhetsdata. Befintliga historiska dubbletter/nycklar rensas inte automatiskt av denna ändring.
 - Kod pushad. CI-kompilering och iPhone-test återstår.
+
+
+## 7-dagarsprognos och radarens lagerpresentation – 2026-11-17
+
+### Ändringar
+- `ContentView.swift`: varje dygnskort i 7-dagarsprognosen kan nu fällas ut. Detaljläget visar högsta/lägsta temperatur, medelvind, byvind, nederbördsrisk, total nederbörd och UV-index i samma visuella detaljnivå som övriga väderdetaljer.
+- Dygnsvärdena presenteras uttryckligen som Open-Meteo-data. Timprognos har inte lagts till i 7-dagarsvyn eftersom den nuvarande modellen bara hämtar 48 timmar; längre timserier får inte fabriceras.
+- `RadarMapView.swift`: RainViewer-attribution visas bara när RainViewer-rasterlagret faktiskt är aktivt. I nederbördstypläget används Open-Meteo som källa och RainViewer ska inte ta plats i samma källrad.
+- Nederbördstypens modellpunkter har fått något bredare och mjukare symbolfält för att minska intrycket av isolerade små punkter. Detta är en visuell justering, inte en förbättring av modellens geografiska upplösning.
+
+### Kvarstående radarproblem
+- Användarens senaste skärmbild visar att nederbördstypslagret fortfarande ser fläckigt ut och att basemapens kontrast konkurrerar med väderlagret.
+- Rotorsaken är delvis strukturell: nederbördstypen visas som 5×5 Open-Meteo-modellpunkter, inte som ett kontinuerligt radar- eller rasterfält. Att öka cirkelradien kan mildra glappen men kan inte skapa verklig upplösning mellan mätpunkterna.
+- RainViewer publika API ger historiska radarplattor med 10-minuterssteg och har max zoomnivå 7; dess nuvarande publika API ska inte beskrivas som framtida radarprognos. Källa: https://www.rainviewer.com/api/weather-maps-api.html och https://www.rainviewer.com/api/transition-faq.html.
+- Nästa tekniska steg bör vara att undersöka en tätare, geografiskt interpolerad Open-Meteo-visualisering eller en separat väderkartkälla med verkligt rasterstöd. Interpolering måste märkas som modellvisualisering och får inte presenteras som uppmätt radar.
+
+### Verifiering
+- Kodändringar är committade på `feature/frost-notification-audit`.
+- CI-kompilering och IPA-paketering ska kontrolleras separat.
+- Ingen fysisk iPhone-verifiering av den nya 7-dagarsvyn eller radarutseendet är ännu utförd.
