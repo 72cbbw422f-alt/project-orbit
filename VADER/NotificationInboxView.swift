@@ -37,10 +37,24 @@ private actor SMHIWarningNotificationGate {
             inFlight.removeAll()
             currentEpoch = epoch
         }
-        // Merge persisted claims instead of replacing actor state. A slower,
-        // overlapping refresh must never erase a claim committed by a faster one.
-        scheduled.formUnion(persisted.intersection(current))
+        // Keep only recent signatures in memory and on disk. This bounds
+        // long-lived state without allowing an overlapping, stale refresh to
+        // erase a newer successful claim.
+        let cutoff = Date().addingTimeInterval(-90 * 24 * 60 * 60)
+        scheduled = scheduled.filter { signatureIsRecent($0, cutoff: cutoff) }
+        let recentPersisted = persisted.filter { signatureIsRecent($0, cutoff: cutoff) }
+        scheduled.formUnion(recentPersisted.intersection(current))
+        UserDefaults.standard.set(Array(scheduled), forKey: persistenceKey)
         // Do not discard in-flight claims based on a possibly stale response.
+    }
+
+    private func signatureIsRecent(_ signature: String, cutoff: Date) -> Bool {
+        guard let startValue = signature.split(separator: "|", omittingEmptySubsequences: false).last,
+              let startDate = parseSMHIDate(String(startValue)) else {
+            // Retain unknown legacy signatures rather than risk re-notifying.
+            return true
+        }
+        return startDate >= cutoff
     }
 
     func clearScheduled(ifEpoch epoch: String) {
@@ -64,6 +78,8 @@ private actor SMHIWarningNotificationGate {
         inFlight.removeValue(forKey: signature)
         guard (UserDefaults.standard.string(forKey: notificationEpochKey) ?? "") == epoch else { return scheduled }
         if accepted { scheduled.insert(signature) }
+        let cutoff = Date().addingTimeInterval(-90 * 24 * 60 * 60)
+        scheduled = scheduled.filter { signatureIsRecent($0, cutoff: cutoff) }
         UserDefaults.standard.set(Array(scheduled), forKey: persistenceKey)
         return scheduled
     }
@@ -173,7 +189,15 @@ enum SMHIWarningService {
                     start: start, end: end, description: text(for: "INCIDENT"), advice: text(for: "AFFECT")))
             }
         }
-        return result.sorted { rank($0.level) > rank($1.level) }
+        // A malformed or repeated payload area must not create duplicate
+        // rows for the same SMHI warning-area identity.
+        let uniqueByID = Dictionary(result.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return uniqueByID.values.sorted {
+            let leftRank = rank($0.level), rightRank = rank($1.level)
+            if leftRank != rightRank { return leftRank > rightRank }
+            if $0.start != $1.start { return $0.start < $1.start }
+            return $0.id < $1.id
+        }
     }
 
     private static let notificationEpochKey = "Regnvakt.smhi.notificationEpoch.v1"
