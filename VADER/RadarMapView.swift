@@ -964,7 +964,7 @@ struct RadarMapView: View {
         components.queryItems = [
             URLQueryItem(name: "latitude", value: String(mapCoordinate.latitude)),
             URLQueryItem(name: "longitude", value: String(mapCoordinate.longitude)),
-            URLQueryItem(name: "current", value: "temperature_2m,weather_code"),
+            URLQueryItem(name: "current", value: "temperature_2m,weather_code,precipitation,rain,showers,snowfall"),
             URLQueryItem(name: "timezone", value: "auto")
         ]
         guard let url = components.url else { return }
@@ -975,7 +975,15 @@ struct RadarMapView: View {
                   let current = root["current"] as? [String: Any] else { return }
             let temp = (current["temperature_2m"] as? NSNumber)?.doubleValue ?? 0
             let code = (current["weather_code"] as? NSNumber)?.intValue ?? 0
-            precipitationType = Self.precipitationName(code: code, temperature: temp)
+            let rain = (current["rain"] as? NSNumber)?.doubleValue ?? 0
+            let showers = (current["showers"] as? NSNumber)?.doubleValue ?? 0
+            let snow = (current["snowfall"] as? NSNumber)?.doubleValue ?? 0
+            precipitationType = Self.precipitationName(
+                code: code,
+                temperature: temp,
+                rain: rain + showers,
+                snow: snow
+            )
             typeDetail = "Modellbedömning • \(Int(temp.rounded()))°C vid \(place)"
         } catch {
             precipitationType = "Nederbördstyp saknas"
@@ -1136,7 +1144,21 @@ struct RadarMapView: View {
         }
     }
 
-    private static func precipitationName(code: Int, temperature: Double) -> String {
+    private static func precipitationName(
+        code: Int,
+        temperature: Double,
+        rain: Double,
+        snow: Double
+    ) -> String {
+        // Prefer the model's current precipitation components when present.
+        // This distinguishes mixed precipitation from a generic weather code.
+        if rain > 0.02 && snow > 0.02 { return "Blandad nederbörd" }
+        if snow > 0.02 { return "Snö" }
+        if rain > 0.02 {
+            return temperature <= 0 ? "Möjligen underkylt regn" : "Regn"
+        }
+
+        // Fall back to the WMO weather code when current amounts are zero.
         switch code {
         case 51...57: return temperature <= 0 ? "Möjligen underkylt duggregn" : "Duggregn"
         case 61...67: return temperature <= 0 ? "Möjligen underkylt regn" : "Regn"
