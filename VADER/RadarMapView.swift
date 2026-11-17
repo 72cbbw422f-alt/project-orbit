@@ -199,10 +199,6 @@ private enum RadarService {
         request.timeoutInterval = 20
         request.cachePolicy = .reloadIgnoringLocalCacheData
         request.setValue("image/png,image/*;q=0.8", forHTTPHeaderField: "Accept")
-        // The directory index is public, but some SMHI edge nodes reject
-        // direct image requests without a first-party referrer. Use a normal
-        // browser-style request context and keep the system User-Agent.
-        request.setValue("https://www.smhi.se/", forHTTPHeaderField: "Referer")
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
