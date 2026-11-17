@@ -688,12 +688,14 @@ struct NotificationInboxView: View {
         let info = content.userInfo
         let watch = (info["watch"] as? String) ?? content.title
         let place = (info["place"] as? String) ?? ""
-        if watch == "frost" {
+        if watch == "frost" || watch == "ice" {
+            // Frost and ice alerts repeated across forecast refreshes describe
+            // one safety episode per place and Swedish calendar day.
             let day = (info["alertDay"] as? Date) ?? fallbackDate
             var calendar = Calendar(identifier: .gregorian)
             calendar.timeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
             let components = calendar.dateComponents([.year, .month, .day], from: day)
-            return "frost|\(place)|\(components.year ?? 0)-\(components.month ?? 0)-\(components.day ?? 0)"
+            return "\(watch)|\(place)|\(components.year ?? 0)-\(components.month ?? 0)-\(components.day ?? 0)"
         }
         if let stamp = info["forecastEventDate"] as? TimeInterval {
             // Forecast refreshes can recreate the same event with slightly
