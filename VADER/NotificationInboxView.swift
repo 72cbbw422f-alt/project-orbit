@@ -629,7 +629,8 @@ struct NotificationInboxView: View {
         let place = (info["place"] as? String) ?? ""
         if watch == "frost" {
             let day = (info["alertDay"] as? Date) ?? fallbackDate
-            let calendar = Calendar(identifier: .gregorian)
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
             let components = calendar.dateComponents([.year, .month, .day], from: day)
             return "frost|\(place)|\(components.year ?? 0)-\(components.month ?? 0)-\(components.day ?? 0)"
         }
