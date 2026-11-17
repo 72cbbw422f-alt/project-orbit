@@ -8,6 +8,18 @@ private enum RadarProvider: String {
     case rainViewer = "RainViewer"
 }
 
+private enum RadarImageError: LocalizedError {
+    case httpStatus(Int)
+    case invalidImage
+
+    var errorDescription: String? {
+        switch self {
+        case .httpStatus(let status): return "HTTP \(status)"
+        case .invalidImage: return "Svaret kunde inte avkodas som PNG-bild"
+        }
+    }
+}
+
 private struct RadarFrame: Identifiable, Equatable {
     let time: Date
     let path: String
@@ -187,9 +199,14 @@ private enum RadarService {
         request.setValue("image/png,image/*;q=0.8", forHTTPHeaderField: "Accept")
         request.setValue("Regnvakt iOS", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard (response as? HTTPURLResponse)?.statusCode == 200,
-              let image = UIImage(data: data) else {
-            throw URLError(.cannotDecodeContentData)
+        guard let http = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        guard http.statusCode == 200 else {
+            throw RadarImageError.httpStatus(http.statusCode)
+        }
+        guard let image = UIImage(data: data) else {
+            throw RadarImageError.invalidImage
         }
         return image
     }
@@ -995,7 +1012,7 @@ struct RadarMapView: View {
             guard imageLoadID == requestID, selectedFrame?.id == frame.id else { return }
             selectedImage = nil
             errorMessage = nil
-            radarSourceStatus = "SMHI:s radarbild kunde inte hämtas. Byter till RainViewer."
+            radarSourceStatus = "SMHI:s radarbild misslyckades (\(error.localizedDescription)). Byter till RainViewer."
             do {
                 let (host, fallback) = try await RadarService.loadRainViewerFrames()
                 guard imageLoadID == requestID, selectedFrame?.id == frame.id else { return }
@@ -1003,7 +1020,7 @@ struct RadarMapView: View {
                 provider = .rainViewer
                 frames = fallback
                 selectedIndex = max(0, frames.count - 1)
-                radarSourceStatus = "SMHI:s radarbild kunde inte hämtas. Visar RainViewer som reserv."
+                radarSourceStatus = "SMHI:s radarbild misslyckades (\(error.localizedDescription)). Visar RainViewer som reserv."
                 await refreshRadarAtPlace()
             } catch {
                 guard imageLoadID == requestID else { return }
