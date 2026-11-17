@@ -273,3 +273,11 @@ Varje arbetsomgång ska dokumentera:
 - Den nya identifieraren gör att ändrad rubrik eller nivå får ett nytt väntande-notis-ID. Stale-rensningen tar samtidigt bort den äldre väntande varianten.
 - Hashen är en stabil FNV-1a 64-bitars identifierare för notis-ID, inte en säkerhets- eller integritetsfunktion.
 - Kodändringen är committad. Kompilering och test av ändrade varningar mot iOS-notiskön återstår.
+
+
+## SMHI-signaturer och dubbletter i varningsområden – 2026-11-17
+
+- SMHI-notissignaturer äldre än 90 dagar gallras nu från aktörens minne och den persistenta signaturlistan. Signaturer med okänt/äldre format behålls försiktigt för att undvika oavsiktliga återaviseringar.
+- Gallringen görs tidsbaserat och inte genom att ersätta hela mängden med senaste nätverkssvarets varningar. Därmed kan en långsammare, äldre refresh inte radera en nyare lyckad notifieringsclaim.
+- Samma SMHI warning-area-ID returneras nu högst en gång även om payloaden innehåller upprepade områdesposter. Resultatet sorteras deterministiskt efter allvarlighetsgrad, starttid och ID.
+- Notis- och områdesändringarna är pushade. Kompilering och verklig SMHI-payload-/iOS-notistestning återstår.
