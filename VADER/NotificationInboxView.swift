@@ -297,15 +297,8 @@ enum SMHIWarningService {
                 if leftStart != rightStart { return leftStart < rightStart }
                 return $0.id < $1.id
             }
-            let activeNotificationIDs = Set(active.map { warning in
-                let safeID = warning.id.replacingOccurrences(
-                    of: "[^A-Za-z0-9.-]", with: "-", options: .regularExpression
-                )
-                let safeStart = warning.start.replacingOccurrences(
-                    of: "[^A-Za-z0-9-]", with: "-", options: .regularExpression
-                )
-                let safeEpoch = notificationEpoch.isEmpty ? "initial" : notificationEpoch
-                return "smhi.\(safeID).\(warning.level).\(safeStart).\(safeEpoch)"
+            let activeNotificationIDs = Set(active.map {
+                notificationIdentifier(for: $0, epoch: notificationEpoch)
             })
             let allPendingRequests = await center.pendingNotificationRequests()
             guard (defaults.string(forKey: notificationEpochKey) ?? "") == notificationEpoch else { return }
@@ -326,14 +319,7 @@ enum SMHIWarningService {
             var queuedSMHIWarnings = 0
             for warning in prioritizedActive {
                 let signature = warning.id + "|" + warning.level + "|" + warning.title + "|" + warning.start
-                let safeID = warning.id.replacingOccurrences(
-                    of: "[^A-Za-z0-9.-]", with: "-", options: .regularExpression
-                )
-                let safeStart = warning.start.replacingOccurrences(
-                    of: "[^A-Za-z0-9-]", with: "-", options: .regularExpression
-                )
-                let safeEpoch = notificationEpoch.isEmpty ? "initial" : notificationEpoch
-                let identifier = "smhi.\(safeID).\(warning.level).\(safeStart).\(safeEpoch)"
+                let identifier = notificationIdentifier(for: warning, epoch: notificationEpoch)
 
                 // Recover a request accepted by iOS just before an app interruption.
                 if pendingSMHIIDs.contains(identifier) {
@@ -380,6 +366,19 @@ enum SMHIWarningService {
             // Preserve previous active state and signatures on fetch failure.
         }
     }
+    // Include the full warning signature in a deterministic, compact ID.
+    // A title change must not be mistaken for an already-pending old notification.
+    private static func notificationIdentifier(for warning: SMHIWarning, epoch: String) -> String {
+        let signature = warning.id + "|" + warning.level + "|" + warning.title + "|" + warning.start
+        let hash = signature.utf8.reduce(UInt64(14_695_981_039_346_656_037)) {
+            ($0 ^ UInt64($1)) &* 1_099_511_628_211
+        }
+        let hex = String(hash, radix: 16)
+        let paddedHash = String(repeating: "0", count: max(0, 16 - hex.count)) + hex
+        let safeEpoch = epoch.isEmpty ? "initial" : epoch
+        return "smhi.\(paddedHash).\(safeEpoch)"
+    }
+
     private static func rank(_ level: String) -> Int {
         let value = level.lowercased()
         if value.contains("röd") { return 3 }; if value.contains("orange") { return 2 }; if value.contains("gul") { return 1 }; return 0
