@@ -9,13 +9,15 @@ private enum RadarProvider: String {
 }
 
 private enum RadarImageError: LocalizedError {
-    case httpStatus(Int)
+    case httpStatus(Int, String?)
     case invalidImage
 
     var errorDescription: String? {
         switch self {
-        case .httpStatus(let status): return "HTTP \(status)"
-        case .invalidImage: return "Svaret kunde inte avkodas som PNG-bild"
+        case .httpStatus(let status, let hint):
+            return hint.map { "HTTP \(status) • \($0)" } ?? "HTTP \(status)"
+        case .invalidImage:
+            return "Svaret kunde inte avkodas som PNG-bild"
         }
     }
 }
@@ -197,13 +199,21 @@ private enum RadarService {
         request.timeoutInterval = 20
         request.cachePolicy = .reloadIgnoringLocalCacheData
         request.setValue("image/png,image/*;q=0.8", forHTTPHeaderField: "Accept")
-        request.setValue("Regnvakt iOS", forHTTPHeaderField: "User-Agent")
+        // The directory index is public, but some SMHI edge nodes reject
+        // direct image requests without a first-party referrer. Use a normal
+        // browser-style request context and keep the system User-Agent.
+        request.setValue("https://www.smhi.se/", forHTTPHeaderField: "Referer")
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
         }
         guard http.statusCode == 200 else {
-            throw RadarImageError.httpStatus(http.statusCode)
+            let challenge = http.value(forHTTPHeaderField: "WWW-Authenticate")
+            let body = String(data: data.prefix(180), encoding: .utf8)?
+                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let hint = challenge ?? body
+            throw RadarImageError.httpStatus(http.statusCode, hint)
         }
         guard let image = UIImage(data: data) else {
             throw RadarImageError.invalidImage
