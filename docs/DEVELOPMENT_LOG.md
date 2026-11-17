@@ -365,3 +365,11 @@ Varje arbetsomgång ska dokumentera:
 - Typ-läget stänger nu av SMHI-/RainViewer-rasterbilden och visar endast nederbördstypens Open-Meteo-lager ovanpå baskartan. Det undviker att en radarbilderuta visuellt konkurrerar med eller skymmer modellklassificeringen.
 - Kartans källrad visar uttryckligen ”NEDERBÖRDSTYP • OPEN-METEO” i detta läge, så användaren ser vilken datakälla och vilken typ av lager som visas.
 - Detta är en kodmässig korrigering av Typ-lägets lagerlogik. Kompilering och kontroll av att regn/snö/blandat faktiskt syns på iPhone återstår.
+
+
+## SMHI-filnamn och tydligare nederbördstypslager – 2026-11-17
+
+- Livekontroll av SMHI:s officiella radarkatalog visade att PNG-bildrutorna heter `RADAR_SWE_EPSG3006_YYYYMMDDHHMM.png`. Appens regex och URL-byggare sökte felaktigt efter `_QCOMP_`, vilket gjorde att de verkliga PNG-bildrutorna inte matchade kataloglistan.
+- Regex och bildrute-URL använder nu katalogens faktiska filnamnsformat. Detta bör återställa SMHI:s ordinarie bildflöde; faktisk hämtning från iPhone behöver verifieras efter installation.
+- Nederbördstypens Open-Meteo-punkter får större, mjukare cirkelyta (36 px radie, 0,94 blur och 0,30 opacitet) så närliggande modellpunkter kan överlappa och läsas som ett regionalt modellfält. Det är fortfarande en visualisering av glesa modellpunkter, inte radarobservation.
+- Kodändringarna är committade; CI-kompilering och fysisk iPhone-verifiering återstår.
