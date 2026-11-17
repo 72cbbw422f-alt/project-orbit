@@ -264,3 +264,12 @@ Varje arbetsomgång ska dokumentera:
 - Aktivfiltreringen kräver nu uttryckligen en parsbar starttid och använder inte längre `.distantPast` som reserv. Det kompletterar valideringen i själva SMHI-parsern.
 - SMHI-varningar med saknad sluttid tillåts fortfarande, eftersom API:t kan sakna ett sådant värde; om sluttid anges måste den däremot vara giltig.
 - Ändringen är committad. Verifiering mot verkliga SMHI-payloads, CI och iPhone återstår.
+
+
+## SMHI-notisidentifierare vid innehållsuppdatering – 2026-11-17
+
+- Notisidentifieraren byggs nu från en deterministisk kompakt hash av varningsområdets ID, allvarlighetsgrad, rubrik och starttid samt aktuell notifieringsepok.
+- Tidigare byggdes identifieraren av varnings-ID, nivå och starttid men inte rubrik. Om SMHI ändrade rubriken utan att ändra övriga fält kunde en gammal väntande notis därför felaktigt räknas som den nya versionen och uppdaterad text utebli.
+- Den nya identifieraren gör att ändrad rubrik eller nivå får ett nytt väntande-notis-ID. Stale-rensningen tar samtidigt bort den äldre väntande varianten.
+- Hashen är en stabil FNV-1a 64-bitars identifierare för notis-ID, inte en säkerhets- eller integritetsfunktion.
+- Kodändringen är committad. Kompilering och test av ändrade varningar mot iOS-notiskön återstår.
