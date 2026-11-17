@@ -35,12 +35,31 @@ private enum RadarService {
         let radar: Radar
     }
 
-    static func loadFrames() async throws -> (String, RadarProvider, [RadarFrame]) {
-        if let smhi = try? await loadSMHIFrames(), !smhi.isEmpty {
-            return ("", .smhi, smhi)
+    static func loadFrames() async throws -> (String, RadarProvider, [RadarFrame], String?) {
+        do {
+            let smhi = try await loadSMHIFrames()
+            if !smhi.isEmpty { return ("", .smhi, smhi, nil) }
+            throw URLError(.cannotParseResponse)
+        } catch {
+            let reason = smhiFailureDescription(error)
+            let (host, frames) = try await loadRainViewerFrames()
+            return (host, .rainViewer, frames, reason)
         }
-        let (host, frames) = try await loadRainViewerFrames()
-        return (host, .rainViewer, frames)
+    }
+
+    private static func smhiFailureDescription(_ error: Error) -> String {
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .cannotLoadFromNetwork: return "SMHI:s senaste bild är för gammal"
+            case .cannotParseResponse: return "SMHI:s bildlista kunde inte tolkas"
+            case .timedOut: return "SMHI svarade inte i tid"
+            case .notConnectedToInternet, .networkConnectionLost: return "Nätverksfel mot SMHI"
+            case .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed: return "SMHI:s server kunde inte nås"
+            case .badServerResponse: return "SMHI skickade ett ogiltigt serversvar"
+            default: return "SMHI:s radarflöde kunde inte läsas"
+            }
+        }
+        return "SMHI:s bildlista kunde inte tolkas"
     }
 
     private static func loadSMHIFrames() async throws -> [RadarFrame] {
@@ -437,6 +456,7 @@ struct RadarMapView: View {
     @State private var imageLoadingID: UUID?
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var radarSourceStatus: String?
     @State private var lastUpdated: Date?
     @State private var isPlaying = false
     @State private var showRadar = true
@@ -583,6 +603,23 @@ struct RadarMapView: View {
                 .padding(.horizontal, 12)
                 .frame(maxWidth: .infinity)
                 .frame(height: 340)
+
+                if let radarSourceStatus, !showWind {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "info.circle.fill")
+                            .foregroundStyle(Color(red: 0.98, green: 0.68, blue: 0.40))
+                        Text(radarSourceStatus)
+                            .foregroundStyle(.white.opacity(0.86))
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                    }
+                    .font(.system(size: 12, weight: .medium))
+                    .padding(11)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
+                    .padding(.horizontal, 12)
+                    .padding(.top, 5)
+                }
 
                 if !showWind, let selectedFrame {
                     HStack(spacing: 9) {
@@ -877,11 +914,13 @@ struct RadarMapView: View {
         isLoading = true
         isPlaying = false
         errorMessage = nil
+        radarSourceStatus = nil
         do {
             let result = try await RadarService.loadFrames()
             radarHost = result.0
             provider = result.1
             frames = result.2
+            radarSourceStatus = result.3.map { "SMHI kunde inte användas: \($0). Visar RainViewer som reserv." }
             selectedIndex = frames.count - 1
             await loadSelectedImage()
             await refreshRadarAtPlace()
@@ -889,6 +928,7 @@ struct RadarMapView: View {
         } catch {
             frames = []
             selectedImage = nil
+            radarSourceStatus = nil
             errorMessage = "Varken SMHI eller reservradarn kunde nås. Kontrollera anslutningen och försök igen."
         }
         isLoading = false
@@ -925,7 +965,8 @@ struct RadarMapView: View {
         } catch {
             guard imageLoadID == requestID, selectedFrame?.id == frame.id else { return }
             selectedImage = nil
-            errorMessage = "SMHI-bilden kunde inte hämtas. Försöker använda reservradarn."
+            errorMessage = nil
+            radarSourceStatus = "SMHI:s radarbild kunde inte hämtas. Byter till RainViewer."
             do {
                 let (host, fallback) = try await RadarService.loadRainViewerFrames()
                 guard imageLoadID == requestID, selectedFrame?.id == frame.id else { return }
@@ -933,7 +974,7 @@ struct RadarMapView: View {
                 provider = .rainViewer
                 frames = fallback
                 selectedIndex = max(0, frames.count - 1)
-                errorMessage = nil
+                radarSourceStatus = "SMHI:s radarbild kunde inte hämtas. Visar RainViewer som reserv."
                 await refreshRadarAtPlace()
             } catch {
                 guard imageLoadID == requestID else { return }
