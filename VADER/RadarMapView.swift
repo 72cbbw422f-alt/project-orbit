@@ -1422,8 +1422,8 @@ private struct RegnvaktMapView: UIViewRepresentable {
                     // Soft, geographically anchored forecast field instead of tiny isolated dots.
                     // These samples are model guidance, not classifications of radar pixels.
                     layer.circleColor = NSExpression(forConstantValue: definition.color)
-                    layer.circleOpacity = NSExpression(forConstantValue: 0.46)
-                    layer.circleRadius = NSExpression(forConstantValue: 20)
+                    layer.circleOpacity = NSExpression(forConstantValue: 0.38)
+                    layer.circleRadius = NSExpression(forConstantValue: 14)
                     layer.circleBlur = NSExpression(forConstantValue: 0.88)
                     layer.circleStrokeColor = NSExpression(forConstantValue: definition.color.withAlphaComponent(0.18))
                     layer.circleStrokeWidth = NSExpression(forConstantValue: 1.0)
