@@ -468,7 +468,7 @@ struct RadarMapView: View {
     let place: String
 
     @State private var radarHost = "https://tilecache.rainviewer.com"
-    @State private var provider: RadarProvider = .smhi
+    @State private var provider: RadarProvider = .rainViewer
     @State private var frames: [RadarFrame] = []
     @State private var selectedIndex = 0
     @State private var selectedImage: UIImage?
@@ -903,7 +903,11 @@ struct RadarMapView: View {
             // before the asynchronous image load or place check can complete.
             radarPlaceRequestID = UUID()
             Task {
-                await loadSelectedImage()
+                // RainViewer frames are map tiles; only the legacy SMHI image
+                // provider needs a separately downloaded UIImage per frame.
+                if selectedFrame?.provider == .smhi {
+                    await loadSelectedImage()
+                }
                 await refreshRadarAtPlace()
             }
         }
