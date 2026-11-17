@@ -325,7 +325,16 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                     abs($0.latitude - latitude) < 0.015 && abs($0.longitude - longitude) < 0.015
                 }
                 if let selectedPlace, monitoredPlaceIDs.contains(selectedPlace.id) {
-                    WeatherNotificationScheduler.refresh(place: placeName, latitude: latitude, longitude: longitude, hours: result.hours, currentTemperature: updatedSnapshot.temperature)
+                    // A GPS fix can drift slightly between refreshes. Use the
+                    // saved place's stable coordinates for notification identity
+                    // so one monitored town cannot accumulate several location IDs.
+                    WeatherNotificationScheduler.refresh(
+                        place: selectedPlace.name,
+                        latitude: selectedPlace.latitude,
+                        longitude: selectedPlace.longitude,
+                        hours: result.hours,
+                        currentTemperature: updatedSnapshot.temperature
+                    )
                 }
 
                 // Only explicitly enabled places receive notifications.
