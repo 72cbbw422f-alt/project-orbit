@@ -631,15 +631,15 @@ struct NotificationInboxView: View {
             let day = (info["alertDay"] as? Date) ?? fallbackDate
             let calendar = Calendar(identifier: .gregorian)
             let components = calendar.dateComponents([.year, .month, .day], from: day)
-            return "frost|\\(place)|\\(components.year ?? 0)-\\(components.month ?? 0)-\\(components.day ?? 0)"
+            return "frost|\(place)|\(components.year ?? 0)-\(components.month ?? 0)-\(components.day ?? 0)"
         }
         if let stamp = info["forecastEventDate"] as? TimeInterval {
             // Forecast refreshes can recreate the same event with a different
             // notification identifier. Group by watch, place and event hour.
             let hour = Int(stamp / 3600)
-            return "\\(watch)|\\(place)|\\(hour)"
+            return "\(watch)|\(place)|\(hour)"
         }
-        return "\\(watch)|\\(place)|\\(content.title)|\\(content.body)"
+        return "\(watch)|\(place)|\(content.title)|\(content.body)"
     }
 
     @MainActor private func load() async {
@@ -682,7 +682,8 @@ struct NotificationInboxView: View {
             return seen.insert(key).inserted
         }
         isLoading = false
-    }}
+    }
+}
 
 struct NationalWarningsView: View {
     @Environment(\.dismiss) private var dismiss
