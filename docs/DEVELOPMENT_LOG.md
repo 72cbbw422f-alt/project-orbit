@@ -314,3 +314,12 @@ Varje arbetsomgång ska dokumentera:
 - Platsavläsningen hoppas nu över medan uppspelningen pågår och körs igen när användaren pausar. Manuell bildnavigering och vanlig uppdatering behåller platsavläsningen.
 - Ändringen minskar onödiga nätverksanrop under animering och minskar risken för att långsamma platskontroller överlappar. Själva radarens kartlager och bildruteväxling ändras inte.
 - CI-kompilering och fysisk iPhone-kontroll återstår.
+
+
+## Skydd mot inaktuella radaravläsningar – 2026-11-17
+
+- Build #448 (run 44087979106, commit 4c5d6d58a9a38ce5489b3b71124ab47eab300baa) slutfördes med `success`: iOS-enhetsbygget kompilerades, osignerad IPA paketerades och artefakten `Regnvakt-unsigned-IPA` laddades upp (4 545 496 byte; SHA-256 `427cef52f2ed8c8b30e82f40d00b9607d17d60408472185bdaecc5ce9dae861b`). Artefakten löper ut 2026-12-01 13:04 UTC.
+- RadarMapView.swift: varje RainViewer-platsavläsning får nu ett unikt request-ID och fångar bildrutans ID samt koordinatnyckeln innan nätverksanropet.
+- Resultat och felstatus får bara uppdateras om förfrågan fortfarande är den senaste, samma bildruta och koordinat är valda och uppspelningen inte har startat. Byte av bildruta eller koordinat invaliderar en pågående avläsning direkt.
+- Detta skyddar gränssnittet mot sena svar från äldre nätverksanrop. Själva radarplattans rendering och bildruteväxling ändras inte.
+- Kodändringen är committad. CI-kompilering återstår; fysisk iPhone-verifiering av snabb bildruteväxling, panorering och pausad uppspelning krävs innan beteendet betraktas som verifierat.
