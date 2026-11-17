@@ -306,3 +306,11 @@ Varje arbetsomgång ska dokumentera:
 - Attributionen är committad separat efter build #444 och behöver en egen CI-kompilering.
 - Ingen fysisk iPhone-verifiering är utförd. Kontrollera att länken syns endast för RainViewer, går till RainViewer-webbplatsen och inte tränger undan kartans övriga attribution eller kontroller.
 
+
+
+## Radaruppspelning och platsavläsning – 2026-11-17
+
+- Platsavläsningen för RainViewer hämtar en separat kartplatta och analyserar pixlar runt vald koordinat. Den kontrollen kördes tidigare för varje vald radarbild, även under automatisk uppspelning med 1,5 sekunders intervall.
+- Platsavläsningen hoppas nu över medan uppspelningen pågår och körs igen när användaren pausar. Manuell bildnavigering och vanlig uppdatering behåller platsavläsningen.
+- Ändringen minskar onödiga nätverksanrop under animering och minskar risken för att långsamma platskontroller överlappar. Själva radarens kartlager och bildruteväxling ändras inte.
+- CI-kompilering och fysisk iPhone-kontroll återstår.
