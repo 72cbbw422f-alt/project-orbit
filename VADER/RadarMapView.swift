@@ -75,7 +75,7 @@ private enum RadarService {
         }
 
         // SMHI's official QCOMP PNGs are timestamped in UTC and generated every five minutes.
-        let pattern = #"RADAR_SWE_EPSG3006_(\d{12})\.png"#
+        let pattern = #"RADAR_SWE_EPSG3006_QCOMP_(\d{12})\.png"#
         let regex = try NSRegularExpression(pattern: pattern)
         let range = NSRange(html.startIndex..., in: html)
         let formatter = DateFormatter()
@@ -88,7 +88,7 @@ private enum RadarService {
             guard let matchRange = Range(match.range(at: 1), in: html) else { continue }
             let stamp = String(html[matchRange])
             guard let date = formatter.date(from: stamp) else { continue }
-            let filename = "RADAR_SWE_EPSG3006_\(stamp).png"
+            let filename = "RADAR_SWE_EPSG3006_QCOMP_\(stamp).png"
             frames.append(RadarFrame(time: date, path: directory.appendingPathComponent(filename).absoluteString, provider: .smhi))
         }
         let unique = Dictionary(grouping: frames, by: { $0.time })
