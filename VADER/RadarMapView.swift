@@ -863,8 +863,10 @@ struct RadarMapView: View {
 
     private var precipitationSymbol: String {
         let text = precipitationType.lowercased()
+        if text.contains("blandad") { return "cloud.sleet.fill" }
         if text.contains("snö") { return "cloud.snow.fill" }
         if text.contains("hagel") { return "cloud.hail.fill" }
+        if text.contains("duggregn") { return "cloud.drizzle.fill" }
         if text.contains("regn") { return "cloud.rain.fill" }
         return "cloud.fill"
     }
