@@ -50,15 +50,14 @@ private enum RadarService {
     }
 
     static func loadFrames() async throws -> (String, RadarProvider, [RadarFrame], String?) {
-        do {
-            let smhi = try await loadSMHIFrames()
-            if !smhi.isEmpty { return ("", .smhi, smhi, nil) }
-            throw URLError(.cannotParseResponse)
-        } catch {
-            let reason = smhiFailureDescription(error)
-            let (host, frames) = try await loadRainViewerFrames()
-            return (host, .rainViewer, frames, reason)
-        }
+        // RainViewer is the active live-radar provider. SMHI's public directory
+        // currently lists QCOMP frames, but direct PNG requests return HTTP 401
+        // (Basic realm=Secured) on the user's device. Do not make every refresh
+        // wait for a request that cannot succeed; keep the provider clearly
+        // attributed in the map and retain SMHI integration code for a future
+        // verified public endpoint.
+        let (host, frames) = try await loadRainViewerFrames()
+        return (host, .rainViewer, frames, nil)
     }
 
     private static func smhiFailureDescription(_ error: Error) -> String {
