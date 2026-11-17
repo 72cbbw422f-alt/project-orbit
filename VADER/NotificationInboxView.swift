@@ -623,46 +623,66 @@ struct NotificationInboxView: View {
         Label(text, systemImage: icon).font(.system(size: 15, weight: .medium)).foregroundStyle(.white.opacity(0.7)).frame(maxWidth: .infinity, alignment: .leading).padding(13).background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 13))
     }
 
+    private func eventFingerprint(_ content: UNNotificationContent, fallbackDate: Date) -> String {
+        let info = content.userInfo
+        let watch = (info["watch"] as? String) ?? content.title
+        let place = (info["place"] as? String) ?? ""
+        if watch == "frost" {
+            let day = (info["alertDay"] as? Date) ?? fallbackDate
+            let calendar = Calendar(identifier: .gregorian)
+            let components = calendar.dateComponents([.year, .month, .day], from: day)
+            return "frost|\\(place)|\\(components.year ?? 0)-\\(components.month ?? 0)-\\(components.day ?? 0)"
+        }
+        if let stamp = info["forecastEventDate"] as? TimeInterval {
+            // Forecast refreshes can recreate the same event with a different
+            // notification identifier. Group by watch, place and event hour.
+            let hour = Int(stamp / 3600)
+            return "\\(watch)|\\(place)|\\(hour)"
+        }
+        return "\\(watch)|\\(place)|\\(content.title)|\\(content.body)"
+    }
+
     @MainActor private func load() async {
-        isLoading = true; errorMessage = nil
+        isLoading = true
+        errorMessage = nil
         if let coordinate {
             do { warnings = try await SMHIWarningService.warnings(at: coordinate) }
             catch { errorMessage = "Kunde inte hämta SMHI-varningar. Kontrollera anslutningen och försök igen." }
-        } else { errorMessage = "Väntar på en giltig position från vädertjänsten." }
-        let center = UNUserNotificationCenter.current()
-        // One shared key set spans delivered and pending alerts. Delivered
-        // notifications win, so an already-fired frost alert is not repeated
-        // as a second pending item for the same place and local calendar day.
-        var seenFrostDays = Set<String>()
-        let allDelivered = await center.deliveredNotifications().sorted { $0.date > $1.date }
-        delivered = allDelivered.filter { item in
-            let info = item.request.content.userInfo
-            guard (info["watch"] as? String) == "frost" else { return true }
-            let place = (info["place"] as? String) ?? ""
-            let date = (info["alertDay"] as? Date) ?? item.date
-            let day = Calendar.current.startOfDay(for: date).timeIntervalSince1970
-            return seenFrostDays.insert("\(place)|\(day)").inserted
+        } else {
+            errorMessage = "Väntar på en giltig position från vädertjänsten."
         }
 
+        let center = UNUserNotificationCenter.current()
+        let allDelivered = await center.deliveredNotifications().sorted { $0.date > $1.date }
         let allPending = await center.pendingNotificationRequests()
             .filter { $0.identifier.hasPrefix("regnvakt.weather.") || $0.identifier.hasPrefix("smhi.") }
             .sorted {
-                let a = ($0.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() ?? .distantFuture
-                let b = ($1.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() ?? .distantFuture
+                let a = ($0.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate()
+                    ?? ($0.trigger as? UNTimeIntervalNotificationTrigger).map { Date().addingTimeInterval($0.timeInterval) }
+                    ?? .distantFuture
+                let b = ($1.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate()
+                    ?? ($1.trigger as? UNTimeIntervalNotificationTrigger).map { Date().addingTimeInterval($0.timeInterval) }
+                    ?? .distantFuture
                 return a < b
             }
+
+        // A single semantic event can survive under different notification IDs
+        // after a forecast refresh. Share one key set across delivered and
+        // pending lists so the inbox never presents the same event twice.
+        var seen = Set<String>()
+        delivered = allDelivered.filter { item in
+            let key = eventFingerprint(item.request.content, fallbackDate: item.date)
+            return seen.insert(key).inserted
+        }
         pending = allPending.filter { request in
-            let info = request.content.userInfo
-            guard (info["watch"] as? String) == "frost" else { return true }
-            let place = (info["place"] as? String) ?? ""
-            let date = (info["alertDay"] as? Date)
-                ?? ((info["forecastEventDate"] as? TimeInterval).map { Date(timeIntervalSince1970: $0) } ?? Date())
-            let day = Calendar.current.startOfDay(for: date).timeIntervalSince1970
-            return seenFrostDays.insert("\(place)|\(day)").inserted
+            let fallback = (request.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate()
+                ?? (request.trigger as? UNTimeIntervalNotificationTrigger).map { Date().addingTimeInterval($0.timeInterval) }
+                ?? Date()
+            let key = eventFingerprint(request.content, fallbackDate: fallback)
+            return seen.insert(key).inserted
         }
         isLoading = false
-    }
-}
+    }}
 
 struct NationalWarningsView: View {
     @Environment(\.dismiss) private var dismiss
