@@ -150,7 +150,9 @@ enum SMHIWarningService {
                 // Regnvakt must still display and notify for valid warnings when it is false.
                 let start = area["approximateStart"] as? String ?? ""
                 let end = area["approximateEnd"] as? String ?? ""
-                let startDate = parseSMHIDate(start) ?? .distantPast
+                // Never promote a warning with an absent or malformed start
+                // timestamp to an active warning via a distantPast fallback.
+                guard let startDate = parseSMHIDate(start) else { continue }
                 let now = Date()
                 if !end.isEmpty, let endDate = parseSMHIDate(end), endDate < now { continue }
                 if includeUpcoming {
