@@ -443,3 +443,10 @@ Varje arbetsomgång ska dokumentera:
 - När användaren pausar eller lämnar vyn avbryts vänteloopen automatiskt. Det eliminerar onödiga timerhändelser när radarn står stilla och ger tydligare livscykelhantering.
 - Bildrutans takt är fortsatt 1,5 sekunder. Ingen ändring av radarens datakälla eller bildruteinnehåll.
 - CI-kompilering och test av uppspelning/paus på iPhone återstår.
+
+
+## 2026-11-17 — RainViewer playback cleanup
+- Set RainViewer as the initial radar provider in view state, matching the only provider currently returned by the active radar service. This avoids a transient incorrect SMHI state before the first manifest response.
+- Avoid invoking the legacy full-image loading path when the selected frame is a RainViewer tile frame. Frame changes continue to update the tile URL through SwiftUI state and still invalidate/update the selected-place radar inspection.
+- The legacy SMHI image path remains isolated for future use only; it is not the active live radar source.
+- Build verification is pending GitHub Actions runner availability. No IPA or device verification is claimed by this source change.
