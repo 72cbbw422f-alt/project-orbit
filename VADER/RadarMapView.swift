@@ -1,6 +1,5 @@
 import SwiftUI
 import MapLibre
-import Combine
 import UIKit
 
 private enum RadarProvider: String {
@@ -503,7 +502,6 @@ struct RadarMapView: View {
     @State private var windRequestID = UUID()
     @State private var windRefreshTask: Task<Void, Never>?
 
-    private let playback = Timer.publish(every: 1.5, on: .main, in: .common).autoconnect()
 
     private var mapCoordinate: CLLocationCoordinate2D {
         let value = coordinate ?? CLLocationCoordinate2D(latitude: 61.7274, longitude: 17.1058)
@@ -934,9 +932,19 @@ struct RadarMapView: View {
                 await refreshRadarAtPlace()
             }
         }
-        .onReceive(playback) { _ in
-            guard isPlaying, !frames.isEmpty, imageLoadingID == nil else { return }
-            selectedIndex = selectedIndex >= frames.count - 1 ? 0 : selectedIndex + 1
+        .task(id: isPlaying) {
+            guard isPlaying else { return }
+            // A cancellable clock exists only during playback. This avoids a
+            // permanently firing Combine timer while the radar is idle.
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(nanoseconds: 1_500_000_000)
+                } catch {
+                    break
+                }
+                guard !Task.isCancelled, !frames.isEmpty, imageLoadingID == nil else { continue }
+                selectedIndex = selectedIndex >= frames.count - 1 ? 0 : selectedIndex + 1
+            }
         }
         .alert("Om nederbördstyp", isPresented: $showTypeInfo) {
             Button("Stäng", role: .cancel) {}
