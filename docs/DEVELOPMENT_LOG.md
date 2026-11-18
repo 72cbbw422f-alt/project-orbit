@@ -498,3 +498,11 @@ Varje arbetsomgång ska dokumentera:
 - Detta ska ge ett tätare visuellt underlag och minska glappen mellan nederbördstypspunkter. Det är fortfarande modellbaserad interpolation/visualisering och inte en radarprodukt eller 81 oberoende observationer.
 - Vindfältets interpolering använder samma provpunkter och samma geografiska utbredning, så dess normalisering behöver inte ändras.
 - Kontrollera API-svarstid, svarsstorlek och rendering på fysisk iPhone. Ingen sådan prestandaverifiering är ännu utförd.
+
+
+### Buildverifiering – build #488
+- GitHub Actions run `44196934911` slutfördes med resultat `success` för commit `b75f297ad15759622d04757211ef44dba7d2eb3b`.
+- IPA-artefakt `Regnvakt-unsigned-IPA` (4 558 233 byte) laddades ned och ZIP-/IPA-integriteten verifierades lokalt.
+- Levererad fil: `Regnvakt-unsigned-build488.ipa`.
+- SHA-256: `f571a235f51a50a10909390405657944a63edee8f584fcc650e04ea5d9091090`.
+- CI bekräftar kompilering och paketering; ingen fysisk iPhone-testning är gjord.
