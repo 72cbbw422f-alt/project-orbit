@@ -722,7 +722,7 @@ struct RadarMapView: View {
                         }
                         VStack(alignment: .leading, spacing: 1) {
                             HStack {
-                                Text("RADAR").font(.system(size: 10, weight: .heavy)).tracking(0.8).foregroundStyle(Color.cyan)
+                                Text(provider == .libreWXR ? "LIBREWXR" : provider == .rainViewer ? "RAINVIEWER" : "RADAR").font(.system(size: 10, weight: .heavy)).tracking(0.8).foregroundStyle(Color.cyan)
                                 Spacer()
                                 Text(selectedFrame.time.formatted(date: .omitted, time: .shortened))
                                     .font(.system(size: 13, weight: .bold, design: .rounded).monospacedDigit())
@@ -1019,7 +1019,7 @@ struct RadarMapView: View {
         .alert("Om nederbördstyp", isPresented: $showTypeInfo) {
             Button("Stäng", role: .cancel) {}
         } message: {
-            Text("Radarn visar observerad nederbörd från RainViewer. RainViewer är Regnvakts aktiva radarkälla tills en annan officiell källa kan verifieras som öppet tillgänglig. Nederbördstypen hämtas separat från en vädermodell och är en bedömning, inte en direkt klassificering av varje radar-pixel.")
+            Text("Radarn visar observerad nederbörd från den aktiva radarkällan (LibreWXR eller RainViewer). Prognoslagret hämtas separat från Open-Meteo och är en modellbedömning, inte en direkt klassificering av radarbildens pixlar.")
         }
     }
 
@@ -1102,7 +1102,7 @@ struct RadarMapView: View {
             guard imageLoadID == requestID, selectedFrame?.id == frame.id else { return }
             selectedImage = nil
             errorMessage = nil
-            radarSourceStatus = "SMHI:s radarbild misslyckades (\(error.localizedDescription)). Byter till RainViewer."
+            radarSourceStatus = "Radartile kunde inte hämtas (\(error.localizedDescription)). Försöker med reservkälla."
             do {
                 let (host, fallback) = try await RadarService.loadRainViewerFrames()
                 guard imageLoadID == requestID, selectedFrame?.id == frame.id else { return }
