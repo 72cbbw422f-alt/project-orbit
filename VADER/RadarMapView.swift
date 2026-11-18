@@ -1509,7 +1509,6 @@ private struct RegnvaktMapView: UIViewRepresentable {
         context.coordinator.precipitationTypesVisible = showPrecipitationTypes
         context.coordinator.onRadarFrameReady = onRadarFrameReady
         context.coordinator.onRegionChange = onRegionChange
-        context.coordinator.onRadarFrameReady = onRadarFrameReady
         context.coordinator.updateLocationMarker(on: map, coordinate: coordinate, title: locationTitle)
         return map
     }
@@ -1522,6 +1521,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
         context.coordinator.latestCloudSamples = cloudSamples
         context.coordinator.cloudsVisible = showClouds
         context.coordinator.precipitationTypesVisible = showPrecipitationTypes
+        context.coordinator.onRadarFrameReady = onRadarFrameReady
         context.coordinator.onRegionChange = onRegionChange
         context.coordinator.updateLocationMarker(on: map, coordinate: coordinate, title: locationTitle)
         if let previous = context.coordinator.lastCoordinate,
