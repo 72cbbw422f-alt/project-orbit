@@ -5,6 +5,7 @@ import UIKit
 private enum RadarProvider: String {
     case smhi = "SMHI QCOMP"
     case rainViewer = "RainViewer"
+    case libreWXR = "LibreWXR"
 }
 
 private enum RadarImageError: LocalizedError {
@@ -49,14 +50,16 @@ private enum RadarService {
     }
 
     static func loadFrames() async throws -> (String, RadarProvider, [RadarFrame], String?) {
-        // RainViewer is the active live-radar provider. SMHI's public directory
-        // currently lists QCOMP frames, but direct PNG requests return HTTP 401
-        // (Basic realm=Secured) on the user's device. Do not make every refresh
-        // wait for a request that cannot succeed; keep the provider clearly
-        // attributed in the map and retain SMHI integration code for a future
-        // verified public endpoint.
-        let (host, frames) = try await loadRainViewerFrames()
-        return (host, .rainViewer, frames, nil)
+        // Try LibreWXR first: it is RainViewer-v2 API compatible and offers
+        // a public endpoint. Keep RainViewer as a fallback if the public
+        // instance is unavailable or returns an incompatible manifest.
+        do {
+            let (host, frames) = try await loadLibreWXRFrames()
+            return (host, .libreWXR, frames, nil)
+        } catch {
+            let (host, frames) = try await loadRainViewerFrames()
+            return (host, .rainViewer, frames, "LibreWXR kunde inte nås: \(error.localizedDescription)")
+        }
     }
 
     private static func smhiFailureDescription(_ error: Error) -> String {
@@ -116,6 +119,24 @@ private enum RadarService {
             throw URLError(.cannotLoadFromNetwork)
         }
         return recent
+    }
+
+    static func loadLibreWXRFrames() async throws -> (String, [RadarFrame]) {
+        let url = URL(string: "https://api.librewxr.net/public/weather-maps.json")!
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.setValue("Regnvakt iOS", forHTTPHeaderField: "User-Agent")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        let manifest = try JSONDecoder().decode(RainViewerManifest.self, from: data)
+        let frames = manifest.radar.past.map {
+            RadarFrame(time: Date(timeIntervalSince1970: $0.time), path: $0.path, provider: .libreWXR)
+        }.sorted { $0.time < $1.time }
+        guard !frames.isEmpty else { throw URLError(.dataNotAllowed) }
+        return (manifest.host, Array(frames.suffix(25)))
     }
 
     static func loadRainViewerFrames() async throws -> (String, [RadarFrame]) {
@@ -520,7 +541,7 @@ struct RadarMapView: View {
     }
 
     private var radarTileURL: String? {
-        guard showRadar, let frame = selectedFrame, frame.provider == .rainViewer else { return nil }
+        guard showRadar, let frame = selectedFrame, frame.provider == .rainViewer || frame.provider == .libreWXR else { return nil }
         return "\(radarHost)\(frame.path)/512/{z}/{x}/{y}/2/1_1.png"
     }
 
@@ -613,7 +634,12 @@ struct RadarMapView: View {
                             .font(.system(size: 12, weight: .heavy))
                             .tracking(0.8)
                             .foregroundStyle(.white)
-                        if showRadar && !showWind && !showClouds && !showPrecipitationTypes && provider == .rainViewer {
+                        if showRadar && !showWind && !showClouds && !showPrecipitationTypes && provider == .libreWXR {
+                            Link("Radar data by LibreWXR", destination: URL(string: "https://librewxr.net")!)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.92))
+                                .lineLimit(1)
+                        } else if showRadar && !showWind && !showClouds && !showPrecipitationTypes && provider == .rainViewer {
                             Link("Weather data by RainViewer", destination: URL(string: "https://www.rainviewer.com")!)
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundStyle(.white.opacity(0.92))
@@ -868,7 +894,7 @@ struct RadarMapView: View {
                     .background(Color(red: 0.12, green: 0.16, blue: 0.21), in: RoundedRectangle(cornerRadius: 15))
 
                     HStack {
-                        Text(provider == .smhi ? "Radar: SMHI • 5 min" : "Radar: RainViewer • historik")
+                        Text(provider == .smhi ? "Radar: SMHI • 5 min" : provider == .libreWXR ? "Radar: LibreWXR • OPERA" : "Radar: RainViewer • historik")
                         Spacer()
                         Text("Karta © OpenStreetMap")
                     }
@@ -992,7 +1018,7 @@ struct RadarMapView: View {
             radarHost = result.0
             provider = result.1
             frames = result.2
-            radarSourceStatus = result.3.map { "SMHI kunde inte användas: \($0). Visar RainViewer som reserv." }
+            radarSourceStatus = result.3.map { "Reservkälla: \($0). Visar \(provider.rawValue)." }
             selectedIndex = frames.count - 1
             await loadSelectedImage()
             await refreshRadarAtPlace()
@@ -1001,7 +1027,7 @@ struct RadarMapView: View {
             frames = []
             selectedImage = nil
             radarSourceStatus = nil
-            errorMessage = "RainViewers radardata kunde inte hämtas. Kontrollera internetanslutningen och försök igen."
+            errorMessage = "Varken LibreWXR eller RainViewer kunde leverera radardata. Kontrollera internetanslutningen och försök igen."
         }
         isLoading = false
     }
@@ -1064,7 +1090,7 @@ struct RadarMapView: View {
         let requestedCoordinateKey = coordinateKey
 
         guard !isPlaying else { return }
-        guard showRadar, let frame = selectedFrame, frame.provider == .rainViewer else {
+        guard showRadar, let frame = selectedFrame, frame.provider == .rainViewer || frame.provider == .libreWXR else {
             radarAtPlace = "Platsavläsning inte tillgänglig för denna radarkälla"
             return
         }
@@ -1367,10 +1393,8 @@ private struct RegnvaktMapView: UIViewRepresentable {
         map.allowsRotating = false
         map.allowsTilting = false
         map.minimumZoomLevel = 3
-        // RainViewer's radar tiles are not available at higher zoom levels.
-        // Cap the map at the provider's supported detail level to avoid its
-        // 'Zoom level not supported' tile placeholder covering the map.
-        map.maximumZoomLevel = 7
+        // LibreWXR supports zoom 12; RainViewer free tiles stop at zoom 7.
+        map.maximumZoomLevel = radarTileURL?.contains("api.librewxr.net") == true ? 12 : 7
         map.setCenter(coordinate, zoomLevel: 7.0, animated: false)
         context.coordinator.lastCoordinate = coordinate
         context.coordinator.latestImage = radarImage
@@ -1384,9 +1408,8 @@ private struct RegnvaktMapView: UIViewRepresentable {
     }
 
     func updateUIView(_ map: MLNMapView, context: Context) {
-        // SMHI supplies a full-resolution national image, so allow closer inspection.
-        // RainViewer tiles remain capped at the provider-supported zoom level.
-        map.maximumZoomLevel = radarTileURL == nil ? 10 : 7
+        // Use the zoom limit belonging to the active radar tile provider.
+        map.maximumZoomLevel = radarTileURL?.contains("api.librewxr.net") == true ? 12 : (radarTileURL == nil ? 10 : 7)
         context.coordinator.latestImage = radarImage
         context.coordinator.latestTileURL = radarTileURL
         context.coordinator.latestCloudSamples = cloudSamples
