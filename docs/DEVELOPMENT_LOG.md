@@ -506,3 +506,19 @@ Varje arbetsomgång ska dokumentera:
 - Levererad fil: `Regnvakt-unsigned-build488.ipa`.
 - SHA-256: `f571a235f51a50a10909390405657944a63edee8f584fcc650e04ea5d9091090`.
 - CI bekräftar kompilering och paketering; ingen fysisk iPhone-testning är gjord.
+
+
+## Uppföljning efter iPhone-skärmbilder – 2026-11-18
+
+### 7-dagarsprognos
+- Skärmbilderna visar att Dagens prognos och Dagens väder har en betydligt mer genomarbetad detaljvy än den separata 7-dagarslistan.
+- Varje dagskort i 7-dagarsvyn öppnar nu den återanvända `ForecastDayDetails`-vyn med samma visuella struktur som dagens prognos: temperaturhero, tvåkolumners mätkort och timlista där data finns.
+- Den befintliga timserien är 48 timmar. För senare dagar visas därför tydligt att timprognos saknas i stället för att fylla ut med påhittade timvärden.
+- Kortet har en tydlig tryckindikator.
+
+### Radar / nederbördstyp
+- Skärmbilden visar att användaren har valt `Typ`, och att 59 modellpunkter klassificerats som snö. Detta är Open-Meteo-prognosdata, inte RainViewer-radar.
+- 46 px cirklar med mycket hög oskärpa har smält samman till en stor vit fläck. Det är en konkret visuell orsak till att typ-lagret ser fel ut.
+- Cirkelradien sänktes till 19 px, opaciteten justerades till 0.30 och oskärpan till 0.78; cirkelkonturen togs bort. Avsikten är att återfå geografisk läsbarhet.
+- Den faktiska RainViewer-radarbilden ligger under knappen `Regn`; `Typ` är ett separat modellbaserat prognoslager. Gränsen mellan dessa ska kommuniceras tydligt i gränssnittet.
+- Fysisk verifiering efter ändring krävs. Inga påståenden om att radarn nu fungerar görs innan användaren testat och en faktisk RainViewer-bild har bekräftats.
