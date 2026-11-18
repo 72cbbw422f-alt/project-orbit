@@ -83,7 +83,7 @@ struct ContentView: View {
                 .background(LinearGradient(colors: [RTheme.bg.opacity(0), RTheme.bg.opacity(0.96)], startPoint: .top, endPoint: .bottom))
         }
         .sheet(isPresented: $showingSevenDayForecast) {
-            SevenDayForecastDetail(days: weatherModel.days, place: weatherModel.snapshot?.place ?? "Din plats")
+            SevenDayForecastDetail(days: weatherModel.days, hours: weatherModel.hours, place: weatherModel.snapshot?.place ?? "Din plats")
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(RTheme.bg)
@@ -1517,6 +1517,7 @@ private struct PlaceSearchSheet: View {
 
 private struct SevenDayForecastDetail: View {
     let days: [DayForecast]
+    let hours: [HourForecast]
     let place: String
     @Environment(\.dismiss) private var dismiss
     @State private var selectedDay: DayForecast?
@@ -1608,7 +1609,7 @@ private struct SevenDayForecastDetail: View {
                 }
             }
             .sheet(item: $selectedDay) { day in
-                ForecastDayDetails(day: day, hours: [], place: place)
+                ForecastDayDetails(day: day, hours: hours, place: place)
                     .presentationDetents([.large])
                     .presentationDragIndicator(.visible)
                     .presentationBackground(RTheme.bg)
