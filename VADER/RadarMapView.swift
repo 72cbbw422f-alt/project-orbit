@@ -1553,14 +1553,13 @@ private struct RegnvaktMapView: UIViewRepresentable {
                     // Soft, geographically anchored forecast field instead of tiny isolated dots.
                     // These samples are model guidance, not classifications of radar pixels.
                     layer.circleColor = NSExpression(forConstantValue: definition.color)
-                    layer.circleOpacity = NSExpression(forConstantValue: 0.24)
-                    // A wider soft footprint lets adjacent 9×9 model samples blend
-                    // into a legible regional field instead of isolated glowing dots.
-                    // This remains a visualization of model points, not measured radar.
-                    layer.circleRadius = NSExpression(forConstantValue: 46)
-                    layer.circleBlur = NSExpression(forConstantValue: 0.94)
-                    layer.circleStrokeColor = NSExpression(forConstantValue: definition.color.withAlphaComponent(0.18))
-                    layer.circleStrokeWidth = NSExpression(forConstantValue: 1.0)
+                    // Keep snow/rain cells distinct enough to read geographically.
+                    // The previous 46 px blurred circles merged into a single white
+                    // mass at the app's regional zoom level.
+                    layer.circleOpacity = NSExpression(forConstantValue: 0.30)
+                    layer.circleRadius = NSExpression(forConstantValue: 19)
+                    layer.circleBlur = NSExpression(forConstantValue: 0.78)
+                    layer.circleStrokeWidth = NSExpression(forConstantValue: 0)
                     style.addLayer(layer)
                 }
                 if let layer = style.layer(withIdentifier: layerID) {
