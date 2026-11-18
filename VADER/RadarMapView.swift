@@ -1547,6 +1547,10 @@ private struct RegnvaktMapView: UIViewRepresentable {
         private var appliedIdentity: String?
         private var appliedCloudIdentity: String?
         private var appliedPrecipitationIdentity: String?
+        private var radarLayerSequence = 0
+        private var activeRadarLayerID: String?
+        private var activeRadarSourceID: String?
+        private var retiredRadarLayers: [(layerID: String, sourceID: String)] = []
         private var locationMarker: MLNPointAnnotation?
 
         func updateLocationMarker(on map: MLNMapView, coordinate: CLLocationCoordinate2D, title: String) {
@@ -1592,6 +1596,9 @@ private struct RegnvaktMapView: UIViewRepresentable {
             appliedIdentity = nil
             appliedCloudIdentity = nil
             appliedPrecipitationIdentity = nil
+            activeRadarLayerID = nil
+            activeRadarSourceID = nil
+            retiredRadarLayers.removeAll()
             applyRadarIfReady()
             applyCloudsIfReady()
             applyPrecipitationTypesIfReady()
@@ -1706,38 +1713,80 @@ private struct RegnvaktMapView: UIViewRepresentable {
             }
         }
 
+        func mapViewDidBecomeIdle(_ mapView: MLNMapView) {
+            // MapLibre enters idle only after requested visible tiles and
+            // style transitions have completed. Keep the previous radar layer
+            // underneath until this point, then retire it in one cleanup pass.
+            guard let style = mapView.style, !retiredRadarLayers.isEmpty else { return }
+            for item in retiredRadarLayers {
+                if let layer = style.layer(withIdentifier: item.layerID) {
+                    style.removeLayer(layer)
+                }
+                if let source = style.source(withIdentifier: item.sourceID) {
+                    style.removeSource(source)
+                }
+            }
+            retiredRadarLayers.removeAll()
+        }
+
         func applyRadarIfReady() {
             guard styleReady, let style = mapView?.style else { return }
             let identity = latestImage.map { "smhi-\(ObjectIdentifier($0))" } ?? latestTileURL ?? "none"
             guard identity != appliedIdentity else { return }
-            if let layer = style.layer(withIdentifier: "regnvakt-radar-layer") { style.removeLayer(layer) }
-            if let source = style.source(withIdentifier: "regnvakt-radar-source") { style.removeSource(source) }
-            appliedIdentity = identity
+
+            // If there is no replacement image, remove the current layer rather
+            // than leaving stale precipitation on screen.
+            guard latestImage != nil || latestTileURL != nil else {
+                if let layerID = activeRadarLayerID, let sourceID = activeRadarSourceID {
+                    retiredRadarLayers.append((layerID, sourceID))
+                    activeRadarLayerID = nil
+                    activeRadarSourceID = nil
+                }
+                appliedIdentity = identity
+                mapView?.setNeedsDisplay()
+                return
+            }
+
+            // Give every frame its own source/layer IDs. The old frame remains
+            // visible below the incoming frame while MapLibre fetches its tiles.
+            // It is removed only from mapViewDidBecomeIdle after the new frame
+            // has finished rendering, preventing the blank-map flash on every
+            // ten-minute timestamp change.
+            if let layerID = activeRadarLayerID, let sourceID = activeRadarSourceID {
+                retiredRadarLayers.append((layerID, sourceID))
+            }
+
+            radarLayerSequence += 1
+            let suffix = String(radarLayerSequence)
+            let sourceID = "regnvakt-radar-source-\(suffix)"
+            let layerID = "regnvakt-radar-layer-\(suffix)"
 
             if let image = latestImage {
                 let source = MLNImageSource(
-                    identifier: "regnvakt-radar-source",
+                    identifier: sourceID,
                     coordinateQuad: SWEREF99.imageQuad,
                     image: image
                 )
-                let layer = MLNRasterStyleLayer(identifier: "regnvakt-radar-layer", source: source)
+                let layer = MLNRasterStyleLayer(identifier: layerID, source: source)
                 layer.rasterOpacity = NSExpression(forConstantValue: 0.86)
                 style.addSource(source)
                 style.addLayer(layer)
             } else if let template = latestTileURL {
                 let source = MLNRasterTileSource(
-                    identifier: "regnvakt-radar-source",
+                    identifier: sourceID,
                     tileURLTemplates: [template],
                     options: nil
                 )
-                let layer = MLNRasterStyleLayer(identifier: "regnvakt-radar-layer", source: source)
+                let layer = MLNRasterStyleLayer(identifier: layerID, source: source)
                 layer.rasterOpacity = NSExpression(forConstantValue: 0.76)
-                // Keep newly requested radar tiles from popping in abruptly
-                // as the selected ten-minute frame changes during playback.
                 layer.rasterFadeDuration = NSExpression(forConstantValue: 800)
                 style.addSource(source)
                 style.addLayer(layer)
             }
+
+            activeRadarLayerID = layerID
+            activeRadarSourceID = sourceID
+            appliedIdentity = identity
             applyCloudsIfReady()
             applyPrecipitationTypesIfReady()
         }
