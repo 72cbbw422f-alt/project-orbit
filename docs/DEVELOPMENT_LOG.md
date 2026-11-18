@@ -536,3 +536,21 @@ Varje arbetsomgång ska dokumentera:
 - Dagdetaljens navigeringstitel visar nu vald veckodag i stället för att alltid säga `Dagens prognos`.
 - Sektionen benämns `PROGNOS FÖR DAGEN`, så samma detaljvy fungerar tydligt för både idag och kommande dagar.
 - Matchning mellan dygnsdatum och timprognos använder uttryckligen `Europe/Stockholm` i stället för enhetens aktuella tidszon. Detta undviker att timrader hamnar under fel dygn om enheten befinner sig i en annan tidszon.
+
+
+## Uppföljning av 7-dagarsdetaljer och radarförväxling – 2026-11-18
+
+### Dagdetaljer
+- `ForecastDayDetails` har byggts om för att följa samma visuella struktur som `TodayWeatherDetails`: samma gradientbakgrund, platsrubrik, temperaturhero, cyan sektionsrubriker, tvåkolumners mätkort, temperaturdiagram och timlista.
+- Dagsspecifika dygnsvärden används i stället för att återanvända dagens aktuella vädervärden. Därmed visas inte lufttryck, luftfuktighet eller andra mätvärden som saknas för den valda framtida dagen.
+- Timserien filtreras på datum i Europe/Stockholm. Om timmar saknas visas ett tydligt meddelande i samma panelstil.
+
+### Radarens lagerkommunikation
+- Senaste skärmbilden visar att `Typ`-läget är aktivt. Detta är Open-Meteos modellbaserade nederbördstypsfält, inte RainViewer-radar.
+- Knapplabeln har ändrats från `Typ` till `Prognos` och förklaringen anger nu uttryckligen att `Regn` visar RainViewer-radarn.
+- RainViewer-manifestet hämtar frame paths dynamiskt och dessa används direkt i tile-URL:en. Den officiella dokumentationen anger formatet `{host}{path}/512/{z}/{x}/{y}/{color}/{options}.png` och max zoom 7. Appen använder 512 px tiles och zoomtak 7.
+- En aktuell manifestkontroll visar hash-baserade frame paths. Appen använder manifestets `path` dynamiskt och är inte beroende av tidsstämpelbaserade URL:er.
+- Nästa iPhone-test måste göras med knappen `Regn` aktiv. Kontrollera att RainViewer-raster syns och att platsavläsningen kan läsa tile över vald position. Om det fortfarande är tomt behövs faktisk HTTP-status från tile-förfrågan/loggning; skärmbilden med `Prognos` kan inte ensam visa om RainViewer-tile fungerar.
+
+### Verifiering
+- Ingen fysisk iPhone-verifiering av dessa senaste ändringar är ännu utförd.
