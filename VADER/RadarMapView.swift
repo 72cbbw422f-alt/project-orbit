@@ -51,20 +51,28 @@ private enum RadarService {
     }
 
     static func loadFrames(coordinate: CLLocationCoordinate2D) async throws -> (String, RadarProvider, [RadarFrame], String?) {
-        // Try LibreWXR first and verify a real image tile at the selected place.
-        // A valid metadata response alone is not enough: broken tile delivery
-        // was the failure mode we need to avoid repeating.
+        // Prefer SMHI's official QCOMP image product for Sweden. It is a
+        // georeferenced national image and avoids relying on third-party tile
+        // templates whose metadata may load while the map tiles remain blank.
         do {
-            let (host, frames) = try await loadLibreWXRFrames()
-            guard let latestObserved = frames.last(where: { $0.time <= Date() }) else { throw URLError(.dataNotAllowed) }
-            try await validateTile(host: host, frame: latestObserved, coordinate: coordinate)
-            return (host, .libreWXR, frames, nil)
+            let frames = try await loadSMHIFrames()
+            return ("", .smhi, frames, nil)
         } catch {
-            let libreError = error.localizedDescription
-            let (host, frames) = try await loadRainViewerFrames()
-            guard let latest = frames.last else { throw URLError(.dataNotAllowed) }
-            try await validateTile(host: host, frame: latest, coordinate: coordinate)
-            return (host, .rainViewer, frames, "LibreWXR: \(libreError)")
+            let smhiError = error.localizedDescription
+            // Fall back to tile providers only when the official SMHI feed is
+            // unavailable or stale. Validate an actual tile before selecting it.
+            do {
+                let (host, frames) = try await loadLibreWXRFrames()
+                guard let latestObserved = frames.last(where: { $0.time <= Date() }) else { throw URLError(.dataNotAllowed) }
+                try await validateTile(host: host, frame: latestObserved, coordinate: coordinate)
+                return (host, .libreWXR, frames, "SMHI: \(smhiError)")
+            } catch {
+                let libreError = error.localizedDescription
+                let (host, frames) = try await loadRainViewerFrames()
+                guard let latest = frames.last else { throw URLError(.dataNotAllowed) }
+                try await validateTile(host: host, frame: latest, coordinate: coordinate)
+                return (host, .rainViewer, frames, "SMHI: \(smhiError) • LibreWXR: \(libreError)")
+            }
         }
     }
 
