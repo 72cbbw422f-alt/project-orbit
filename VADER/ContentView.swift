@@ -1207,7 +1207,7 @@ private struct ForecastDayDetails: View {
     private var dayHours: [HourForecast] {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier:"en_US_POSIX")
-        formatter.timeZone = .current
+        formatter.timeZone = TimeZone(identifier: "Europe/Stockholm")
         formatter.dateFormat = "yyyy-MM-dd"
         let key = formatter.string(from:day.date)
         return hours.filter { $0.id.hasPrefix(key) }
@@ -1238,7 +1238,7 @@ private struct ForecastDayDetails: View {
                             .background(LinearGradient(colors:[Color(red:0.13,green:0.19,blue:0.29),RTheme.panel],startPoint:.topLeading,endPoint:.bottomTrailing),in:RoundedRectangle(cornerRadius:22))
                             .overlay(RoundedRectangle(cornerRadius:22).stroke(RTheme.line,lineWidth:1))
 
-                        Text("DAGENS PROGNOS").font(.system(size:12,weight:.heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
+                        Text("PROGNOS FÖR DAGEN").font(.system(size:12,weight:.heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
                         LazyVGrid(columns:[GridItem(.flexible()),GridItem(.flexible())],spacing:9) {
                             dayMetric("Nederbördsrisk","\(day.precipitationChance)%","drop.fill")
                             dayMetric("Nederbörd",String(format:"%.1f mm",day.precipitation),"cloud.rain.fill")
@@ -1273,7 +1273,7 @@ private struct ForecastDayDetails: View {
                     }.padding(16)
                 }
             }
-            .navigationTitle("Dagens prognos")
+            .navigationTitle("Prognos • \(day.day)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark,for:.navigationBar)
             .toolbar {
