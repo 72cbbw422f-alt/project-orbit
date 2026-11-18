@@ -1723,25 +1723,18 @@ private struct RegnvaktMapView: UIViewRepresentable {
                     style.addSource(source)
                 }
                 if style.layer(withIdentifier: layerID) == nil {
-                    let layer = MLNHeatmapStyleLayer(identifier: layerID, source: source)
-                    // Heatmaps blend the 9×9 model samples spatially instead of
-                    // drawing one blurred circle per coordinate.
-                    layer.heatmapWeight = NSExpression(forKeyPath: "heatmapWeight")
-                    layer.heatmapRadius = NSExpression(forConstantValue: 46)
-                    layer.heatmapIntensity = NSExpression(forConstantValue: 1.15)
-                    layer.heatmapOpacity = NSExpression(forConstantValue: 0.72)
-                    let base = definition.color
-                    let stops: [NSNumber: UIColor] = [
-                        0.0: UIColor.clear,
-                        0.12: base.withAlphaComponent(0.18),
-                        0.35: base.withAlphaComponent(0.48),
-                        0.65: base.withAlphaComponent(0.78),
-                        1.0: base.withAlphaComponent(0.96)
-                    ]
-                    layer.heatmapColor = NSExpression(
-                        format: "mgl_interpolate:withCurveType:parameters:stops:($heatmapDensity, 'linear', nil, %@)",
-                        stops
-                    )
+                    // Use a native circle layer rather than relying on MapLibre's
+                    // heatmap-density expression. The previous heatmap could
+                    // silently render no visible field on some iOS builds.
+                    // Broad, softly blurred circles overlap across the 9×9 grid
+                    // to form a continuous-looking precipitation area.
+                    let layer = MLNCircleStyleLayer(identifier: layerID, source: source)
+                    layer.circleColor = NSExpression(forConstantValue: definition.color)
+                    layer.circleRadius = NSExpression(forConstantValue: 25)
+                    layer.circleBlur = NSExpression(forConstantValue: 0.82)
+                    layer.circleOpacity = NSExpression(forConstantValue: 0.78)
+                    layer.circleStrokeColor = NSExpression(forConstantValue: definition.color.withAlphaComponent(0.45))
+                    layer.circleStrokeWidth = NSExpression(forConstantValue: 1.0)
                     style.addLayer(layer)
                 }
                 if let layer = style.layer(withIdentifier: layerID) {
