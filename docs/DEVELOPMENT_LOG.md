@@ -578,3 +578,11 @@ Varje arbetsomgång ska dokumentera:
 - Koden är committad på `feature/frost-notification-audit`.
 - CI-kompilering/paketering inväntas.
 - Fysisk iPhone-verifiering återstår.
+
+
+### LibreWXR – inkludera prognosrutor i tidslinjen – 2026-11-18
+- Vid kodgranskning upptäcktes att manifestavkodaren endast läste `radar.past`. LibreWXR publicerar även `radar.nowcast`, men dessa framtida bildrutor visades inte i Regnvakts tidslinje.
+- Manifestmodellen läser nu `nowcast` som ett valfritt fält och kombinerar observerade bildrutor med prognosbildrutor i tidsordning.
+- Leverantörsvalideringen kontrollerar fortfarande den senaste observerade bildrutan, inte den senaste framtida prognosrutan. Därmed ska en ofärdig nowcast-tile inte slå ut en i övrigt fungerande radarkälla.
+- Upp till 31 bildrutor behålls för tidslinjen. Detta möjliggör upp till 25 historiska + 6 framtida rutor när servern tillhandahåller dem; faktisk mängd beror på manifestet.
+- Källan dokumenterar cirka två timmars historik, 10-minutersuppdatering och upp till 60 minuters nowcast. Se LibreWXR Web Integration Guide: https://librewxr.net/docs/doc-viewer?doc=web-integration-guide.
