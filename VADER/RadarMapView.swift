@@ -158,7 +158,7 @@ private enum RadarService {
     }
 
     static func hasPrecipitation(host: String, frame: RadarFrame, coordinate: CLLocationCoordinate2D) async throws -> Bool {
-        let zoom = 7.0
+        let zoom = frame.provider == .libreWXR ? 12.0 : 7.0
         let tileCount = pow(2.0, zoom)
         let latitude = min(85.0511, max(-85.0511, coordinate.latitude))
         let xPosition = (coordinate.longitude + 180.0) / 360.0 * tileCount
@@ -488,8 +488,8 @@ struct RadarMapView: View {
     let coordinate: CLLocationCoordinate2D?
     let place: String
 
-    @State private var radarHost = "https://tilecache.rainviewer.com"
-    @State private var provider: RadarProvider = .rainViewer
+    @State private var radarHost = "https://api.librewxr.net"
+    @State private var provider: RadarProvider = .libreWXR
     @State private var frames: [RadarFrame] = []
     @State private var selectedIndex = 0
     @State private var selectedImage: UIImage?
