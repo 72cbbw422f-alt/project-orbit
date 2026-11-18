@@ -49,16 +49,46 @@ private enum RadarService {
         let radar: Radar
     }
 
-    static func loadFrames() async throws -> (String, RadarProvider, [RadarFrame], String?) {
-        // Try LibreWXR first: it is RainViewer-v2 API compatible and offers
-        // a public endpoint. Keep RainViewer as a fallback if the public
-        // instance is unavailable or returns an incompatible manifest.
+    static func loadFrames(coordinate: CLLocationCoordinate2D) async throws -> (String, RadarProvider, [RadarFrame], String?) {
+        // Try LibreWXR first and verify a real image tile at the selected place.
+        // A valid metadata response alone is not enough: broken tile delivery
+        // was the failure mode we need to avoid repeating.
         do {
             let (host, frames) = try await loadLibreWXRFrames()
+            guard let latest = frames.last else { throw URLError(.dataNotAllowed) }
+            try await validateTile(host: host, frame: latest, coordinate: coordinate)
             return (host, .libreWXR, frames, nil)
         } catch {
+            let libreError = error.localizedDescription
             let (host, frames) = try await loadRainViewerFrames()
-            return (host, .rainViewer, frames, "LibreWXR kunde inte nås: \(error.localizedDescription)")
+            guard let latest = frames.last else { throw URLError(.dataNotAllowed) }
+            try await validateTile(host: host, frame: latest, coordinate: coordinate)
+            return (host, .rainViewer, frames, "LibreWXR: \(libreError)")
+        }
+    }
+
+    private static func tileURL(host: String, frame: RadarFrame, coordinate: CLLocationCoordinate2D, zoom: Double) throws -> URL {
+        let tileCount = pow(2.0, zoom)
+        let latitude = min(85.0511, max(-85.0511, coordinate.latitude))
+        let x = Int(floor((coordinate.longitude + 180.0) / 360.0 * tileCount))
+        let radians = latitude * .pi / 180.0
+        let y = Int(floor((1.0 - log(tan(radians) + 1.0 / cos(radians)) / .pi) / 2.0 * tileCount))
+        let path = "\(host)\(frame.path)/512/\(x)/\(y)/2/1_1.png"
+        guard let url = URL(string: path) else { throw URLError(.badURL) }
+        return url
+    }
+
+    private static func validateTile(host: String, frame: RadarFrame, coordinate: CLLocationCoordinate2D) async throws {
+        let url = try tileURL(host: host, frame: frame, coordinate: coordinate, zoom: 7)
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 12
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.setValue("image/png,image/*;q=0.8", forHTTPHeaderField: "Accept")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+              let image = UIImage(data: data), image.cgImage != nil else {
+            let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+            throw RadarImageError.httpStatus(status, "radartile kunde inte avkodas")
         }
     }
 
@@ -635,7 +665,7 @@ struct RadarMapView: View {
                             .tracking(0.8)
                             .foregroundStyle(.white)
                         if showRadar && !showWind && !showClouds && !showPrecipitationTypes && provider == .libreWXR {
-                            Link("Radar data by LibreWXR", destination: URL(string: "https://librewxr.net")!)
+                            Link("LibreWXR • CC BY 4.0", destination: URL(string: "https://librewxr.net")!)
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundStyle(.white.opacity(0.92))
                                 .lineLimit(1)
@@ -1014,7 +1044,7 @@ struct RadarMapView: View {
         errorMessage = nil
         radarSourceStatus = nil
         do {
-            let result = try await RadarService.loadFrames()
+            let result = try await RadarService.loadFrames(coordinate: mapCoordinate)
             radarHost = result.0
             provider = result.1
             frames = result.2
