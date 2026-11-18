@@ -1343,7 +1343,7 @@ struct RadarMapView: View {
             URLQueryItem(name: "latitude", value: coordinates.map { String($0.0) }.joined(separator: ",")),
             URLQueryItem(name: "longitude", value: coordinates.map { String($0.1) }.joined(separator: ",")),
             URLQueryItem(name: "current", value: "wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,precipitation,rain,showers,snowfall,weather_code"),
-            URLQueryItem(name: "hourly", value: "precipitation_type,precipitation"),
+            URLQueryItem(name: "hourly", value: "precipitation_type,precipitation,rain,snowfall"),
             URLQueryItem(name: "wind_speed_unit", value: "ms"),
             URLQueryItem(name: "timezone", value: "auto")
         ]
@@ -1385,6 +1385,8 @@ struct RadarMapView: View {
                 let hourlyTimes = hourly?["time"] as? [String] ?? []
                 let hourlyTypes = hourly?["precipitation_type"] as? [NSNumber] ?? []
                 let hourlyAmounts = hourly?["precipitation"] as? [NSNumber] ?? []
+                let hourlyRain = hourly?["rain"] as? [NSNumber] ?? []
+                let hourlySnow = hourly?["snowfall"] as? [NSNumber] ?? []
                 // Open-Meteo normally returns ISO-8601 timestamps with an explicit
                 // UTC offset. Keep a local-time fallback for responses without an offset.
                 let timeZoneName = root["timezone"] as? String ?? "Europe/Stockholm"
@@ -1420,16 +1422,26 @@ struct RadarMapView: View {
 
                 let explicitType = nearestHourlyIndex.flatMap { hourlyTypes.indices.contains($0) ? hourlyTypes[$0].intValue : nil }
                 let explicitAmount = nearestHourlyIndex.flatMap { hourlyAmounts.indices.contains($0) ? hourlyAmounts[$0].doubleValue : nil }
+                let forecastRain = nearestHourlyIndex.flatMap { hourlyRain.indices.contains($0) ? hourlyRain[$0].doubleValue : nil } ?? 0
+                let forecastSnow = nearestHourlyIndex.flatMap { hourlySnow.indices.contains($0) ? hourlySnow[$0].doubleValue : nil } ?? 0
+                let classifiedAmount = explicitAmount ?? precipitation
                 let type: Int
-                if let explicitType, let explicitAmount, explicitAmount >= 0.05 {
+                // Use the model's actual rain/snow amount components first.
+                // precipitation_type can be missing or reported as "none" at
+                // the boundary of an hourly accumulation period.
+                if forecastRain > 0.02 && forecastSnow > 0.02 {
+                    type = 3
+                } else if forecastSnow > 0.02 {
+                    type = 2
+                } else if forecastRain > 0.02 {
+                    type = 1
+                } else if let explicitType, classifiedAmount >= 0.05 {
                     switch explicitType {
                     case 1: type = 1                         // rain
                     case 5, 6: type = 2                      // snow / wet snow
                     case 3, 7, 8, 12: type = 3               // freezing / mixed / ice pellets
                     default: type = 0
                     }
-                } else if explicitType != nil {
-                    type = 0
                 } else if snow > 0.02 && rain + showers > 0.02 {
                     type = 3
                 } else if snow > 0.02 || (71...77).contains(code) || (85...86).contains(code) {
@@ -1439,7 +1451,6 @@ struct RadarMapView: View {
                 } else {
                     type = 0
                 }
-                let classifiedAmount = explicitAmount ?? precipitation
 
                 let coordinate = coordinates[index]
                 results.append(WindSample(
