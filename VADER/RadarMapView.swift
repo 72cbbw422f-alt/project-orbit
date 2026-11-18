@@ -538,6 +538,7 @@ struct RadarMapView: View {
     @State private var provider: RadarProvider = .libreWXR
     @State private var frames: [RadarFrame] = []
     @State private var selectedIndex = 0
+    @State private var scrubberIndex = 0.0
     @State private var selectedImage: UIImage?
     @State private var radarImageCache: [TimeInterval: UIImage] = [:]
     @State private var imageLoadID = UUID()
@@ -734,13 +735,19 @@ struct RadarMapView: View {
                             HStack {
                                 Text(provider == .libreWXR ? "LIBREWXR" : provider == .rainViewer ? "RAINVIEWER" : "RADAR").font(.system(size: 10, weight: .heavy)).tracking(0.8).foregroundStyle(Color.cyan)
                                 Spacer()
-                                Text(selectedFrame.time.formatted(date: .omitted, time: .shortened))
+                                let previewIndex = min(max(0, Int(scrubberIndex.rounded())), frames.count - 1)
+                                Text(frames.indices.contains(previewIndex)
+                                     ? frames[previewIndex].time.formatted(date: .omitted, time: .shortened)
+                                     : selectedFrame.time.formatted(date: .omitted, time: .shortened))
                                     .font(.system(size: 13, weight: .bold, design: .rounded).monospacedDigit())
                             }
-                            Slider(value: Binding(
-                                get: { Double(selectedIndex) },
-                                set: { selectedIndex = Int($0.rounded()) }
-                            ), in: 0...Double(max(0, frames.count - 1)), step: 1)
+                            Slider(value: $scrubberIndex,
+                                   in: 0...Double(max(0, frames.count - 1)),
+                                   onEditingChanged: { editing in
+                                       if !editing {
+                                           selectedIndex = min(max(0, Int(scrubberIndex.rounded())), frames.count - 1)
+                                       }
+                                   })
                             .tint(Color(red: 0.98, green: 0.58, blue: 0.40))
                             .disabled(frames.count < 2)
                         }
@@ -974,7 +981,8 @@ struct RadarMapView: View {
             // Wind/cloud/type grid data is fetched on demand when its layer is
             // selected. Do not make a 25-point model request on radar startup.
         }
-        .onChange(of: selectedIndex) { _, _ in
+        .onChange(of: selectedIndex) { _, newIndex in
+            scrubberIndex = Double(newIndex)
             // Invalidate a tile inspection for the previously selected frame
             // before the asynchronous image load or place check can complete.
             radarPlaceRequestID = UUID()
@@ -1328,6 +1336,7 @@ struct RadarMapView: View {
             URLQueryItem(name: "latitude", value: coordinates.map { String($0.0) }.joined(separator: ",")),
             URLQueryItem(name: "longitude", value: coordinates.map { String($0.1) }.joined(separator: ",")),
             URLQueryItem(name: "current", value: "wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,precipitation,rain,showers,snowfall,weather_code"),
+            URLQueryItem(name: "hourly", value: "precipitation_type,precipitation"),
             URLQueryItem(name: "wind_speed_unit", value: "ms"),
             URLQueryItem(name: "timezone", value: "auto")
         ]
@@ -1362,11 +1371,41 @@ struct RadarMapView: View {
                 let snow = (current["snowfall"] as? NSNumber)?.doubleValue ?? 0
                 let precipitation = (current["precipitation"] as? NSNumber)?.doubleValue ?? max(rain + showers, snow)
                 let code = (current["weather_code"] as? NSNumber)?.intValue ?? 0
+
+                // Prefer Open-Meteo's explicit hourly precipitation classification.
+                // The hourly type is instantaneous; precipitation is the preceding-hour amount.
+                let hourly = root["hourly"] as? [String: Any]
+                let hourlyTimes = hourly?["time"] as? [String] ?? []
+                let hourlyTypes = hourly?["precipitation_type"] as? [NSNumber] ?? []
+                let hourlyAmounts = hourly?["precipitation"] as? [NSNumber] ?? []
+                let formatter = ISO8601DateFormatter()
+                let nearestHourlyIndex = hourlyTimes.enumerated().compactMap { offset, stamp -> (Int, TimeInterval)? in
+                    guard let date = formatter.date(from: stamp) else { return nil }
+                    return (offset, abs(date.timeIntervalSinceNow))
+                }.min { $0.1 < $1.1 }?.0
+
+                let explicitType = nearestHourlyIndex.flatMap { hourlyTypes.indices.contains($0) ? hourlyTypes[$0].intValue : nil }
+                let explicitAmount = nearestHourlyIndex.flatMap { hourlyAmounts.indices.contains($0) ? hourlyAmounts[$0].doubleValue : nil }
                 let type: Int
-                if snow > 0.02 && rain + showers > 0.02 { type = 3 }
-                else if snow > 0.02 || (71...77).contains(code) || (85...86).contains(code) { type = 2 }
-                else if rain + showers > 0.02 || (51...67).contains(code) || (80...82).contains(code) { type = 1 }
-                else { type = 0 }
+                if let explicitType, let explicitAmount, explicitAmount >= 0.05 {
+                    switch explicitType {
+                    case 1: type = 1                         // rain
+                    case 5, 6: type = 2                      // snow / wet snow
+                    case 3, 7, 8, 12: type = 3               // freezing / mixed / ice pellets
+                    default: type = 0
+                    }
+                } else if explicitType != nil {
+                    type = 0
+                } else if snow > 0.02 && rain + showers > 0.02 {
+                    type = 3
+                } else if snow > 0.02 || (71...77).contains(code) || (85...86).contains(code) {
+                    type = 2
+                } else if rain + showers > 0.02 || (51...67).contains(code) || (80...82).contains(code) {
+                    type = 1
+                } else {
+                    type = 0
+                }
+                let classifiedAmount = explicitAmount ?? precipitation
 
                 let coordinate = coordinates[index]
                 results.append(WindSample(
@@ -1378,7 +1417,7 @@ struct RadarMapView: View {
                     gust: gust,
                     cloudCover: cloud,
                     precipitationType: type,
-                    precipitation: precipitation
+                    precipitation: classifiedAmount
                 ))
             }
 
@@ -1629,9 +1668,9 @@ private struct RegnvaktMapView: UIViewRepresentable {
                     // Keep snow/rain cells distinct enough to read geographically.
                     // The previous 46 px blurred circles merged into a single white
                     // mass at the app's regional zoom level.
-                    layer.circleOpacity = NSExpression(forConstantValue: 0.30)
-                    layer.circleRadius = NSExpression(forConstantValue: 19)
-                    layer.circleBlur = NSExpression(forConstantValue: 0.78)
+                    layer.circleOpacity = NSExpression(forConstantValue: 0.58)
+                    layer.circleRadius = NSExpression(forConstantValue: 13)
+                    layer.circleBlur = NSExpression(forConstantValue: 0.38)
                     layer.circleStrokeWidth = NSExpression(forConstantValue: 0)
                     style.addLayer(layer)
                 }
