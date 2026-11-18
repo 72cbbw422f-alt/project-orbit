@@ -732,7 +732,7 @@ struct RadarMapView: View {
                             showRadar = false
                             Task { await refreshWindField(center: windMapCenter ?? mapCoordinate) }
                         } label: {
-                            Label("Typ", systemImage: "cloud.snow.fill")
+                            Label("Prognos", systemImage: "cloud.snow.fill")
                                 .font(.system(size: 15, weight: .bold))
                                 .frame(maxWidth: .infinity).frame(height: 64)
                                 .foregroundStyle(showPrecipitationTypes ? Color(red: 0.10, green: 0.13, blue: 0.17) : .white)
@@ -809,6 +809,8 @@ struct RadarMapView: View {
                                 .font(.system(size: 12, weight: .heavy)).tracking(0.8).foregroundStyle(Color.cyan)
                             Text("Prognosmodell från Open-Meteo – inte en klassificering av radarbildens pixlar.")
                                 .font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.68))
+                            Text("Vill du se uppmätt nederbörd? Välj Regn för RainViewer-radarn.")
+                                .font(.system(size: 11, weight: .semibold)).foregroundStyle(Color(red: 0.98, green: 0.68, blue: 0.49))
                             HStack(spacing: 12) {
                                 legendItem("Regn", color: Color(red: 0.18, green: 0.58, blue: 0.96), count: rainCount)
                                 legendItem("Snö", color: Color(red: 0.82, green: 0.92, blue: 1.0), count: snowCount)
