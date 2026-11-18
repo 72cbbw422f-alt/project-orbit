@@ -1379,9 +1379,9 @@ struct RadarMapView: View {
                 let hourlyTypes = hourly?["precipitation_type"] as? [NSNumber] ?? []
                 let hourlyAmounts = hourly?["precipitation"] as? [NSNumber] ?? []
                 let formatter = ISO8601DateFormatter()
-                let nearestHourlyIndex = hourlyTimes.enumerated().compactMap { offset, stamp -> (Int, TimeInterval)? in
-                    guard let date = formatter.date(from: stamp) else { return nil }
-                    return (offset, abs(date.timeIntervalSinceNow))
+                let nearestHourlyIndex = hourlyTimes.enumerated().compactMap { item -> (Int, TimeInterval)? in
+                    guard let date = formatter.date(from: item.element) else { return nil }
+                    return (item.offset, abs(date.timeIntervalSinceNow))
                 }.min { $0.1 < $1.1 }?.0
 
                 let explicitType = nearestHourlyIndex.flatMap { hourlyTypes.indices.contains($0) ? hourlyTypes[$0].intValue : nil }
