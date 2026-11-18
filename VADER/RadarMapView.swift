@@ -566,6 +566,7 @@ struct RadarMapView: View {
     @State private var showClouds = false
     @State private var showPrecipitationTypes = false
     @State private var windStatus = "Hämtar vindfält…"
+    @State private var precipitationDiagnostics = "Väntar på modellvärden…"
     @State private var windUpdated: Date?
     @State private var windMapCenter: CLLocationCoordinate2D?
     @State private var windRequestID = UUID()
@@ -896,6 +897,9 @@ struct RadarMapView: View {
                                 .font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.68))
                             Text("Vill du se uppmätt nederbörd? Välj Regn för RainViewer-radarn.")
                                 .font(.system(size: 11, weight: .semibold)).foregroundStyle(Color(red: 0.98, green: 0.68, blue: 0.49))
+                            Text(precipitationDiagnostics)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.82))
                             HStack(spacing: 12) {
                                 legendItem("Regn", color: Color(red: 0.18, green: 0.58, blue: 0.96), count: rainCount)
                                 legendItem("Snö", color: Color(red: 0.82, green: 0.92, blue: 1.0), count: snowCount)
@@ -1369,8 +1373,10 @@ struct RadarMapView: View {
                 guard index < coordinates.count,
                       let current = root["current"] as? [String: Any],
                       let speed = (current["wind_speed_10m"] as? NSNumber)?.doubleValue,
-                      let direction = (current["wind_direction_10m"] as? NSNumber)?.doubleValue,
-                      let gust = (current["wind_gusts_10m"] as? NSNumber)?.doubleValue else { continue }
+                      let direction = (current["wind_direction_10m"] as? NSNumber)?.doubleValue else { continue }
+                // Gusts are optional in some model responses. A missing gust
+                // value must not discard an otherwise valid wind observation.
+                let gust = (current["wind_gusts_10m"] as? NSNumber)?.doubleValue ?? speed
 
                 let cloud = (current["cloud_cover"] as? NSNumber)?.doubleValue ?? 0
                 let rain = (current["rain"] as? NSNumber)?.doubleValue ?? 0
@@ -1469,6 +1475,11 @@ struct RadarMapView: View {
             guard !Task.isCancelled, windRequestID == requestID else { return }
             windSamples = results.sorted { $0.id < $1.id }
             windUpdated = Date()
+            let rainCount = results.filter { $0.precipitationType == 1 && $0.precipitation >= 0.05 }.count
+            let snowCount = results.filter { $0.precipitationType == 2 && $0.precipitation >= 0.05 }.count
+            let mixedCount = results.filter { $0.precipitationType == 3 && $0.precipitation >= 0.05 }.count
+            let wetCount = results.filter { $0.precipitation >= 0.05 }.count
+            precipitationDiagnostics = "Nederbördsdata: \(wetCount) våta punkter • regn \(rainCount), snö \(snowCount), blandat \(mixedCount) av \(results.count) svar"
             windStatus = results.count == offsets.count
                 ? (showClouds ? "Molntäcke • 81 geografiskt placerade modellpunkter" : "Vindfält • 81 modellpunkter runt kartans mittpunkt")
                 : (showClouds ? "Molntäcke delvis tillgängligt • \(results.count) av 81 punkter" : "Vindfält delvis tillgängligt • \(results.count) av 81 punkter")
