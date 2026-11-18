@@ -74,7 +74,7 @@ private enum RadarService {
         let x = Int(floor((coordinate.longitude + 180.0) / 360.0 * tileCount))
         let radians = latitude * .pi / 180.0
         let y = Int(floor((1.0 - log(tan(radians) + 1.0 / cos(radians)) / .pi) / 2.0 * tileCount))
-        let path = "\(host)\(frame.path)/512/\(x)/\(y)/2/1_1.png"
+        let path = "\(host)\(frame.path)/512/\(Int(zoom))/\(x)/\(y)/2/1_1.png"
         guard let url = URL(string: path) else { throw URLError(.badURL) }
         return url
     }
@@ -206,7 +206,7 @@ private enum RadarService {
         let tileY = Int(floor(yPosition))
         let pixelX = min(511, max(0, Int((xPosition - Double(tileX)) * 512)))
         let pixelY = min(511, max(0, Int((yPosition - Double(tileY)) * 512)))
-        let urlString = "\(host)\(frame.path)/512/\(tileX)/\(tileY)/2/1_1.png"
+        let urlString = "\(host)\(frame.path)/512/\(Int(zoom))/\(tileX)/\(tileY)/2/1_1.png"
         guard let url = URL(string: urlString) else { throw URLError(.badURL) }
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
