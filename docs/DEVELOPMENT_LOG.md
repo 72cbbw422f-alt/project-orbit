@@ -522,3 +522,11 @@ Varje arbetsomgång ska dokumentera:
 - Cirkelradien sänktes till 19 px, opaciteten justerades till 0.30 och oskärpan till 0.78; cirkelkonturen togs bort. Avsikten är att återfå geografisk läsbarhet.
 - Den faktiska RainViewer-radarbilden ligger under knappen `Regn`; `Typ` är ett separat modellbaserat prognoslager. Gränsen mellan dessa ska kommuniceras tydligt i gränssnittet.
 - Fysisk verifiering efter ändring krävs. Inga påståenden om att radarn nu fungerar görs innan användaren testat och en faktisk RainViewer-bild har bekräftats.
+
+
+### Buildverifiering – build #494 – 2026-11-18
+- GitHub Actions run `44250503508` slutfördes med `success` för branch `feature/frost-notification-audit`, commit `b804edb5992f251f21cd7b5eea720f7171612e66`.
+- IPA-artefakt `Regnvakt-unsigned-IPA` laddades ned. ZIP-arkivet och den inre IPA-filen klarade integritetstest; `Payload/Regnvakt.app/PkgInfo` finns.
+- Levererad fil: `Regnvakt-unsigned-build494.ipa` (4 591 683 byte).
+- SHA-256: `59ed79737ddde6050b1147172823073088678d1d6862a9404946a2ecd1ddd160`.
+- CI bekräftar kompilering och paketering. Fysisk iPhone-verifiering krävs fortfarande.
