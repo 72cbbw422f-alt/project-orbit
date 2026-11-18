@@ -1730,11 +1730,14 @@ private struct RegnvaktMapView: UIViewRepresentable {
                     // to form a continuous-looking precipitation area.
                     let layer = MLNCircleStyleLayer(identifier: layerID, source: source)
                     layer.circleColor = NSExpression(forConstantValue: definition.color)
-                    layer.circleRadius = NSExpression(forConstantValue: 25)
-                    layer.circleBlur = NSExpression(forConstantValue: 0.82)
-                    layer.circleOpacity = NSExpression(forConstantValue: 0.78)
-                    layer.circleStrokeColor = NSExpression(forConstantValue: definition.color.withAlphaComponent(0.45))
-                    layer.circleStrokeWidth = NSExpression(forConstantValue: 1.0)
+                    // The model samples are spaced farther apart than a normal
+                    // radar pixel grid. Expand and soften each influence area so
+                    // neighbouring cells overlap into a continuous forecast field.
+                    layer.circleRadius = NSExpression(forConstantValue: 58)
+                    layer.circleBlur = NSExpression(forConstantValue: 1.0)
+                    layer.circleOpacity = NSExpression(forConstantValue: 0.48)
+                    layer.circleStrokeColor = NSExpression(forConstantValue: UIColor.clear)
+                    layer.circleStrokeWidth = NSExpression(forConstantValue: 0.0)
                     style.addLayer(layer)
                 }
                 if let layer = style.layer(withIdentifier: layerID) {
