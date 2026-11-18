@@ -548,6 +548,7 @@ struct RadarMapView: View {
     @State private var radarSourceStatus: String?
     @State private var lastUpdated: Date?
     @State private var isPlaying = false
+    @State private var radarFrameReady = true
     @State private var showRadar = true
     @State private var precipitationType = "Hämtar nederbördstyp…"
     @State private var typeDetail = "Modellbedömning vid vald plats"
@@ -648,6 +649,7 @@ struct RadarMapView: View {
                         cloudSamples: windSamples,
                         showClouds: showClouds,
                         showPrecipitationTypes: showPrecipitationTypes,
+                        onRadarFrameReady: { radarFrameReady = true },
                         onRegionChange: { center in
                             windMapCenter = center
                             // Invalidate any response for the previous camera position immediately.
@@ -1032,7 +1034,10 @@ struct RadarMapView: View {
                 } catch {
                     break
                 }
-                guard !Task.isCancelled, !frames.isEmpty, imageLoadingID == nil else { continue }
+                guard !Task.isCancelled, radarFrameReady, !frames.isEmpty, imageLoadingID == nil else { continue }
+                // Advance only after MapLibre confirms the previous frame's visible tiles rendered.
+                // This prevents slow network responses from stacking radar sources during playback.
+                radarFrameReady = false
                 selectedIndex = selectedIndex >= frames.count - 1 ? 0 : selectedIndex + 1
             }
         }
@@ -1479,6 +1484,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
     let cloudSamples: [WindSample]
     let showClouds: Bool
     let showPrecipitationTypes: Bool
+    let onRadarFrameReady: () -> Void
     let onRegionChange: (CLLocationCoordinate2D) -> Void
     private let styleURL = URL(string: "https://tiles.openfreemap.org/styles/fiord")!
 
@@ -1501,7 +1507,9 @@ private struct RegnvaktMapView: UIViewRepresentable {
         context.coordinator.latestCloudSamples = cloudSamples
         context.coordinator.cloudsVisible = showClouds
         context.coordinator.precipitationTypesVisible = showPrecipitationTypes
+        context.coordinator.onRadarFrameReady = onRadarFrameReady
         context.coordinator.onRegionChange = onRegionChange
+        context.coordinator.onRadarFrameReady = onRadarFrameReady
         context.coordinator.updateLocationMarker(on: map, coordinate: coordinate, title: locationTitle)
         return map
     }
@@ -1533,6 +1541,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
 
     final class Coordinator: NSObject, MLNMapViewDelegate {
         var onRegionChange: (CLLocationCoordinate2D) -> Void
+        var onRadarFrameReady: () -> Void = {}
         init(onRegionChange: @escaping (CLLocationCoordinate2D) -> Void) {
             self.onRegionChange = onRegionChange
         }
@@ -1727,6 +1736,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
                 }
             }
             retiredRadarLayers.removeAll()
+            onRadarFrameReady()
         }
 
         func applyRadarIfReady() {
