@@ -744,7 +744,9 @@ struct RadarMapView: View {
                             Slider(value: $scrubberIndex,
                                    in: 0...Double(max(0, frames.count - 1)),
                                    onEditingChanged: { editing in
-                                       if !editing {
+                                       if editing {
+                                           isPlaying = false
+                                       } else {
                                            selectedIndex = min(max(0, Int(scrubberIndex.rounded())), frames.count - 1)
                                        }
                                    })
@@ -1378,9 +1380,16 @@ struct RadarMapView: View {
                 let hourlyTimes = hourly?["time"] as? [String] ?? []
                 let hourlyTypes = hourly?["precipitation_type"] as? [NSNumber] ?? []
                 let hourlyAmounts = hourly?["precipitation"] as? [NSNumber] ?? []
-                let formatter = ISO8601DateFormatter()
+                // Open-Meteo returns local ISO timestamps without an offset
+                // when timezone=auto. Parse them in the location's own timezone.
+                let timeZoneName = root["timezone"] as? String ?? "Europe/Stockholm"
+                let localTimeZone = TimeZone(identifier: timeZoneName) ?? .current
+                let localFormatter = DateFormatter()
+                localFormatter.locale = Locale(identifier: "en_US_POSIX")
+                localFormatter.timeZone = localTimeZone
+                localFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
                 let nearestHourlyIndex = hourlyTimes.enumerated().compactMap { item -> (Int, TimeInterval)? in
-                    guard let date = formatter.date(from: item.element) else { return nil }
+                    guard let date = localFormatter.date(from: item.element) else { return nil }
                     return (item.offset, abs(date.timeIntervalSinceNow))
                 }.min { $0.1 < $1.1 }?.0
 
