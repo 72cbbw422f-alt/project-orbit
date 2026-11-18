@@ -1206,95 +1206,161 @@ private struct ForecastDayDetails: View {
 
     private var dayHours: [HourForecast] {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier:"en_US_POSIX")
+        formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(identifier: "Europe/Stockholm")
         formatter.dateFormat = "yyyy-MM-dd"
-        let key = formatter.string(from:day.date)
+        let key = formatter.string(from: day.date)
         return hours.filter { $0.id.hasPrefix(key) }
     }
 
     var body: some View {
         NavigationStack {
             ZStack {
-                LinearGradient(colors:[Color(red:0.10,green:0.10,blue:0.18),RTheme.bg,RTheme.bg],startPoint:.topLeading,endPoint:.bottomTrailing)
+                LinearGradient(colors: [Color(red:0.10,green:0.10,blue:0.18), RTheme.bg, RTheme.bg], startPoint: .topLeading, endPoint: .bottomTrailing)
                     .ignoresSafeArea()
-                ScrollView(showsIndicators:false) {
-                    VStack(alignment:.leading,spacing:15) {
-                        VStack(alignment:.leading,spacing:4) {
-                            Text(place).font(.system(size:13,weight:.semibold)).foregroundStyle(RTheme.cyan)
-                            Text(day.day).font(.system(size:25,weight:.bold,design:.rounded)).foregroundStyle(.white)
-                            Text(day.condition).font(.system(size:13,weight:.medium)).foregroundStyle(RTheme.muted)
-                        }
-                        HStack(spacing:14) {
-                            Image(systemName:day.symbol).symbolRenderingMode(.palette)
-                                .foregroundStyle(Color(red:0.88,green:0.91,blue:1),RTheme.cyan).font(.system(size:58))
-                            VStack(alignment:.leading,spacing:3) {
-                                Text("\(day.high)°").font(.system(size:48,weight:.bold,design:.rounded)).foregroundStyle(.white)
-                                Text("HÖGSTA TEMPERATUR").font(.system(size:12,weight:.heavy)).tracking(1).foregroundStyle(RTheme.cyan)
-                                Text("Lägsta \(day.low)°").font(.system(size:14,weight:.medium)).foregroundStyle(RTheme.muted)
-                            }
-                            Spacer()
-                        }.padding(17)
-                            .background(LinearGradient(colors:[Color(red:0.13,green:0.19,blue:0.29),RTheme.panel],startPoint:.topLeading,endPoint:.bottomTrailing),in:RoundedRectangle(cornerRadius:22))
-                            .overlay(RoundedRectangle(cornerRadius:22).stroke(RTheme.line,lineWidth:1))
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 15) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(place).font(.system(size: 22, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                            Text("Väderförhållanden • \(day.day.lowercased())").font(.system(size: 12, weight: .medium)).foregroundStyle(RTheme.muted)
+                        }.frame(maxWidth: .infinity, alignment: .leading)
 
-                        Text("PROGNOS FÖR DAGEN").font(.system(size:12,weight:.heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
-                        LazyVGrid(columns:[GridItem(.flexible()),GridItem(.flexible())],spacing:9) {
-                            dayMetric("Nederbördsrisk","\(day.precipitationChance)%","drop.fill")
-                            dayMetric("Nederbörd",String(format:"%.1f mm",day.precipitation),"cloud.rain.fill")
-                            dayMetric("Medelvind",String(format:"%.1f m/s",day.wind),"wind")
-                            dayMetric("Byvind",String(format:"%.1f m/s",day.gust),"wind")
-                            dayMetric("UV-index",String(format:"%.0f",day.uv),"sun.max.fill")
+                        HStack(spacing: 14) {
+                            Image(systemName: day.symbol)
+                                .symbolRenderingMode(.palette)
+                                .foregroundStyle(Color(red:0.88,green:0.91,blue:1), RTheme.cyan)
+                                .font(.system(size: 58))
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("\(day.high)°").font(.system(size: 48, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                                Text("HÖGSTA TEMPERATUR").font(.system(size: 12, weight: .heavy)).tracking(1).foregroundStyle(RTheme.cyan)
+                                Text("Lägsta \(day.low)°").font(.system(size: 14, weight: .medium)).foregroundStyle(RTheme.muted)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(17)
+                        .background(LinearGradient(colors: [Color(red:0.13,green:0.19,blue:0.29), RTheme.panel], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 22))
+                        .overlay(RoundedRectangle(cornerRadius: 22).stroke(RTheme.line, lineWidth: 1))
+
+                        Text("PROGNOS FÖR DAGEN").font(.system(size: 12, weight: .heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 9) {
+                            dayMetric("Nederbördsrisk", "\(day.precipitationChance)%", "drop.fill")
+                            dayMetric("Nederbörd", String(format: "%.1f mm", day.precipitation), "cloud.rain.fill")
+                            dayMetric("Medelvind", String(format: "%.1f m/s", day.wind), "wind")
+                            dayMetric("Byvind", String(format: "%.1f m/s", day.gust), "wind")
+                            dayMetric("UV-index", String(format: "%.0f", day.uv), "sun.max.fill")
                         }
 
                         if !dayHours.isEmpty {
-                            Text("TIMME FÖR TIMME").font(.system(size:12,weight:.heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
-                            VStack(spacing:0) {
+                            Text("TEMPERATUR UNDER DAGEN").font(.system(size: 12, weight: .heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
+                            temperatureChart
+                        }
+
+                        Text("VÄDER TIMME FÖR TIMME").font(.system(size: 12, weight: .heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
+                        if dayHours.isEmpty {
+                            Text("Timprognosen för den här dagen är inte tillgänglig ännu. Dygnsvärdena ovan bygger på prognosdata för hela dagen.")
+                                .font(.system(size: 12, weight: .medium)).foregroundStyle(RTheme.muted)
+                                .referencePanel()
+                        } else {
+                            VStack(spacing: 0) {
                                 ForEach(dayHours) { hour in
-                                    HStack(spacing:9) {
-                                        Text(hour.time).font(.system(size:12,weight:.bold)).foregroundStyle(.white).frame(width:38,alignment:.leading)
-                                        Image(systemName:hour.symbol).font(.system(size:19)).foregroundStyle(RTheme.cyan).frame(width:26)
-                                        Text("\(hour.temperature)°").font(.system(size:14,weight:.bold,design:.rounded)).foregroundStyle(.white).frame(width:36)
-                                        VStack(alignment:.leading,spacing:2) {
-                                            Text("Nederbördsrisk \(hour.precipitationChance)%").font(.system(size:12,weight:.semibold)).foregroundStyle(RTheme.cyan)
-                                            Text(String(format:"Vind %.1f • By %.1f m/s",hour.wind,hour.gust)).font(.system(size:12)).foregroundStyle(RTheme.muted)
+                                    HStack(spacing: 9) {
+                                        Text(hour.time).font(.system(size: 12, weight: .bold)).foregroundStyle(.white).frame(width: 38, alignment: .leading)
+                                        Image(systemName: hour.symbol).symbolRenderingMode(.palette)
+                                            .foregroundStyle(Color(red:0.82,green:0.90,blue:1), RTheme.cyan)
+                                            .font(.system(size: 18)).frame(width: 25)
+                                        Text("\(hour.temperature)°").font(.system(size: 13, weight: .bold, design: .rounded)).foregroundStyle(.white).frame(width: 34)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("Nederbördsrisk \(hour.precipitationChance)%").font(.system(size: 12, weight: .semibold)).foregroundStyle(RTheme.cyan)
+                                            Text(String(format: "Vind %.1f • By %.1f m/s", hour.wind, hour.gust)).font(.system(size: 12)).foregroundStyle(RTheme.muted)
                                         }
-                                        Spacer(minLength:2)
-                                        Text(String(format:"%.1f mm",hour.precipitation)).font(.system(size:12,weight:.medium)).foregroundStyle(.white)
-                                    }.padding(.vertical,8)
+                                        Spacer(minLength: 2)
+                                        Text(String(format: "%.1f mm", hour.precipitation)).font(.system(size: 12, weight: .medium)).foregroundStyle(.white)
+                                    }.padding(.vertical, 8)
                                     if hour.id != dayHours.last?.id { Divider().overlay(RTheme.line) }
                                 }
-                            }.padding(.horizontal,12).referencePanel()
-                        } else {
-                            Text("Timprognosen för den här dagen är inte tillgänglig ännu. Dygnsprognosen ovan bygger på väderdata för hela dagen.")
-                                .font(.system(size:12,weight:.medium)).foregroundStyle(RTheme.muted)
-                                .referencePanel()
+                            }.padding(.horizontal, 12).referencePanel()
                         }
                     }.padding(16)
                 }
             }
-            .navigationTitle("Prognos • \(day.day)")
+            .navigationTitle("Dagens väder")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark,for:.navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
-                ToolbarItem(placement:.topBarTrailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("Stäng") { dismiss() }.foregroundStyle(RTheme.cyan)
                 }
             }
         }.preferredColorScheme(.dark)
     }
 
-    private func dayMetric(_ title:String,_ value:String,_ symbol:String) -> some View {
-        HStack(spacing:9) {
-            Image(systemName:symbol).font(.system(size:17,weight:.semibold)).foregroundStyle(RTheme.cyan).frame(width:23)
-            VStack(alignment:.leading,spacing:2) {
-                Text(value).font(.system(size:17,weight:.bold,design:.rounded)).foregroundStyle(.white)
-                Text(title).font(.system(size:12,weight:.medium)).foregroundStyle(RTheme.muted)
+    private var temperatureChart: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label("Temperatur", systemImage: "thermometer").font(.system(size: 12, weight: .semibold)).foregroundStyle(RTheme.muted)
+                Spacer()
+                Text("Dagens timmar • °C").font(.system(size: 12, weight: .medium)).foregroundStyle(RTheme.muted)
             }
-            Spacer(minLength:0)
-        }.frame(maxWidth:.infinity,minHeight:58,alignment:.leading).padding(.horizontal,11).padding(.vertical,7)
-            .background(RTheme.panel,in:RoundedRectangle(cornerRadius:13))
-            .overlay(RoundedRectangle(cornerRadius:13).stroke(RTheme.line.opacity(0.7),lineWidth:1))
+            let values = Array(dayHours.prefix(24)).map { Double($0.temperature) }
+            let low = floor((values.min() ?? 0) / 2) * 2
+            let high = max(ceil((values.max() ?? 2) / 2) * 2, low + 2)
+            HStack(spacing: 7) {
+                VStack {
+                    ForEach((0...2).reversed(), id: \.self) { step in
+                        Text(String(format: "%.0f°", low + (high - low) * Double(step) / 2))
+                            .font(.system(size: 12, weight: .medium, design: .rounded)).foregroundStyle(RTheme.muted)
+                        if step > 0 { Spacer(minLength: 0) }
+                    }
+                }.frame(width: 27)
+                GeometryReader { proxy in
+                    ZStack {
+                        ForEach(0...2, id: \.self) { step in
+                            let y = proxy.size.height * CGFloat(step) / 2
+                            Path { path in
+                                path.move(to: CGPoint(x: 0, y: y))
+                                path.addLine(to: CGPoint(x: proxy.size.width, y: y))
+                            }.stroke(RTheme.line.opacity(0.7), style: StrokeStyle(lineWidth: 0.8, dash: [3, 3]))
+                        }
+                        Path { path in
+                            for (index, value) in values.enumerated() {
+                                let x = proxy.size.width * CGFloat(index) / CGFloat(max(values.count - 1, 1))
+                                let y = proxy.size.height - CGFloat((value - low) / (high - low)) * (proxy.size.height - 10) - 5
+                                if index == 0 { path.move(to: CGPoint(x: x, y: y)) } else { path.addLine(to: CGPoint(x: x, y: y)) }
+                            }
+                        }.stroke(RTheme.cyan, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                        ForEach(Array(values.enumerated()), id: \.offset) { index, value in
+                            let x = proxy.size.width * CGFloat(index) / CGFloat(max(values.count - 1, 1))
+                            let y = proxy.size.height - CGFloat((value - low) / (high - low)) * (proxy.size.height - 10) - 5
+                            Circle().fill(.white).frame(width: 5, height: 5).position(x: x, y: y)
+                        }
+                    }
+                }.frame(height: 112)
+            }
+            HStack {
+                Text(dayHours.first?.time ?? "00")
+                Spacer()
+                Text("+6 h")
+                Spacer()
+                Text("+12 h")
+                Spacer()
+                Text("+18 h")
+                Spacer()
+                Text("+24 h")
+            }.font(.system(size: 12, weight: .medium)).foregroundStyle(RTheme.muted).padding(.leading, 34)
+        }.referencePanel()
+    }
+
+    private func dayMetric(_ title: String, _ value: String, _ symbol: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: symbol).font(.system(size: 17, weight: .semibold)).foregroundStyle(RTheme.cyan).frame(width: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(value).font(.system(size: 17, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                Text(title).font(.system(size: 12, weight: .medium)).foregroundStyle(RTheme.muted)
+            }
+            Spacer(minLength: 0)
+        }.frame(maxWidth: .infinity, minHeight: 58, alignment: .leading).padding(.horizontal, 11).padding(.vertical, 7)
+            .background(RTheme.panel, in: RoundedRectangle(cornerRadius: 13))
+            .overlay(RoundedRectangle(cornerRadius: 13).stroke(RTheme.line.opacity(0.7), lineWidth: 1))
     }
 }
 
