@@ -1028,7 +1028,7 @@ struct RadarMapView: View {
             // permanently firing Combine timer while the radar is idle.
             while !Task.isCancelled {
                 do {
-                    try await Task.sleep(nanoseconds: 1_500_000_000)
+                    try await Task.sleep(nanoseconds: 2_000_000_000)
                 } catch {
                     break
                 }
@@ -1718,6 +1718,9 @@ private struct RegnvaktMapView: UIViewRepresentable {
                 )
                 let layer = MLNRasterStyleLayer(identifier: "regnvakt-radar-layer", source: source)
                 layer.rasterOpacity = NSExpression(forConstantValue: 0.76)
+                // Keep newly requested radar tiles from popping in abruptly
+                // as the selected ten-minute frame changes during playback.
+                layer.rasterFadeDuration = NSExpression(forConstantValue: 800)
                 style.addSource(source)
                 style.addLayer(layer)
             }
