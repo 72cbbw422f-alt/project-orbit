@@ -1585,7 +1585,15 @@ private struct SevenDayForecastDetail: View {
                                             forecastMetricColumn(icon: "sun.max.fill", label: "UV", value: String(format: "%.0f", day.uv))
                                         }
                                         }
-                                        .buttonStyle(.plain)
+                                        HStack {
+                                            Text("Tryck för dagens detaljer")
+                                                .font(.system(size: 11, weight: .semibold))
+                                                .foregroundStyle(RTheme.cyan)
+                                            Spacer()
+                                            Image(systemName: "chevron.right")
+                                                .font(.system(size: 11, weight: .bold))
+                                                .foregroundStyle(RTheme.cyan)
+                                        }
                                     }
                                     .buttonStyle(.plain)
                                     .padding(12)
