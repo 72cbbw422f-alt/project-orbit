@@ -1733,9 +1733,9 @@ private struct RegnvaktMapView: UIViewRepresentable {
                     // The model samples are spaced farther apart than a normal
                     // radar pixel grid. Expand and soften each influence area so
                     // neighbouring cells overlap into a continuous forecast field.
-                    layer.circleRadius = NSExpression(forConstantValue: 58)
-                    layer.circleBlur = NSExpression(forConstantValue: 1.0)
-                    layer.circleOpacity = NSExpression(forConstantValue: 0.48)
+                    layer.circleRadius = NSExpression(forConstantValue: 46)
+                    layer.circleBlur = NSExpression(forConstantValue: 0.78)
+                    layer.circleOpacity = NSExpression(forConstantValue: 0.56)
                     layer.circleStrokeColor = NSExpression(forConstantValue: UIColor.clear)
                     layer.circleStrokeWidth = NSExpression(forConstantValue: 0.0)
                     style.addLayer(layer)
@@ -1813,7 +1813,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
                 )
                 let layer = MLNRasterStyleLayer(identifier: layerID, source: source)
                 layer.rasterOpacity = NSExpression(forConstantValue: 0.76)
-                layer.rasterFadeDuration = NSExpression(forConstantValue: 800)
+                layer.rasterFadeDuration = NSExpression(forConstantValue: 220)
                 style.addSource(source)
                 style.addLayer(layer)
             }
