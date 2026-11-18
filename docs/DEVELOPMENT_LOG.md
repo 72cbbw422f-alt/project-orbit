@@ -554,3 +554,27 @@ Varje arbetsomgång ska dokumentera:
 
 ### Verifiering
 - Ingen fysisk iPhone-verifiering av dessa senaste ändringar är ännu utförd.
+
+
+## LibreWXR som primär radarkälla – 2026-11-18
+
+### Leverantörsbyte
+- LibreWXR:s publika API provas som primär källa via `https://api.librewxr.net/public/weather-maps.json`.
+- API:t dokumenteras som RainViewer v2-kompatibelt. Manifestet använder samma centrala fält (`host`, `radar.past[].time`, `radar.past[].path`) och befintlig MapLibre tile-konstruktion kan därför återanvändas.
+- `RadarProvider.libreWXR` har lagts till. RainViewer ligger kvar som automatisk reserv om LibreWXR:s metadata eller tile inte kan hämtas/avkodas.
+- Innan LibreWXR väljs verifieras en faktisk PNG-tile vid vald plats. Ett fungerande manifest räcker inte längre som bevis för att kartan kan visa bildrutor.
+- LibreWXR får zoomnivå upp till 12 enligt dokumentationen; RainViewer-reserven begränsas fortsatt till zoom 7. Platsavläsningens tilezoom följer aktiv källa.
+- Kartans attribution anger LibreWXR och CC BY 4.0 när den källan används. OpenStreetMap-attribution behålls.
+- Färgprofilen är fortsatt ID 2 (Universal Blue), med smoothing och snow aktiverat. LibreWXR dokumenterar ID 2 som Universal Blue.
+
+### Datatäckning och begränsningar
+- LibreWXR beskriver europeisk radarbas som OPERA (184 radarstationer i 27 länder) och ett globalt RRQPE-lager som fyller områden utanför regional radar. I sådana områden är det satellitbaserad nederbördsuppskattning, inte lokal radarobservation.
+- Hudiksvall ligger inom europeiskt område, men verklig tiletäckning och bildkvalitet måste verifieras i appen.
+- Den publika servern är best-effort utan garanterad upptid eller hastighet. Gratis/öppen API innebär inte SLA.
+- Testmiljön i denna utvecklingssession kunde inte nå api.librewxr.net direkt (DNS ej tillgänglig). Därför är API:t implementerat med runtime-tilevalidering och RainViewer-reserv, men dess faktiska svar från iPhone är ännu inte bekräftat.
+- Dokumentationskälla: https://github.com/JoshuaKimsey/LibreWXR (README, API metadata/tileformat, färgscheman och täckningsbeskrivning).
+
+### Verifiering
+- Koden är committad på `feature/frost-notification-audit`.
+- CI-kompilering/paketering inväntas.
+- Fysisk iPhone-verifiering återstår.
