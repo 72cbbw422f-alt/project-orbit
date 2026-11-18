@@ -44,6 +44,7 @@ private enum RadarService {
                 let path: String
             }
             let past: [Frame]
+            let nowcast: [Frame]?
         }
         let host: String
         let radar: Radar
@@ -55,8 +56,8 @@ private enum RadarService {
         // was the failure mode we need to avoid repeating.
         do {
             let (host, frames) = try await loadLibreWXRFrames()
-            guard let latest = frames.last else { throw URLError(.dataNotAllowed) }
-            try await validateTile(host: host, frame: latest, coordinate: coordinate)
+            guard let latestObserved = frames.last(where: { $0.time <= Date() }) else { throw URLError(.dataNotAllowed) }
+            try await validateTile(host: host, frame: latestObserved, coordinate: coordinate)
             return (host, .libreWXR, frames, nil)
         } catch {
             let libreError = error.localizedDescription
@@ -162,11 +163,18 @@ private enum RadarService {
             throw URLError(.badServerResponse)
         }
         let manifest = try JSONDecoder().decode(RainViewerManifest.self, from: data)
-        let frames = manifest.radar.past.map {
+        let past = manifest.radar.past.map {
             RadarFrame(time: Date(timeIntervalSince1970: $0.time), path: $0.path, provider: .libreWXR)
-        }.sorted { $0.time < $1.time }
-        guard !frames.isEmpty else { throw URLError(.dataNotAllowed) }
-        return (manifest.host, Array(frames.suffix(25)))
+        }
+        let nowcast = (manifest.radar.nowcast ?? []).map {
+            RadarFrame(time: Date(timeIntervalSince1970: $0.time), path: $0.path, provider: .libreWXR)
+        }
+        let frames = (past + nowcast).sorted { $0.time < $1.time }
+        guard !past.isEmpty else { throw URLError(.dataNotAllowed) }
+        // Validate the latest observed radar frame. Nowcast tiles are included
+        // for playback but must not make the provider fail if a forecast frame
+        // is temporarily not yet rendered.
+        return (manifest.host, Array(frames.suffix(31)))
     }
 
     static func loadRainViewerFrames() async throws -> (String, [RadarFrame]) {
