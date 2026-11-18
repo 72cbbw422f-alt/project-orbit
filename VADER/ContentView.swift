@@ -1519,7 +1519,7 @@ private struct SevenDayForecastDetail: View {
     let days: [DayForecast]
     let place: String
     @Environment(\.dismiss) private var dismiss
-    @State private var expandedDay: Date?
+    @State private var selectedDay: DayForecast?
 
     var body: some View {
         NavigationStack {
@@ -1548,12 +1548,10 @@ private struct SevenDayForecastDetail: View {
                         } else {
                             LazyVStack(spacing: 10) {
                                 ForEach(days) { day in
-                                    VStack(alignment: .leading, spacing: 10) {
-                                        Button {
-                                            withAnimation(.easeInOut(duration: 0.22)) {
-                                                expandedDay = expandedDay == day.date ? nil : day.date
-                                            }
-                                        } label: {
+                                    Button {
+                                        selectedDay = day
+                                    } label: {
+                                        VStack(alignment: .leading, spacing: 10) {
                                         HStack(spacing: 12) {
                                             Image(systemName: day.symbol)
                                                 .symbolRenderingMode(.palette)
@@ -1587,26 +1585,8 @@ private struct SevenDayForecastDetail: View {
                                         }
                                         }
                                         .buttonStyle(.plain)
-                                        if expandedDay == day.date {
-                                            Rectangle().fill(.white.opacity(0.09)).frame(height: 1)
-                                            Text("DAGENS VÄDERDETALJER")
-                                                .font(.system(size: 11, weight: .heavy)).tracking(1)
-                                                .foregroundStyle(RTheme.cyan)
-                                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                                                forecastMetricColumn(icon: "thermometer.high", label: "Högsta temperatur", value: "\(day.high)°")
-                                                forecastMetricColumn(icon: "thermometer.low", label: "Lägsta temperatur", value: "\(day.low)°")
-                                                forecastMetricColumn(icon: "wind", label: "Medelvind", value: String(format: "%.1f m/s", day.wind))
-                                                forecastMetricColumn(icon: "wind", label: "Byvind", value: String(format: "%.1f m/s", day.gust))
-                                                forecastMetricColumn(icon: "drop.fill", label: "Regnrisk", value: "\(day.precipitationChance)%")
-                                                forecastMetricColumn(icon: "cloud.rain.fill", label: "Total nederbörd", value: String(format: "%.1f mm", day.precipitation))
-                                                forecastMetricColumn(icon: "sun.max.fill", label: "UV-index", value: String(format: "%.1f", day.uv))
-                                            }
-                                            Text("Dygnsvärden från Open-Meteo. Timprognosen visas separat under Dagens väder när den finns tillgänglig.")
-                                                .font(.system(size: 11, weight: .medium))
-                                                .foregroundStyle(RTheme.muted)
-                                                .fixedSize(horizontal: false, vertical: true)
-                                        }
                                     }
+                                    .buttonStyle(.plain)
                                     .padding(12)
                                     .background(RTheme.panel, in: RoundedRectangle(cornerRadius: 17))
                                     .overlay(RoundedRectangle(cornerRadius: 17).stroke(RTheme.line.opacity(0.75), lineWidth: 1))
@@ -1626,6 +1606,13 @@ private struct SevenDayForecastDetail: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Stäng") { dismiss() }.foregroundStyle(RTheme.cyan)
                 }
+            }
+            .sheet(item: $selectedDay) { day in
+                ForecastDayDetails(day: day, hours: [], place: place)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+                    .presentationBackground(RTheme.bg)
+                    .preferredColorScheme(.dark)
             }
         }
     }
