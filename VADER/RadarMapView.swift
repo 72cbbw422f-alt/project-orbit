@@ -74,7 +74,9 @@ private enum RadarService {
         let x = Int(floor((coordinate.longitude + 180.0) / 360.0 * tileCount))
         let radians = latitude * .pi / 180.0
         let y = Int(floor((1.0 - log(tan(radians) + 1.0 / cos(radians)) / .pi) / 2.0 * tileCount))
-        let path = "\(host)\(frame.path)/512/\(Int(zoom))/\(x)/\(y)/2/1_1.png"
+        let normalizedHost = host.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let normalizedFramePath = frame.path.hasPrefix("/") ? frame.path : "/\(frame.path)"
+        let path = "\(normalizedHost)\(normalizedFramePath)/512/\(Int(zoom))/\(x)/\(y)/10/1_1.png"
         guard let url = URL(string: path) else { throw URLError(.badURL) }
         return url
     }
@@ -89,7 +91,11 @@ private enum RadarService {
         guard let http = response as? HTTPURLResponse, http.statusCode == 200,
               let image = UIImage(data: data), image.cgImage != nil else {
             let status = (response as? HTTPURLResponse)?.statusCode ?? -1
-            throw RadarImageError.httpStatus(status, "radartile kunde inte avkodas")
+            let contentType = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type") ?? "okänd content-type"
+            let body = String(data: data.prefix(180), encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let detail = [contentType, body].compactMap { $0 }.joined(separator: " • ")
+            throw RadarImageError.httpStatus(status, "LibreWXR tile: \(detail) • \(url.absoluteString)")
         }
     }
 
@@ -206,7 +212,9 @@ private enum RadarService {
         let tileY = Int(floor(yPosition))
         let pixelX = min(511, max(0, Int((xPosition - Double(tileX)) * 512)))
         let pixelY = min(511, max(0, Int((yPosition - Double(tileY)) * 512)))
-        let urlString = "\(host)\(frame.path)/512/\(Int(zoom))/\(tileX)/\(tileY)/2/1_1.png"
+        let normalizedHost = host.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let normalizedFramePath = frame.path.hasPrefix("/") ? frame.path : "/\(frame.path)"
+        let urlString = "\(normalizedHost)\(normalizedFramePath)/512/\(Int(zoom))/\(tileX)/\(tileY)/10/1_1.png"
         guard let url = URL(string: urlString) else { throw URLError(.badURL) }
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
@@ -580,7 +588,9 @@ struct RadarMapView: View {
 
     private var radarTileURL: String? {
         guard showRadar, let frame = selectedFrame, frame.provider == .rainViewer || frame.provider == .libreWXR else { return nil }
-        return "\(radarHost)\(frame.path)/512/{z}/{x}/{y}/2/1_1.png"
+        let normalizedHost = radarHost.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let normalizedFramePath = frame.path.hasPrefix("/") ? frame.path : "/\(frame.path)"
+        return "\(normalizedHost)\(normalizedFramePath)/512/{z}/{x}/{y}/10/1_1.png"
     }
 
     var body: some View {
