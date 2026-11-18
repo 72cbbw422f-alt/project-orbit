@@ -530,3 +530,9 @@ Varje arbetsomgång ska dokumentera:
 - Levererad fil: `Regnvakt-unsigned-build494.ipa` (4 591 683 byte).
 - SHA-256: `59ed79737ddde6050b1147172823073088678d1d6862a9404946a2ecd1ddd160`.
 - CI bekräftar kompilering och paketering. Fysisk iPhone-verifiering krävs fortfarande.
+
+
+### Förtydligad dagdetalj – 2026-11-18
+- Dagdetaljens navigeringstitel visar nu vald veckodag i stället för att alltid säga `Dagens prognos`.
+- Sektionen benämns `PROGNOS FÖR DAGEN`, så samma detaljvy fungerar tydligt för både idag och kommande dagar.
+- Matchning mellan dygnsdatum och timprognos använder uttryckligen `Europe/Stockholm` i stället för enhetens aktuella tidszon. Detta undviker att timrader hamnar under fel dygn om enheten befinner sig i en annan tidszon.
