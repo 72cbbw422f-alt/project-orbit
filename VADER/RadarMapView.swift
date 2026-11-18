@@ -1739,9 +1739,12 @@ private struct RegnvaktMapView: UIViewRepresentable {
                     // blurred circles so each classified model point is visible.
                     let layer = MLNCircleStyleLayer(identifier: layerID, source: source)
                     layer.circleColor = NSExpression(forConstantValue: definition.color)
-                    layer.circleOpacity = NSExpression(forConstantValue: 0.68)
-                    layer.circleRadius = NSExpression(forConstantValue: 22)
-                    layer.circleBlur = NSExpression(forConstantValue: 0.78)
+                    // Neighboring 9x9 model points are roughly 10–15 km apart
+                    // at this grid spacing. A wider, softer footprint blends
+                    // adjacent samples into a field without hiding the basemap.
+                    layer.circleOpacity = NSExpression(forConstantValue: 0.52)
+                    layer.circleRadius = NSExpression(forConstantValue: 42)
+                    layer.circleBlur = NSExpression(forConstantValue: 0.92)
                     style.addLayer(layer)
                 }
                 if let layer = style.layer(withIdentifier: layerID) {
