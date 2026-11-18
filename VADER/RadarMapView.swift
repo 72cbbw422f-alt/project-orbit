@@ -1380,16 +1380,19 @@ struct RadarMapView: View {
                 let hourlyTimes = hourly?["time"] as? [String] ?? []
                 let hourlyTypes = hourly?["precipitation_type"] as? [NSNumber] ?? []
                 let hourlyAmounts = hourly?["precipitation"] as? [NSNumber] ?? []
-                // Open-Meteo returns local ISO timestamps without an offset
-                // when timezone=auto. Parse them in the location's own timezone.
+                // Open-Meteo normally returns ISO-8601 timestamps with an explicit
+                // UTC offset. Keep a local-time fallback for responses without an offset.
                 let timeZoneName = root["timezone"] as? String ?? "Europe/Stockholm"
                 let localTimeZone = TimeZone(identifier: timeZoneName) ?? .current
+                let isoFormatter = ISO8601DateFormatter()
+                isoFormatter.formatOptions = [.withInternetDateTime]
                 let localFormatter = DateFormatter()
                 localFormatter.locale = Locale(identifier: "en_US_POSIX")
                 localFormatter.timeZone = localTimeZone
                 localFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
                 let nearestHourlyIndex = hourlyTimes.enumerated().compactMap { item -> (Int, TimeInterval)? in
-                    guard let date = localFormatter.date(from: item.element) else { return nil }
+                    let date = isoFormatter.date(from: item.element) ?? localFormatter.date(from: item.element)
+                    guard let date else { return nil }
                     return (item.offset, abs(date.timeIntervalSinceNow))
                 }.min { $0.1 < $1.1 }?.0
 
