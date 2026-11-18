@@ -1723,21 +1723,26 @@ private struct RegnvaktMapView: UIViewRepresentable {
                     style.addSource(source)
                 }
                 if style.layer(withIdentifier: layerID) == nil {
-                    // Use a native circle layer rather than relying on MapLibre's
-                    // heatmap-density expression. The previous heatmap could
-                    // silently render no visible field on some iOS builds.
-                    // Broad, softly blurred circles overlap across the 9×9 grid
-                    // to form a continuous-looking precipitation area.
-                    let layer = MLNCircleStyleLayer(identifier: layerID, source: source)
-                    layer.circleColor = NSExpression(forConstantValue: definition.color)
-                    // The model samples are spaced farther apart than a normal
-                    // radar pixel grid. Expand and soften each influence area so
-                    // neighbouring cells overlap into a continuous forecast field.
-                    layer.circleRadius = NSExpression(forConstantValue: 16)
-                    layer.circleBlur = NSExpression(forConstantValue: 0.58)
-                    layer.circleOpacity = NSExpression(forConstantValue: 0.58)
-                    layer.circleStrokeColor = NSExpression(forConstantValue: UIColor.clear)
-                    layer.circleStrokeWidth = NSExpression(forConstantValue: 0.0)
+                    // Render the model grid as a true density surface instead of
+                    // individual circles. This avoids the visible 9×9 dot pattern
+                    // and reduces the number of separate bright markers.
+                    let layer = MLNHeatmapStyleLayer(identifier: layerID, source: source)
+                    layer.heatmapWeight = NSExpression(forKeyPath: "heatmapWeight")
+                    layer.heatmapRadius = NSExpression(forConstantValue: 34)
+                    layer.heatmapIntensity = NSExpression(forConstantValue: 0.9)
+                    layer.heatmapOpacity = NSExpression(forConstantValue: 0.62)
+                    let base = definition.color
+                    let stops: [NSNumber: UIColor] = [
+                        0.0: UIColor.clear,
+                        0.18: base.withAlphaComponent(0.16),
+                        0.42: base.withAlphaComponent(0.42),
+                        0.72: base.withAlphaComponent(0.72),
+                        1.0: base.withAlphaComponent(0.9)
+                    ]
+                    layer.heatmapColor = NSExpression(
+                        format: "mgl_interpolate:withCurveType:parameters:stops:($heatmapDensity, 'linear', nil, %@)",
+                        stops
+                    )
                     style.addLayer(layer)
                 }
                 if let layer = style.layer(withIdentifier: layerID) {
