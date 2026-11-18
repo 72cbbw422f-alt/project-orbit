@@ -1658,7 +1658,13 @@ private struct RegnvaktMapView: UIViewRepresentable {
                           sample.precipitation >= 0.05 else { return nil }
                     let feature = MLNPointFeature()
                     feature.coordinate = CLLocationCoordinate2D(latitude: sample.latitude, longitude: sample.longitude)
-                    feature.attributes = ["precipitation": NSNumber(value: sample.precipitation)]
+                    // Normalize mm/h into a useful heatmap weight range while
+                    // preserving stronger precipitation as a denser contribution.
+                    let weight = min(2.0, max(0.12, sample.precipitation / 2.0))
+                    feature.attributes = [
+                        "precipitation": NSNumber(value: sample.precipitation),
+                        "heatmapWeight": NSNumber(value: weight)
+                    ]
                     return feature
                 }
                 let sourceID = "regnvakt-precip-type-\(definition.name)-source"
@@ -1673,17 +1679,25 @@ private struct RegnvaktMapView: UIViewRepresentable {
                     style.addSource(source)
                 }
                 if style.layer(withIdentifier: layerID) == nil {
-                    let layer = MLNCircleStyleLayer(identifier: layerID, source: source)
-                    // Soft, geographically anchored forecast field instead of tiny isolated dots.
-                    // These samples are model guidance, not classifications of radar pixels.
-                    layer.circleColor = NSExpression(forConstantValue: definition.color)
-                    // Blend neighbouring model samples into a continuous-looking
-                    // regional field. These are interpolated visual footprints,
-                    // not additional observations or radar pixels.
-                    layer.circleOpacity = NSExpression(forConstantValue: 0.42)
-                    layer.circleRadius = NSExpression(forConstantValue: 30)
-                    layer.circleBlur = NSExpression(forConstantValue: 0.82)
-                    layer.circleStrokeWidth = NSExpression(forConstantValue: 0)
+                    let layer = MLNHeatmapStyleLayer(identifier: layerID, source: source)
+                    // Heatmaps blend the 9×9 model samples spatially instead of
+                    // drawing one blurred circle per coordinate.
+                    layer.heatmapWeight = NSExpression(forKeyPath: "heatmapWeight")
+                    layer.heatmapRadius = NSExpression(forConstantValue: 46)
+                    layer.heatmapIntensity = NSExpression(forConstantValue: 1.15)
+                    layer.heatmapOpacity = NSExpression(forConstantValue: 0.72)
+                    let base = definition.color
+                    let stops: [NSNumber: UIColor] = [
+                        0.0: UIColor.clear,
+                        0.12: base.withAlphaComponent(0.18),
+                        0.35: base.withAlphaComponent(0.48),
+                        0.65: base.withAlphaComponent(0.78),
+                        1.0: base.withAlphaComponent(0.96)
+                    ]
+                    layer.heatmapColor = NSExpression(
+                        format: "mgl_interpolate:withCurveType:parameters:stops:($heatmapDensity, 'linear', nil, %@)",
+                        stops
+                    )
                     style.addLayer(layer)
                 }
                 if let layer = style.layer(withIdentifier: layerID) {
