@@ -586,3 +586,11 @@ Varje arbetsomgång ska dokumentera:
 - Leverantörsvalideringen kontrollerar fortfarande den senaste observerade bildrutan, inte den senaste framtida prognosrutan. Därmed ska en ofärdig nowcast-tile inte slå ut en i övrigt fungerande radarkälla.
 - Upp till 31 bildrutor behålls för tidslinjen. Detta möjliggör upp till 25 historiska + 6 framtida rutor när servern tillhandahåller dem; faktisk mängd beror på manifestet.
 - Källan dokumenterar cirka två timmars historik, 10-minutersuppdatering och upp till 60 minuters nowcast. Se LibreWXR Web Integration Guide: https://librewxr.net/docs/doc-viewer?doc=web-integration-guide.
+
+
+### Radargranskning efter LibreWXR-integration – 2026-11-18
+- Bygg #502 slutfördes med godkänt resultat, men den körningen innehåller inte nowcast-ändringen från commit `14a3eddf`.
+- Build #506 är fortfarande köad i GitHub Actions. Den innehåller LibreWXR-manifest med `radar.nowcast`.
+- Vid granskning hittades kvarvarande användartext som felaktigt beskrev RainViewer som aktiv radarkälla även när LibreWXR används. Informationsrutan och felmeddelandet är nu leverantörsneutrala.
+- Tidslinjens rubrik visar nu aktiv källa (LibreWXR/RAINVIEWER) i stället för ett generiskt RADAR, så det går att se vilken leverantör som faktiskt valts.
+- Viktigt: manifest- och tile-validering i koden bevisar inte att MapLibre visar rasterlagret korrekt i iPhone-appen. Det kräver fortfarande en fysisk enhetstest.
