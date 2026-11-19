@@ -348,6 +348,16 @@ private struct WindFieldOverlay: View {
         var grid = [WindVector](repeating: (0, 0, 0), count: nx * ny)
         guard samples.count >= 9, projectedPoints.count == samples.count else { return grid }
         let screenPositions = Dictionary(uniqueKeysWithValues: projectedPoints.map { ($0.id, $0) })
+        // Ignore samples far beyond the visible viewport. The model grid already
+        // includes a deliberate geographic margin, so a loose screen-space bound
+        // preserves edge support while preventing distant samples from biasing
+        // the interpolation after a pan or zoom.
+        let visibleSamples = samples.filter { sample in
+            guard let point = screenPositions[sample.id] else { return false }
+            return point.x >= -0.35 && point.x <= 1.35 &&
+                   point.y >= -0.35 && point.y <= 1.35
+        }
+        let interpolationSamples = visibleSamples.count >= 9 ? visibleSamples : samples
 
         for gy in 0..<ny {
             for gx in 0..<nx {
@@ -357,7 +367,7 @@ private struct WindFieldOverlay: View {
                 var u = 0.0
                 var v = 0.0
                 var speed = 0.0
-                for sample in samples {
+                for sample in interpolationSamples {
                     guard let projected = screenPositions[sample.id] else { continue }
                     let dx = px - projected.x
                     let dy = py - projected.y
@@ -1885,6 +1895,19 @@ private struct RegnvaktMapView: UIViewRepresentable {
                 }
                 activeRadarLayerID = nil
                 activeRadarSourceID = nil
+                // A feed can be cleared while a replacement frame is still
+                // pending. Retired frames must also be removed here; otherwise
+                // an older image can remain visible indefinitely because no
+                // incoming source exists to drive the map back to idle.
+                for item in retiredRadarLayers {
+                    if let layer = style.layer(withIdentifier: item.layerID) {
+                        style.removeLayer(layer)
+                    }
+                    if let source = style.source(withIdentifier: item.sourceID) {
+                        style.removeSource(source)
+                    }
+                }
+                retiredRadarLayers.removeAll()
                 appliedIdentity = identity
                 mapView?.setNeedsDisplay()
                 return
