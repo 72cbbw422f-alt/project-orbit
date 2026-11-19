@@ -1591,7 +1591,12 @@ private struct RegnvaktMapView: UIViewRepresentable {
         context.coordinator.precipitationTypesVisible = showPrecipitationTypes
         context.coordinator.onRadarFrameReady = onRadarFrameReady
         context.coordinator.onRegionChange = onRegionChange
+        context.coordinator.onWindProjectionChange = onWindProjectionChange
         context.coordinator.updateLocationMarker(on: map, coordinate: coordinate, title: locationTitle)
+        let projectionIdentity = cloudSamples.map { "\($0.id):\($0.latitude):\($0.longitude)" }.joined(separator: "|")
+        if context.coordinator.projectionSamplesIdentity != projectionIdentity {
+            context.coordinator.publishWindProjectionIfNeeded(from: map, identity: projectionIdentity)
+        }
         if let previous = context.coordinator.lastCoordinate,
            abs(previous.latitude - coordinate.latitude) > 0.001 ||
            abs(previous.longitude - coordinate.longitude) > 0.001 {
@@ -1622,6 +1627,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
         var precipitationTypesVisible = false
         var lastCoordinate: CLLocationCoordinate2D?
         private var styleReady = false
+        var projectionSamplesIdentity: String?
         private var appliedIdentity: String?
         private var appliedCloudIdentity: String?
         private var appliedPrecipitationIdentity: String?
@@ -1667,6 +1673,12 @@ private struct RegnvaktMapView: UIViewRepresentable {
         func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
             publishWindProjection(from: mapView)
             onRegionChange(mapView.centerCoordinate)
+        }
+
+        func publishWindProjectionIfNeeded(from mapView: MLNMapView, identity: String) {
+            guard projectionSamplesIdentity != identity else { return }
+            projectionSamplesIdentity = identity
+            publishWindProjection(from: mapView)
         }
 
         private func publishWindProjection(from mapView: MLNMapView) {
