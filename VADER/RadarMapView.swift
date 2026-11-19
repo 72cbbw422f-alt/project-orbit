@@ -395,7 +395,7 @@ private struct WindFieldOverlay: View {
                 let now = timeline.date.timeIntervalSinceReferenceDate
                 // Fewer, longer-lived trails create a calmer visual field and
                 // leave more rendering headroom on older iPhones.
-                let particleCount = 32
+                let particleCount = 64
                 for index in 0..<particleCount {
                     // Deterministic pseudo-random seed points; particles drift continuously
                     // through the interpolated Open-Meteo wind field and then respawn.
@@ -451,7 +451,7 @@ private struct WindFieldOverlay: View {
                     guard let head = trail.last else { continue }
                     let color = tint(localSpeed)
                     if trail.count > 2 {
-                        let visibleTrail = Array(trail.suffix(20))
+                        let visibleTrail = Array(trail.suffix(16))
                         var smoothPath = Path()
                         smoothPath.move(to: visibleTrail[0])
                         if visibleTrail.count > 2 {
@@ -469,7 +469,7 @@ private struct WindFieldOverlay: View {
                         // Soft halo plus a fine luminous core gives the trails
                         // the continuous, fluid appearance expected from a wind map.
                         context.stroke(smoothPath, with: .color(color.opacity(0.075)),
-                                       style: StrokeStyle(lineWidth: 4.0, lineCap: .round, lineJoin: .round))
+                                       style: StrokeStyle(lineWidth: 2.8, lineCap: .round, lineJoin: .round))
                         context.stroke(
                             smoothPath,
                             with: .linearGradient(
@@ -477,7 +477,7 @@ private struct WindFieldOverlay: View {
                                 startPoint: visibleTrail[0],
                                 endPoint: head
                             ),
-                            style: StrokeStyle(lineWidth: 1.35, lineCap: .round, lineJoin: .round)
+                            style: StrokeStyle(lineWidth: 1.1, lineCap: .round, lineJoin: .round)
                         )
                     }
                     let radius: CGFloat = 0.9 + CGFloat(min(localSpeed, 20)) * 0.035
@@ -1750,9 +1750,9 @@ private struct RegnvaktMapView: UIViewRepresentable {
                     // Neighboring 9x9 model points are roughly 10–15 km apart
                     // at this grid spacing. A wider, softer footprint blends
                     // adjacent samples into a field without hiding the basemap.
-                    layer.circleOpacity = NSExpression(forConstantValue: 0.52)
-                    layer.circleRadius = NSExpression(forConstantValue: 42)
-                    layer.circleBlur = NSExpression(forConstantValue: 0.92)
+                    layer.circleOpacity = NSExpression(forConstantValue: 0.58)
+                    layer.circleRadius = NSExpression(forConstantValue: 26)
+                    layer.circleBlur = NSExpression(forConstantValue: 0.82)
                     style.addLayer(layer)
                 }
                 if let layer = style.layer(withIdentifier: layerID) {
