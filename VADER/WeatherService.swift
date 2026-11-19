@@ -62,6 +62,10 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
             status = "Senast visade prognos • uppdaterar…"
         }
         WeatherNotificationScheduler.clearLegacyWeatherNotificationsOnce()
+        // Reconcile persisted notification schedules at launch. This removes
+        // alerts backed by cached forecasts that have aged beyond the freshness
+        // window, even when the app starts offline and cannot fetch new data.
+        WeatherNotificationScheduler.refreshFromStoredForecast()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyKilometer
         manager.distanceFilter = 1500
