@@ -346,7 +346,6 @@ enum WeatherNotificationScheduler {
         let delivered = await center.deliveredNotifications()
         guard defaults.string(forKey: tokenKey) == token,
               (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken else { return }
-        let desiredIDs = Set(selected.map(\.identifier))
         let locationPrefix = prefix + locationID.replacingOccurrences(of: ",", with: "_") + "."
         let preserveCurrentFrost = currentTemperature == nil
             && (defaults.object(forKey: "Regnvakt.notifications.frost") as? Bool ?? true)
