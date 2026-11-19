@@ -319,6 +319,12 @@ private struct WindSample: Identifiable {
 
 
 
+private struct WindScreenPoint: Identifiable {
+    let id: Int
+    let x: Double
+    let y: Double
+}
+
 private enum WindLayer: String, CaseIterable {
     case speed = "Vind"
     case gust = "Byvind"
@@ -328,7 +334,7 @@ private struct WindFieldOverlay: View {
     private typealias WindVector = (u: Double, v: Double, speed: Double)
 
     let samples: [WindSample]
-    let center: CLLocationCoordinate2D
+    let projectedPoints: [WindScreenPoint]
     let show: Bool
     let gustMode: Bool
 
@@ -340,7 +346,8 @@ private struct WindFieldOverlay: View {
     // the 120-cell interpolation grid on every animation tick.
     private var fieldGrid: [WindVector] {
         var grid = [WindVector](repeating: (0, 0, 0), count: nx * ny)
-        guard samples.count >= 9 else { return grid }
+        guard samples.count >= 9, projectedPoints.count == samples.count else { return grid }
+        let screenPositions = Dictionary(uniqueKeysWithValues: projectedPoints.map { ($0.id, $0) })
 
         for gy in 0..<ny {
             for gx in 0..<nx {
@@ -351,10 +358,9 @@ private struct WindFieldOverlay: View {
                 var v = 0.0
                 var speed = 0.0
                 for sample in samples {
-                    let sx = 0.5 + (sample.longitude - center.longitude) / 2.0
-                    let sy = 0.5 - (sample.latitude - center.latitude) / 1.2
-                    let dx = px - sx
-                    let dy = py - sy
+                    guard let projected = screenPositions[sample.id] else { continue }
+                    let dx = px - projected.x
+                    let dy = py - projected.y
                     let weight = 1.0 / max(dx * dx + dy * dy, 0.0025)
                     let magnitude = gustMode ? sample.gust : sample.speed
                     let radians = sample.direction * .pi / 180
@@ -595,6 +601,7 @@ struct RadarMapView: View {
     // Center belonging to the last successfully fetched sample set.
     // Keep it separate from the camera's pending center while the user pans.
     @State private var windSamplesCenter: CLLocationCoordinate2D?
+    @State private var windScreenPoints: [WindScreenPoint] = []
     @State private var windMapCenter: CLLocationCoordinate2D?
     @State private var windRequestID = UUID()
     @State private var windRefreshTask: Task<Void, Never>?
@@ -677,6 +684,7 @@ struct RadarMapView: View {
                         cloudSamples: windSamples,
                         showClouds: showClouds,
                         showPrecipitationTypes: showPrecipitationTypes,
+                        onWindProjectionChange: { points in windScreenPoints = points },
                         onRadarFrameReady: { radarFrameReady = true },
                         onRegionChange: { center in
                             windMapCenter = center
@@ -702,7 +710,7 @@ struct RadarMapView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     WindFieldOverlay(
                         samples: windSamples,
-                        center: windSamplesCenter ?? windMapCenter ?? mapCoordinate,
+                        projectedPoints: windScreenPoints,
                         show: showWind,
                         gustMode: windLayer == .gust
                     )
@@ -1542,6 +1550,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
     let cloudSamples: [WindSample]
     let showClouds: Bool
     let showPrecipitationTypes: Bool
+    let onWindProjectionChange: ([WindScreenPoint]) -> Void
     let onRadarFrameReady: () -> Void
     let onRegionChange: (CLLocationCoordinate2D) -> Void
     private let styleURL = URL(string: "https://tiles.openfreemap.org/styles/fiord")!
@@ -1567,6 +1576,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
         context.coordinator.precipitationTypesVisible = showPrecipitationTypes
         context.coordinator.onRadarFrameReady = onRadarFrameReady
         context.coordinator.onRegionChange = onRegionChange
+        context.coordinator.onWindProjectionChange = onWindProjectionChange
         context.coordinator.updateLocationMarker(on: map, coordinate: coordinate, title: locationTitle)
         return map
     }
@@ -1600,6 +1610,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
     final class Coordinator: NSObject, MLNMapViewDelegate {
         var onRegionChange: (CLLocationCoordinate2D) -> Void
         var onRadarFrameReady: () -> Void = {}
+        var onWindProjectionChange: ([WindScreenPoint]) -> Void = { _ in }
         init(onRegionChange: @escaping (CLLocationCoordinate2D) -> Void) {
             self.onRegionChange = onRegionChange
         }
@@ -1654,7 +1665,29 @@ private struct RegnvaktMapView: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
+            publishWindProjection(from: mapView)
             onRegionChange(mapView.centerCoordinate)
+        }
+
+        private func publishWindProjection(from mapView: MLNMapView) {
+            guard mapView.bounds.width > 0, mapView.bounds.height > 0, !latestCloudSamples.isEmpty else {
+                onWindProjectionChange([])
+                return
+            }
+            let width = Double(mapView.bounds.width)
+            let height = Double(mapView.bounds.height)
+            let points = latestCloudSamples.map { sample -> WindScreenPoint in
+                let point = mapView.convertCoordinate(
+                    CLLocationCoordinate2D(latitude: sample.latitude, longitude: sample.longitude),
+                    toPointTo: mapView
+                )
+                return WindScreenPoint(
+                    id: sample.id,
+                    x: Double(point.x) / width,
+                    y: Double(point.y) / height
+                )
+            }
+            onWindProjectionChange(points)
         }
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
@@ -1669,6 +1702,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
             applyRadarIfReady()
             applyCloudsIfReady()
             applyPrecipitationTypesIfReady()
+            publishWindProjection(from: mapView)
         }
 
         func applyCloudsIfReady() {
