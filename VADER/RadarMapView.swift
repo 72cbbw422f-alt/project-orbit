@@ -325,10 +325,51 @@ private enum WindLayer: String, CaseIterable {
 }
 
 private struct WindFieldOverlay: View {
+    private typealias WindVector = (u: Double, v: Double, speed: Double)
+
     let samples: [WindSample]
     let center: CLLocationCoordinate2D
     let show: Bool
     let gustMode: Bool
+
+    private let nx = 12
+    private let ny = 10
+
+    // This derived field depends only on model samples, map center and gust mode.
+    // Keep it outside TimelineView so 8 Hz particle animation does not rebuild
+    // the 120-cell interpolation grid on every animation tick.
+    private var fieldGrid: [WindVector] {
+        var grid = [WindVector](repeating: (0, 0, 0), count: nx * ny)
+        guard samples.count >= 9 else { return grid }
+
+        for gy in 0..<ny {
+            for gx in 0..<nx {
+                let px = (Double(gx) + 0.5) / Double(nx)
+                let py = (Double(gy) + 0.5) / Double(ny)
+                var total = 0.0
+                var u = 0.0
+                var v = 0.0
+                var speed = 0.0
+                for sample in samples {
+                    let sx = 0.5 + (sample.longitude - center.longitude) / 2.0
+                    let sy = 0.5 - (sample.latitude - center.latitude) / 1.2
+                    let dx = px - sx
+                    let dy = py - sy
+                    let weight = 1.0 / max(dx * dx + dy * dy, 0.0025)
+                    let magnitude = gustMode ? sample.gust : sample.speed
+                    let radians = sample.direction * .pi / 180
+                    u += -sin(radians) * magnitude * weight
+                    v += -cos(radians) * magnitude * weight
+                    speed += magnitude * weight
+                    total += weight
+                }
+                if total > 0 {
+                    grid[gy * nx + gx] = (u / total, v / total, speed / total)
+                }
+            }
+        }
+        return grid
+    }
 
     private func tint(_ speed: Double) -> Color {
         switch speed {
@@ -341,48 +382,10 @@ private struct WindFieldOverlay: View {
     }
 
     var body: some View {
+        let fieldGrid = self.fieldGrid
         TimelineView(.animation(minimumInterval: 1.0 / 8.0, paused: !show || samples.count < 9)) { timeline in
             Canvas { context, size in
                 guard show, samples.count >= 9 else { return }
-
-                // Build a continuous vector field once per frame. Bilinear sampling
-                // between grid cells avoids the stepped direction changes of nearest-cell
-                // lookup, while keeping the 25 Open-Meteo observations as the only input.
-                let nx = 12
-                let ny = 10
-                typealias WindVector = (u: Double, v: Double, speed: Double)
-                var fieldGrid = [WindVector](repeating: (0, 0, 0), count: nx * ny)
-
-                for gy in 0..<ny {
-                    for gx in 0..<nx {
-                        let px = (Double(gx) + 0.5) / Double(nx)
-                        let py = (Double(gy) + 0.5) / Double(ny)
-                        var total = 0.0
-                        var u = 0.0
-                        var v = 0.0
-                        var speed = 0.0
-                        for sample in samples {
-                            // Anchor every sample to the actual camera center, not
-                            // the middle element of the response array. The center sample
-                            // can be missing when one of the parallel requests fails.
-                            let sx = 0.5 + (sample.longitude - center.longitude) / 2.0
-                            let sy = 0.5 - (sample.latitude - center.latitude) / 1.2
-                            let dx = px - sx
-                            let dy = py - sy
-                            let weight = 1.0 / max(dx * dx + dy * dy, 0.0025)
-                            let magnitude = gustMode ? sample.gust : sample.speed
-                            // Open-Meteo reports the direction the wind comes FROM.
-                            // Convert it to a screen-space vector pointing where it blows:
-                            // east is positive X; north is negative Y on the map canvas.
-                            let radians = sample.direction * .pi / 180
-                            u += -sin(radians) * magnitude * weight
-                            v += -cos(radians) * magnitude * weight
-                            speed += magnitude * weight
-                            total += weight
-                        }
-                        fieldGrid[gy * nx + gx] = (u / total, v / total, speed / total)
-                    }
-                }
 
                 func vector(at point: CGPoint) -> WindVector {
                     let gx = min(Double(nx - 1), max(0, Double(point.x / max(size.width, 1)) * Double(nx) - 0.5))
