@@ -347,20 +347,32 @@ enum WeatherNotificationScheduler {
         guard defaults.string(forKey: tokenKey) == token,
               (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken else { return }
         let desiredIDs = Set(selected.map(\.identifier))
+        let locationPrefix = prefix + locationID.replacingOccurrences(of: ",", with: "_") + "."
         let preserveCurrentFrost = currentTemperature == nil
             && (defaults.object(forKey: "Regnvakt.notifications.frost") as? Bool ?? true)
-        let oldIDs = pending.map(\.identifier).filter { identifier in
-            guard identifier.hasPrefix(prefix + locationID.replacingOccurrences(of: ",", with: "_") + "."), !desiredIDs.contains(identifier) else { return false }
-            if preserveCurrentFrost && identifier.contains(".frost.current.") { return false }
-            return true
+
+        // Replace pending requests for this location even when their stable
+        // identifier is unchanged. Forecast refreshes can revise the event's
+        // fire time, probability and wording while retaining the same local hour.
+        // Keep a current-frost request armed when no fresh current temperature
+        // is available; it must not be silently cancelled by a partial refresh.
+        let preservedPendingIDs = Set(pending.map(\.identifier).filter {
+            $0.hasPrefix(locationPrefix) && preserveCurrentFrost && $0.contains(".frost.current.")
+        })
+        let pendingIDsToReplace = pending.map(\.identifier).filter {
+            $0.hasPrefix(locationPrefix) && !preservedPendingIDs.contains($0)
         }
-        center.removePendingNotificationRequests(withIdentifiers: oldIDs)
-        let existingIDs = Set(pending.map(\.identifier)).union(delivered.map { $0.request.identifier })
+        center.removePendingNotificationRequests(withIdentifiers: pendingIDsToReplace)
+
+        // Delivered identifiers are retained as daily/event deduplication.
+        // Pending identifiers are deliberately not included: those were just
+        // replaced above and should be re-added with the latest forecast data.
+        let deliveredIDs = Set(delivered.map { $0.request.identifier })
         for request in selected {
             guard defaults.string(forKey: tokenKey) == token,
               (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken else { return }
             let isImmediate = (request.content.userInfo["immediate"] as? Bool) ?? false
-            if existingIDs.contains(request.identifier) {
+            if deliveredIDs.contains(request.identifier) || preservedPendingIDs.contains(request.identifier) {
                 if isImmediate, let alertDay = request.content.userInfo["alertDay"] as? Date {
                     defaults.set(alertDay, forKey: frostDayKey)
                 }
