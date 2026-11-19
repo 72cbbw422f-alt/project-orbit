@@ -1427,27 +1427,16 @@ struct RadarMapView: View {
                 localFormatter.locale = Locale(identifier: "en_US_POSIX")
                 localFormatter.timeZone = localTimeZone
                 localFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
-                // The Prognos layer must show forecast precipitation, not only
-                // the model's nearest current-hour value. Pick the wettest hourly
-                // step from now through the next three hours for each grid point.
-                // This produces a useful spatial forecast field when rain is
-                // expected shortly, even if the current hour is still dry.
-                let forecastReferenceTime = Date()
-                let forecastCandidates = hourlyTimes.enumerated().compactMap { item -> (index: Int, amount: Double, time: Date)? in
-                    guard hourlyAmounts.indices.contains(item.offset) else { return nil }
-                    let date = isoFormatter.date(from: item.element) ?? localFormatter.date(from: item.element)
-                    guard let date,
-                          date >= forecastReferenceTime.addingTimeInterval(-30 * 60),
-                          date <= forecastReferenceTime.addingTimeInterval(3 * 60 * 60) else { return nil }
-                    let amount = hourlyAmounts[item.offset].doubleValue
-                    guard amount.isFinite else { return nil }
-                    return (item.offset, max(0, amount), date)
-                }
-                let forecastIndex = forecastCandidates.max { $0.amount < $1.amount }?.index
-                let nearestHourlyIndex = forecastIndex ?? hourlyTimes.enumerated().compactMap { item -> (Int, TimeInterval)? in
+                // Use one shared forecast instant for every point in the map.
+                // Choosing each point's wettest hour independently creates a
+                // spatially incoherent layer (different places, different times).
+                // Aim 30 minutes ahead so the nearest hourly timestamp normally
+                // resolves to the next forecast hour across the whole grid.
+                let commonForecastTarget = Date().addingTimeInterval(30 * 60)
+                let nearestHourlyIndex = hourlyTimes.enumerated().compactMap { item -> (Int, TimeInterval)? in
                     let date = isoFormatter.date(from: item.element) ?? localFormatter.date(from: item.element)
                     guard let date else { return nil }
-                    return (item.offset, abs(date.timeIntervalSince(forecastReferenceTime)))
+                    return (item.offset, abs(date.timeIntervalSince(commonForecastTarget)))
                 }.min { $0.1 < $1.1 }?.0
 
                 let explicitType = nearestHourlyIndex.flatMap { hourlyTypes.indices.contains($0) ? hourlyTypes[$0].intValue : nil }
