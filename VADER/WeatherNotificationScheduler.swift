@@ -77,10 +77,16 @@ enum WeatherNotificationScheduler {
                 let token = UUID().uuidString
                 let tokenKey = scheduleTokenKey + "." + stored.locationID.replacingOccurrences(of: ",", with: "_")
                 defaults.set(token, forKey: tokenKey)
-                let temperatureIsFresh = Date().timeIntervalSince(stored.savedAt) <= 2 * 60 * 60
-                let temperature = temperatureIsFresh ? stored.currentTemperature : nil
+                let forecastAge = Date().timeIntervalSince(stored.savedAt)
+                let forecastIsFresh = forecastAge >= 0 && forecastAge <= 2 * 60 * 60
+                let temperature = forecastIsFresh ? stored.currentTemperature : nil
+                // A cached forecast older than two hours must not arm new
+                // future alerts: its timing and risk picture may be obsolete.
+                // Passing no hours clears stale forecast alerts while the
+                // scheduler's existing safeguard preserves a pending current-frost alert.
+                let hours = forecastIsFresh ? stored.hours : []
                 Task {
-                    await schedule(place: stored.place, hours: stored.hours, currentTemperature: temperature,
+                    await schedule(place: stored.place, hours: hours, currentTemperature: temperature,
                                    token: token, globalToken: globalToken, locationID: stored.locationID)
                 }
             }
