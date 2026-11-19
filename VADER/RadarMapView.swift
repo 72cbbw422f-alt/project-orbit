@@ -1691,9 +1691,9 @@ private struct RegnvaktMapView: UIViewRepresentable {
             let width = Double(mapView.bounds.width)
             let height = Double(mapView.bounds.height)
             let points = latestCloudSamples.map { sample -> WindScreenPoint in
-                let point = mapView.convertCoordinate(
+                let point = mapView.convert(
                     CLLocationCoordinate2D(latitude: sample.latitude, longitude: sample.longitude),
-                    toPointToView: mapView
+                    toPointTo: mapView
                 )
                 return WindScreenPoint(
                     id: sample.id,
