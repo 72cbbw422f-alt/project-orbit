@@ -1683,7 +1683,9 @@ private struct RegnvaktMapView: UIViewRepresentable {
 
         private func publishWindProjection(from mapView: MLNMapView) {
             guard mapView.bounds.width > 0, mapView.bounds.height > 0, !latestCloudSamples.isEmpty else {
-                onWindProjectionChange([])
+                DispatchQueue.main.async { [weak self] in
+                    self?.onWindProjectionChange([])
+                }
                 return
             }
             let width = Double(mapView.bounds.width)
@@ -1699,7 +1701,12 @@ private struct RegnvaktMapView: UIViewRepresentable {
                     y: Double(point.y) / height
                 )
             }
-            onWindProjectionChange(points)
+            // Defer SwiftUI state delivery: this method can be reached from
+            // UIViewRepresentable.updateUIView, where synchronous state writes
+            // would mutate the view hierarchy during an update pass.
+            DispatchQueue.main.async { [weak self] in
+                self?.onWindProjectionChange(points)
+            }
         }
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
