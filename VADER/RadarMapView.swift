@@ -163,6 +163,16 @@ private enum RadarService {
         guard frameAge >= -5 * 60, frameAge <= 20 * 60 else {
             throw URLError(.cannotLoadFromNetwork)
         }
+
+        // A directory listing and a recent timestamp do not prove that the
+        // actual radar PNG is downloadable or decodable. Validate the newest
+        // QCOMP image before selecting SMHI as the active provider; otherwise
+        // loadFrames falls through to the independently validated tile feeds.
+        guard let newestFrame = recent.last else {
+            throw URLError(.cannotParseResponse)
+        }
+        _ = try await loadImage(for: newestFrame)
+
         return recent
     }
 
@@ -284,7 +294,10 @@ private enum RadarService {
             let hint = challenge ?? body
             throw RadarImageError.httpStatus(http.statusCode, hint)
         }
-        guard let image = UIImage(data: data) else {
+        guard let image = UIImage(data: data),
+              image.cgImage != nil,
+              image.size.width >= 256,
+              image.size.height >= 256 else {
             throw RadarImageError.invalidImage
         }
         return image
