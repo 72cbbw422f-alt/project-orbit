@@ -252,7 +252,11 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
             guard let self else { return }
             if let lastFetch, Date().timeIntervalSince(lastFetch) < 300 { return }
             lastFetch = Date()
-            currentCoordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+            // Claim the request before reverse geocoding. Otherwise a slow
+            // location lookup can finish after a manual place selection and
+            // unexpectedly replace the user's chosen town with GPS weather.
+            let locationRequestID = UUID()
+            weatherRequestID = locationRequestID
             status = "Hämtar prognos för din position…"
             let location = CLLocation(latitude: latitude, longitude: longitude)
             let placeName: String
@@ -270,6 +274,8 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
             } catch {
                 placeName = "Min position"
             }
+            guard weatherRequestID == locationRequestID else { return }
+            currentCoordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
             loadWeather(latitude: latitude, longitude: longitude, placeName: placeName)
         }
     }
