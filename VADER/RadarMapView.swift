@@ -1593,7 +1593,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
         context.coordinator.onRegionChange = onRegionChange
         context.coordinator.onWindProjectionChange = onWindProjectionChange
         context.coordinator.updateLocationMarker(on: map, coordinate: coordinate, title: locationTitle)
-        let projectionIdentity = cloudSamples.map { "\($0.id):\($0.latitude):\($0.longitude)" }.joined(separator: "|")
+        let projectionIdentity = "\(Int(map.bounds.width))x\(Int(map.bounds.height))|" + cloudSamples.map { "\($0.id):\($0.latitude):\($0.longitude)" }.joined(separator: "|")
         if context.coordinator.projectionSamplesIdentity != projectionIdentity {
             context.coordinator.publishWindProjectionIfNeeded(from: map, identity: projectionIdentity)
         }
