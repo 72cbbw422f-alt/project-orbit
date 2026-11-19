@@ -922,7 +922,7 @@ struct RadarMapView: View {
                                 .font(.system(size: 12, weight: .heavy)).tracking(0.8).foregroundStyle(Color.cyan)
                             Text("Prognosmodell från Open-Meteo – inte en klassificering av radarbildens pixlar.")
                                 .font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.68))
-                            Text("Vill du se uppmätt nederbörd? Välj Regn för RainViewer-radarn.")
+                            Text("Vill du se uppmätt nederbörd? Slå på regnlagret för radardata.")
                                 .font(.system(size: 11, weight: .semibold)).foregroundStyle(Color(red: 0.98, green: 0.68, blue: 0.49))
                             Text(precipitationDiagnostics)
                                 .font(.system(size: 11, weight: .semibold))
@@ -1121,7 +1121,7 @@ struct RadarMapView: View {
             frames = []
             selectedImage = nil
             radarSourceStatus = nil
-            errorMessage = "Varken LibreWXR eller RainViewer kunde leverera radardata. Kontrollera internetanslutningen och försök igen."
+            errorMessage = "Ingen radarkälla kunde leverera användbar radardata. Kontrollera internetanslutningen och försök igen."
         }
         isLoading = false
     }
@@ -1396,6 +1396,7 @@ struct RadarMapView: View {
             }
 
             var results: [WindSample] = []
+            let commonForecastTarget = Date().addingTimeInterval(30 * 60)
             for (index, root) in locations.enumerated() {
                 guard index < coordinates.count,
                       let current = root["current"] as? [String: Any],
@@ -1435,7 +1436,6 @@ struct RadarMapView: View {
                 // spatially incoherent layer (different places, different times).
                 // Aim 30 minutes ahead so the nearest hourly timestamp normally
                 // resolves to the next forecast hour across the whole grid.
-                let commonForecastTarget = Date().addingTimeInterval(30 * 60)
                 let nearestHourlyIndex = hourlyTimes.enumerated().compactMap { item -> (Int, TimeInterval)? in
                     let date = isoFormatter.date(from: item.element) ?? localFormatter.date(from: item.element)
                     guard let date else { return nil }
