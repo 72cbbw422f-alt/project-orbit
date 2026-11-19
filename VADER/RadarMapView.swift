@@ -1918,6 +1918,20 @@ private struct RegnvaktMapView: UIViewRepresentable {
             // It is removed only from mapViewDidBecomeIdle after the new frame
             // has finished rendering, preventing the blank-map flash on every
             // ten-minute timestamp change.
+            // Keep exactly one previous frame beneath the incoming frame.
+            // If rapid refreshes arrive before MapLibre reaches idle, older
+            // retired sources must not accumulate indefinitely. The active
+            // frame remains visible while the newest source is loading.
+            for item in retiredRadarLayers {
+                if let layer = style.layer(withIdentifier: item.layerID) {
+                    style.removeLayer(layer)
+                }
+                if let source = style.source(withIdentifier: item.sourceID) {
+                    style.removeSource(source)
+                }
+            }
+            retiredRadarLayers.removeAll()
+
             if let layerID = activeRadarLayerID, let sourceID = activeRadarSourceID {
                 retiredRadarLayers.append((layerID, sourceID))
             }
