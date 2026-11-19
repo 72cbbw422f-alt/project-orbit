@@ -462,7 +462,14 @@ private enum OpenMeteoService {
         var apiCalendar = Calendar(identifier: .gregorian)
         apiCalendar.timeZone = apiTimeZone
         let currentHour = apiCalendar.dateInterval(of: .hour, for: now)?.start ?? now
-        let startIndex = hourlyTimes.firstIndex { (hourFormatter.date(from: $0) ?? .distantPast) >= currentHour } ?? 0
+        // Never fall back to index zero when the API returns only past hours.
+        // That would make an outdated observation look like the current forecast.
+        guard let startIndex = hourlyTimes.firstIndex(where: {
+            guard let date = hourFormatter.date(from: $0) else { return false }
+            return date >= currentHour
+        }) else {
+            throw URLError(.cannotParseResponse)
+        }
         let hours: [HourForecast] = hourlyTimes.indices
             .filter { $0 >= startIndex && $0 < startIndex + 168 }
             .compactMap { i in
