@@ -592,6 +592,9 @@ struct RadarMapView: View {
     @State private var windStatus = "Hämtar vindfält…"
     @State private var precipitationDiagnostics = "Väntar på modellvärden…"
     @State private var windUpdated: Date?
+    // Center belonging to the last successfully fetched sample set.
+    // Keep it separate from the camera's pending center while the user pans.
+    @State private var windSamplesCenter: CLLocationCoordinate2D?
     @State private var windMapCenter: CLLocationCoordinate2D?
     @State private var windRequestID = UUID()
     @State private var windRefreshTask: Task<Void, Never>?
@@ -680,12 +683,12 @@ struct RadarMapView: View {
                             // Invalidate any response for the previous camera position immediately.
                             windRequestID = UUID()
                             if showWind || showClouds || showPrecipitationTypes {
-                                // Never project old samples onto a new map center while the
-                                // debounced request is waiting; that would show a convincing
-                                // but geographically incorrect wind/cloud field.
-                                windSamples = []
-                                windUpdated = nil
-                                windStatus = "Kartområdet ändras – hämtar nya modellvärden…"
+                                // Keep the last successful field visible at its own coordinates
+                                // while the replacement request is debounced and fetched.
+                                // WindFieldOverlay uses windSamplesCenter, never the pending camera center.
+                                windStatus = windSamples.isEmpty
+                                    ? "Kartområdet ändras – hämtar nya modellvärden…"
+                                    : "Kartområdet ändras – visar senast hämtade data tills nya värden är klara…"
                                 // Debounce intermediate map-camera updates during a pan.
                                 windRefreshTask?.cancel()
                                 windRefreshTask = Task { @MainActor in
@@ -699,7 +702,7 @@ struct RadarMapView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     WindFieldOverlay(
                         samples: windSamples,
-                        center: windMapCenter ?? mapCoordinate,
+                        center: windSamplesCenter ?? windMapCenter ?? mapCoordinate,
                         show: showWind,
                         gustMode: windLayer == .gust
                     )
@@ -1487,6 +1490,7 @@ struct RadarMapView: View {
 
             guard !Task.isCancelled, windRequestID == requestID else { return }
             windSamples = results.sorted { $0.id < $1.id }
+            windSamplesCenter = center
             windUpdated = Date()
             let rainCount = results.filter { $0.precipitationType == 1 && $0.precipitation >= 0.05 }.count
             let snowCount = results.filter { $0.precipitationType == 2 && $0.precipitation >= 0.05 }.count
@@ -1498,7 +1502,9 @@ struct RadarMapView: View {
                 : (showClouds ? "Molntäcke delvis tillgängligt • \(results.count) av 81 punkter" : "Vindfält delvis tillgängligt • \(results.count) av 81 punkter")
         } catch {
             guard !Task.isCancelled, windRequestID == requestID else { return }
-            windStatus = "Kunde inte hämta vinddata för kartområdet. Försök igen."
+            windStatus = windSamples.isEmpty
+                ? "Kunde inte hämta vinddata för kartområdet. Försök igen."
+                : "Kunde inte uppdatera kartområdet. Visar senast hämtade modellvärden."
         }
     }
 
