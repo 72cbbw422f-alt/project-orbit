@@ -459,14 +459,12 @@ private enum OpenMeteoService {
         displayHour.timeZone = apiTimeZone
         displayHour.dateFormat = "HH"
         let now = Date()
-        var apiCalendar = Calendar(identifier: .gregorian)
-        apiCalendar.timeZone = apiTimeZone
-        let currentHour = apiCalendar.dateInterval(of: .hour, for: now)?.start ?? now
+        // Start at the first actual future hourly timestamp. Using the start
+        // of the current clock hour can label a timestamp already in the past as "Nu".
         // Never fall back to index zero when the API returns only past hours.
-        // That would make an outdated observation look like the current forecast.
         guard let startIndex = hourlyTimes.firstIndex(where: {
             guard let date = hourFormatter.date(from: $0) else { return false }
-            return date >= currentHour
+            return date >= now
         }) else {
             throw URLError(.cannotParseResponse)
         }
