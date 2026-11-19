@@ -47,7 +47,7 @@ struct LocationPermissionTestView: View {
 }
 
 @MainActor
-private final class LocationPermissionDiagnostic: NSObject, ObservableObject, CLLocationManagerDelegate {
+private final class LocationPermissionDiagnostic: NSObject, ObservableObject, @preconcurrency CLLocationManagerDelegate {
     @Published var statusText = "Inte testat på den här enheten ännu."
     @Published var coordinateText = ""
     @Published var isChecking = false
