@@ -603,6 +603,8 @@ struct RadarMapView: View {
     @State private var windSamplesCenter: CLLocationCoordinate2D?
     @State private var windScreenPoints: [WindScreenPoint] = []
     @State private var windMapCenter: CLLocationCoordinate2D?
+    @State private var windMapZoom: Double = 7.0
+    @State private var windMapSize: CGSize = CGSize(width: 390, height: 300)
     @State private var windRequestID = UUID()
     @State private var windRefreshTask: Task<Void, Never>?
 
@@ -686,8 +688,10 @@ struct RadarMapView: View {
                         showPrecipitationTypes: showPrecipitationTypes,
                         onWindProjectionChange: { points in windScreenPoints = points },
                         onRadarFrameReady: { radarFrameReady = true },
-                        onRegionChange: { center in
+                        onRegionChange: { center, zoom, size in
                             windMapCenter = center
+                            windMapZoom = zoom
+                            if size.width > 0 && size.height > 0 { windMapSize = size }
                             // Invalidate any response for the previous camera position immediately.
                             windRequestID = UUID()
                             if showWind || showClouds || showPrecipitationTypes {
@@ -702,7 +706,7 @@ struct RadarMapView: View {
                                 windRefreshTask = Task { @MainActor in
                                     try? await Task.sleep(nanoseconds: 700_000_000)
                                     guard !Task.isCancelled else { return }
-                                    await refreshWindField(center: center)
+                                    await refreshWindField(center: center, zoom: zoom, size: size)
                                 }
                             }
                         }
@@ -1360,22 +1364,39 @@ struct RadarMapView: View {
     }
 
     @MainActor
-    private func refreshWindField(center requestedCenter: CLLocationCoordinate2D? = nil) async {
+    private func refreshWindField(
+        center requestedCenter: CLLocationCoordinate2D? = nil,
+        zoom requestedZoom: Double? = nil,
+        size requestedSize: CGSize? = nil
+    ) async {
         let requestID = UUID()
         windRequestID = requestID
         windStatus = "Hämtar vinddata över området…"
         let center = requestedCenter ?? windMapCenter ?? mapCoordinate
+        let zoom = min(18, max(3, requestedZoom ?? windMapZoom))
+        let mapSize = requestedSize ?? windMapSize
         windMapCenter = center
+        windMapZoom = zoom
+        if mapSize.width > 0 && mapSize.height > 0 { windMapSize = mapSize }
 
-        // Sample a denser 9×9 geographic grid in one Open-Meteo request.
-        // The same map extent is retained; the additional points reduce the
-        // visible gaps in model overlays without pretending to be radar pixels.
-        let latitudeGrid = (-4...4).map { Double($0) * 0.15 }
-        let longitudeGrid = (-4...4).map { Double($0) * 0.25 }
+        // Scale the 9×9 model grid to the visible map footprint. Web-Mercator
+        // longitude span is constant per pixel; latitude span contracts by cos(latitude).
+        // A 30% margin keeps interpolation stable near the viewport edges.
+        let worldPixels = 256.0 * pow(2.0, zoom)
+        let longitudeSpan = Double(max(mapSize.width, 1)) * 360.0 / worldPixels
+        let latitudeSpan = Double(max(mapSize.height, 1)) * 360.0 / worldPixels
+            * max(0.08, cos(center.latitude * .pi / 180.0))
+        let halfLongitude = min(45.0, max(0.04, longitudeSpan * 0.65))
+        let halfLatitude = min(35.0, max(0.04, latitudeSpan * 0.65))
+        let latitudeGrid = (-4...4).map { Double($0) * halfLatitude / 4.0 }
+        let longitudeGrid = (-4...4).map { Double($0) * halfLongitude / 4.0 }
         let offsets: [(Double, Double)] = latitudeGrid.flatMap { lat in
             longitudeGrid.map { lon in (lat, lon) }
         }
-        let coordinates = offsets.map { (center.latitude + $0.0, center.longitude + $0.1) }
+        let coordinates = offsets.map { offset in
+            (min(85.0, max(-85.0, center.latitude + offset.0)),
+             ((center.longitude + offset.1 + 540.0).truncatingRemainder(dividingBy: 360.0)) - 180.0)
+        }
 
         var components = URLComponents(string: "https://api.open-meteo.com/v1/forecast")!
         components.queryItems = [
@@ -1552,7 +1573,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
     let showPrecipitationTypes: Bool
     let onWindProjectionChange: ([WindScreenPoint]) -> Void
     let onRadarFrameReady: () -> Void
-    let onRegionChange: (CLLocationCoordinate2D) -> Void
+    let onRegionChange: (CLLocationCoordinate2D, Double, CGSize) -> Void
     private let styleURL = URL(string: "https://tiles.openfreemap.org/styles/fiord")!
 
     func makeUIView(context: Context) -> MLNMapView {
@@ -1613,10 +1634,10 @@ private struct RegnvaktMapView: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(onRegionChange: onRegionChange) }
 
     final class Coordinator: NSObject, MLNMapViewDelegate {
-        var onRegionChange: (CLLocationCoordinate2D) -> Void
+        var onRegionChange: (CLLocationCoordinate2D, Double, CGSize) -> Void
         var onRadarFrameReady: () -> Void = {}
         var onWindProjectionChange: ([WindScreenPoint]) -> Void = { _ in }
-        init(onRegionChange: @escaping (CLLocationCoordinate2D) -> Void) {
+        init(onRegionChange: @escaping (CLLocationCoordinate2D, Double, CGSize) -> Void) {
             self.onRegionChange = onRegionChange
         }
         weak var mapView: MLNMapView?
@@ -1672,7 +1693,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
 
         func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
             publishWindProjection(from: mapView)
-            onRegionChange(mapView.centerCoordinate)
+            onRegionChange(mapView.centerCoordinate, mapView.zoomLevel, mapView.bounds.size)
         }
 
         func publishWindProjectionIfNeeded(from mapView: MLNMapView, identity: String) {
@@ -1722,6 +1743,7 @@ private struct RegnvaktMapView: UIViewRepresentable {
             applyCloudsIfReady()
             applyPrecipitationTypesIfReady()
             publishWindProjection(from: mapView)
+            onRegionChange(mapView.centerCoordinate, mapView.zoomLevel, mapView.bounds.size)
         }
 
         func applyCloudsIfReady() {
