@@ -1794,14 +1794,22 @@ private struct RegnvaktMapView: UIViewRepresentable {
             let identity = latestImage.map { "smhi-\(ObjectIdentifier($0))" } ?? latestTileURL ?? "none"
             guard identity != appliedIdentity else { return }
 
-            // If there is no replacement image, remove the current layer rather
-            // than leaving stale precipitation on screen.
+            // If there is no replacement image, remove the current layer immediately.
+            // There may be no incoming source to trigger mapViewDidBecomeIdle, so
+            // deferring this cleanup could leave stale precipitation visible.
             guard latestImage != nil || latestTileURL != nil else {
-                if let layerID = activeRadarLayerID, let sourceID = activeRadarSourceID {
-                    retiredRadarLayers.append((layerID, sourceID))
-                    activeRadarLayerID = nil
-                    activeRadarSourceID = nil
+                if let layerID = activeRadarLayerID {
+                    if let layer = style.layer(withIdentifier: layerID) {
+                        style.removeLayer(layer)
+                    }
                 }
+                if let sourceID = activeRadarSourceID {
+                    if let source = style.source(withIdentifier: sourceID) {
+                        style.removeSource(source)
+                    }
+                }
+                activeRadarLayerID = nil
+                activeRadarSourceID = nil
                 appliedIdentity = identity
                 mapView?.setNeedsDisplay()
                 return
