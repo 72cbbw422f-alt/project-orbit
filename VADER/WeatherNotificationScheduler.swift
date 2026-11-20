@@ -353,8 +353,10 @@ enum WeatherNotificationScheduler {
         guard defaults.string(forKey: tokenKey) == token,
               (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken else { return }
         let locationPrefix = prefix + locationID.replacingOccurrences(of: ",", with: "_") + "."
-        let preserveCurrentFrost = currentTemperature == nil
-            && (defaults.object(forKey: "Regnvakt.notifications.frost") as? Bool ?? true)
+        // A current-frost request must survive forecast refreshes until iOS
+        // has delivered it. A fresh temperature must not cause a pending
+        // immediate alert to be removed and then suppressed by daily deduplication.
+        let preserveCurrentFrost = defaults.object(forKey: "Regnvakt.notifications.frost") as? Bool ?? true
 
         // Replace pending requests for this location even when their stable
         // identifier is unchanged. Forecast refreshes can revise the event's
@@ -377,10 +379,17 @@ enum WeatherNotificationScheduler {
             guard defaults.string(forKey: tokenKey) == token,
               (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken else { return }
             let isImmediate = (request.content.userInfo["immediate"] as? Bool) ?? false
-            if deliveredIDs.contains(request.identifier) || preservedPendingIDs.contains(request.identifier) {
+            if deliveredIDs.contains(request.identifier) {
+                // Record the daily frost deduplication only after iOS confirms
+                // delivery. Merely enqueueing a local notification is not delivery.
                 if isImmediate, let alertDay = request.content.userInfo["alertDay"] as? Date {
                     defaults.set(alertDay, forKey: frostDayKey)
                 }
+                continue
+            }
+            if preservedPendingIDs.contains(request.identifier) {
+                // Keep the existing pending request intact; it already carries
+                // the correct near-immediate trigger and stable daily identity.
                 continue
             }
             do {
@@ -390,9 +399,8 @@ enum WeatherNotificationScheduler {
                     center.removePendingNotificationRequests(withIdentifiers: [request.identifier])
                     return
                 }
-                if isImmediate, let alertDay = request.content.userInfo["alertDay"] as? Date {
-                    defaults.set(alertDay, forKey: frostDayKey)
-                }
+                // Do not mark the event as delivered here. It remains pending
+                // until iOS moves it into deliveredNotifications().
             } catch {
                 defaults.set("Fel vid schemaläggning: \(error.localizedDescription)", forKey: scheduleStatusKey)
             }
