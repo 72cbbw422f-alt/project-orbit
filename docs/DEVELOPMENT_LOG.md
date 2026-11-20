@@ -726,3 +726,34 @@ Varje arbetsomgång ska dokumentera:
 - Fastställ appens konservativa budget/reserv som produktpolicy, utan att kalla den iOS-plattformsgräns.
 - Implementera en enda global reconciliation och koppla in både kapacitetsberäkningen och urvalsmodellen.
 - Lägg till integrationstester för verkliga pending requests, samtidighet, borttagning av platser och aggregerad status.
+
+
+### Fördjupad spårning av anropsflödet för global reconciliation – 2026-11-20
+
+#### GitHub-status vid arbetets start
+- PR #1 är öppen, draft och inte sammanslagen. Aktuell head är `83fb73a3a96dbc346b5ecd534b61127b2fb19038`.
+- GitHub rapporterar nu `mergeable: true`; den tidigare observationen `mergeable: false` är inte längre aktuell.
+- Jämförelsen mot `feature/wind-radar` visar 428 commits före och 0 bakom. Inga PR-workflow-körningar returnerades för den kontrollerade committen. Detta bekräftar inte att CI har passerat.
+
+#### Verifierade anropsvägar
+- `WeatherViewModel.init()` anropar `refreshFromStoredForecast()` vid start.
+- `NotificationSettingsView` anropar `refreshFromStoredForecast()` vid ändringar av huvudreglage, vädervaktsreglage, förvarningstid och tysta timmar.
+- `WeatherViewModel.setMonitoring(enabled: true)` hämtar en prognos, anropar `refresh(...)` och därefter `refreshFromStoredForecast()`. Det ger både ett direkt platsjobb och en ny omgång platsjobb från registret.
+- `WeatherViewModel.setMonitoring(enabled: false)` tar bort platsens requests och registerpost, och anropar därefter `refreshFromStoredForecast()`.
+- `WeatherViewModel.removePlace()` använder samma borttagnings- och omplaneringsflöde.
+- `WeatherViewModel.loadWeather()` anropar `refresh(...)` för den valda platsen om den bevakas och hämtar sedan prognoser för övriga bevakade platser med separata `refresh(...)`-anrop.
+- Varje `refresh(...)` startar omedelbart ett eget asynkront `schedule(...)`-jobb. `refreshFromStoredForecast()` skapar dessutom ett separat jobb per registrerad plats. Det bekräftar att samtidighetsproblemet inte bara gäller statusnycklarna utan även att samma plats kan få överlappande schemaläggningsjobb.
+
+#### Konsekvenser som måste hanteras i implementationen
+- `refresh(...)` måste bli en registeruppdatering följd av en enda global reconciliation, inte starta ett eget platsjobb.
+- `refreshFromStoredForecast()` måste ta en enda snapshot av hela registret och starta exakt en reconciliation.
+- Borttagning måste invalidiera pågående reconciliation och starta en ny global reconciliation efter att registerändringen är synlig. En platsvis asynkron rensning får inte kunna lämna kvar ett gammalt urval eller skriva status efter den nya körningen.
+- Den nuvarande `schedule(...)`-metoden blandar händelsegenerering, iOS-requestkonstruktion, behörighetskontroll, per-plats urval, rensning, add och global statusrapportering. Dessa ansvar måste delas innan en global commit kan göras säkert.
+- Nuvarande urval bevarar väntande aktuell frost per plats, men budgeten väljs före pending-snapshot och räknar inte SMHI eller övriga namespace. En global implementation måste bygga bevarade kandidater från den faktiska pending-snapshoten och därefter välja alla platser gemensamt.
+- Den nuvarande metoden skriver global status även från felhantering inne i varje platsjobb. Fel måste i stället samlas och rapporteras från den globala reconciliationens slutresultat.
+
+#### Verifiering och avgränsning
+- Granskat aktuell scheduler, budgetmodell, budgettester, NotificationSettingsView och WeatherService på utvecklingsgrenen.
+- Ingen källkod ändrades i denna granskning. Inga XCTest, XcodeGen, iOS-build eller enhetstester kördes.
+- Nästa kodsteg är att extrahera requestbyggandet från den gamla platsvisa `schedule(...)`-metoden och införa en enda global reconciliation med generationskontroll före borttagning och varje tillägg.
+- Ingen IPA har byggts. Fysisk iPhone-verifiering återstår.
