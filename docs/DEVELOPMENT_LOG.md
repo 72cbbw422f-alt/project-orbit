@@ -757,3 +757,14 @@ Varje arbetsomgång ska dokumentera:
 - Ingen källkod ändrades i denna granskning. Inga XCTest, XcodeGen, iOS-build eller enhetstester kördes.
 - Nästa kodsteg är att extrahera requestbyggandet från den gamla platsvisa `schedule(...)`-metoden och införa en enda global reconciliation med generationskontroll före borttagning och varje tillägg.
 - Ingen IPA har byggts. Fysisk iPhone-verifiering återstår.
+
+
+### Klassificering av väntande notiser per namespace – 2026-11-20
+
+- Lade till `WeatherNotificationPendingCounts` och `WeatherNotificationBudget.countExternalPendingRequests(...)`.
+- Klassificeringen räknar `smhi.*` separat, räknar alla andra externa namespace som unrelated och exkluderar `regnvakt.weather.*`, eftersom forecast-namespace ska ersättas av reconciliation.
+- Lade till två XCTest-fall för blandade namespace samt tomma/okända namespace.
+- `WeatherNotificationBudget.swift` och `WeatherNotificationBudgetTests.swift` ändrades. Ändringen är en testbar byggsten och är ännu inte inkopplad i live-schemaläggaren.
+- Lokal kontroll: `swiftc -typecheck` av den isolerade Foundation-baserade budgetkällan passerade. XCTest/XcodeGen/iOS-build kan inte köras i denna Linux-miljö.
+- Commit: `cfdc03e0ee798f12931870a0c7e30664c09a2de1` (budgetmodell), följt av `c69925f168d63bec9daabe91c9f979ed18c46ee9` (tester).
+- Kvar: koppla klassificeringen till en enda pending-snapshot i global reconciliation och verifiera med integrationstester. Ingen IPA eller fysisk enhetstestning.
