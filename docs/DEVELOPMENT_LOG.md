@@ -645,3 +645,14 @@ Varje arbetsomgång ska dokumentera:
 - Nästa tekniska åtgärd: införa en serialiserad global samordning/kapacitetsbudget som räknar befintliga väntande Regnvakt-notiser, reserverar utrymme för SMHI och prioriterar omedelbar frost/is innan vanliga prognosnotiser. Statusvärden ska räknas och skrivas efter en samlad reconciliation, inte från varje platskörning.
 - Ingen kodändring gjord i denna granskningspass. Inga tester eller byggningar kördes. Fysisk iPhone-verifiering återstår.
 - CI för aktuell branch-head är inte bekräftad via commit-status eller PR-körningslistan i denna kontroll; tidigare godkända körningar gäller äldre commits och får inte räknas som verifiering av aktuell HEAD.
+
+
+
+### Fördjupad granskning – separering av SMHI- och prognosnotiser – 2026-11-20
+- Följt avstängnings- och rensningsvägarna i `WeatherNotificationScheduler`.
+- Bekräftat att den globala avstängningsgrenen tar bort samtliga väntande `regnvakt.weather.`-notiser och anropar dessutom `SMHIWarningService.clearPendingNotifications()`. Det innebär att den vanliga aviseringsinställningen i denna kodväg även påverkar väntande SMHI-varningar. Detta ska inte ändras utan att inställningarnas avsedda semantik och SMHI-tjänstens egen livscykel har verifierats.
+- Bekräftat att `removeAll()` rensar både `regnvakt.weather.` och `smhi.` från väntande och levererade notiser. Denna metod är en bred totalrensning och får inte återanvändas som en vanlig plats- eller prognosreconciliation.
+- Bekräftat att per-plats schemaläggning endast filtrerar och ersätter sina egna `regnvakt.weather.<plats>.`-identifierare. SMHI-notiser räknas inte in i den nuvarande 52-gränsen; kommentaren om reserverat utrymme är därför inte en faktisk kapacitetsreservation.
+- Arkitekturkrav för nästa implementation: behåll tydliga ägarskapsgränser mellan prognosnotiser och SMHI-varningar. Reconciliation ska endast ta bort identifierare som Regnvakt-schemaläggaren äger, räkna verkligt kvarvarande pending-notiser innan kapacitet väljs och aldrig radera SMHI-varningar som bieffekt av en vanlig prognosuppdatering.
+- Ytterligare verifiering krävs av SMHI-tjänstens egna inställningar och identifierarformat innan ändring av avstängningsbeteendet. Ingen kodändring gjord i denna granskning.
+- Tester/build kördes inte i denna dokumentationspass. Branchens aktuella CI-resultat är fortsatt inte bekräftat; fysisk iPhone-verifiering återstår.
