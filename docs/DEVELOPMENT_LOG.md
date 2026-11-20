@@ -594,3 +594,13 @@ Varje arbetsomgång ska dokumentera:
 - Vid granskning hittades kvarvarande användartext som felaktigt beskrev RainViewer som aktiv radarkälla även när LibreWXR används. Informationsrutan och felmeddelandet är nu leverantörsneutrala.
 - Tidslinjens rubrik visar nu aktiv källa (LibreWXR/RAINVIEWER) i stället för ett generiskt RADAR, så det går att se vilken leverantör som faktiskt valts.
 - Viktigt: manifest- och tile-validering i koden bevisar inte att MapLibre visar rasterlagret korrekt i iPhone-appen. Det kräver fortfarande en fysisk enhetstest.
+
+
+### Uppföljning – leveranssäkerhet för omedelbar frostrisk och testbarhet – 2026-11-20
+- Granskning av schemaläggarens livscykel visade att en aktuell frostavisering kunde tas bort vid nästa prognosuppdatering innan iOS hade levererat den. Schemaläggaren markerade dessutom aviseringen som dagens redan hanterade när den endast hade lagts i kön.
+- Ändrat så att väntande omedelbara frostaviseringar bevaras över prognosuppdateringar även när en ny aktuell temperatur finns.
+- Dagens dedupliceringsdatum skrivs nu när samma identifierare återfinns bland iOS levererade notiser, inte när den bara läggs i väntande kö.
+- Första CI-testkörningen (#44750142014) avslöjade ett testkonfigurationsfel: testmålet kunde inte importera appmodulen `VADER` (`No such module 'VADER'`). XcodeGen-genereringen passerade.
+- Flyttat `FrostRiskRules` till `VADER/FrostRiskRules.swift`. Testmålet kompilerar nu samma källfil direkt i stället för att importera appmodulen.
+- Senaste kodcommit: `83cf4e1a6ae1316d37343e74c2db488bd9b6625b`. CI för denna commit inväntas.
+- Fysisk iPhone-leverans är fortsatt ej verifierad.
