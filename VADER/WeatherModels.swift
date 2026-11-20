@@ -15,6 +15,26 @@ enum WeatherWatchRules {
     }
 }
 
+/// Shared frost and ice thresholds used by both the watch UI and notification scheduler.
+/// Forecast temperatures are supplied as whole degrees by the current forecast model.
+enum FrostRiskRules {
+    static func temperatureThreshold(forLocalHour hour: Int) -> Int {
+        (hour >= 18 || hour < 9) ? 1 : 0
+    }
+
+    static func isFrostRisk(temperature: Int, localHour: Int) -> Bool {
+        temperature <= temperatureThreshold(forLocalHour: localHour)
+    }
+
+    static func isWetNearFreeze(
+        temperature: Int,
+        hasRecentWetWeather: Bool,
+        freezingPrecipitation: Bool
+    ) -> Bool {
+        temperature <= 1 && (hasRecentWetWeather || freezingPrecipitation)
+    }
+}
+
 
 struct WeatherRiskAssessment {
     let rain: Bool
@@ -69,12 +89,11 @@ struct WeatherRiskAssessment {
         var swedishCalendar = Calendar(identifier: .gregorian)
         swedishCalendar.timeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
         let currentHour = swedishCalendar.component(.hour, from: now)
-        let currentThreshold = (currentHour >= 18 || currentHour < 9) ? 1 : 0
-        let currentFrost = weather.temperature <= currentThreshold
+        let currentFrost = FrostRiskRules.isFrostRisk(temperature: weather.temperature, localHour: currentHour)
         let forecastFrost = upcoming.contains { hour in
             guard let date = formatter.date(from: hour.id) else { return false }
             let localHour = swedishCalendar.component(.hour, from: date)
-            return hour.temperature <= ((localHour >= 18 || localHour < 9) ? 1 : 0)
+            return FrostRiskRules.isFrostRisk(temperature: hour.temperature, localHour: localHour)
         }
         let timedUpcoming = upcoming.compactMap { hour -> (HourForecast, Date)? in
             guard let date = formatter.date(from: hour.id) else { return nil }
@@ -97,7 +116,11 @@ struct WeatherRiskAssessment {
                 return previous.precipitation >= 0.2 ||
                     (previous.precipitationChance >= 50 && previousWetCondition)
             }
-            return wetNow || recentWet || condition.contains("underkylt")
+            return FrostRiskRules.isWetNearFreeze(
+                temperature: hour.temperature,
+                hasRecentWetWeather: wetNow || recentWet,
+                freezingPrecipitation: condition.contains("underkylt")
+            )
         }?.0
 
         let level = smhiLevel.lowercased()
@@ -113,7 +136,7 @@ struct WeatherRiskAssessment {
             forecastFrostHour: upcoming.first { hour in
                 guard let date = formatter.date(from: hour.id) else { return false }
                 let localHour = swedishCalendar.component(.hour, from: date)
-                return hour.temperature <= ((localHour >= 18 || localHour < 9) ? 1 : 0)
+                return FrostRiskRules.isFrostRisk(temperature: hour.temperature, localHour: localHour)
             },
             hasForecastData: !upcoming.isEmpty,
             hasOfficialWarning: smhiActive,

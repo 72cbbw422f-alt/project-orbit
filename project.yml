@@ -39,3 +39,17 @@ targets:
         INFOPLIST_KEY_UIRequiresFullScreen: YES
         INFOPLIST_KEY_UIStatusBarHidden: YES
         INFOPLIST_KEY_CFBundleIconName: AppIcon
+
+  VADERTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: VADER
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.vader.VADERTests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Regnvakt.app/VADRA"
+        BUNDLE_LOADER: "$(TEST_HOST)"

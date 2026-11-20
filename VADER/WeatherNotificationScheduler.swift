@@ -433,10 +433,8 @@ enum WeatherNotificationScheduler {
         // The current-temperature frost check above remains immediate and separate.
         let forecastHorizon = WeatherWatchRules.notificationForecastHorizon(from: now)
         let currentHour = swedishCalendar.component(.hour, from: now)
-        let currentOvernight = currentHour >= 18 || currentHour < 9
-        let currentThreshold = currentOvernight ? 1 : 0
         let currentFrost = (defaults.object(forKey: "Regnvakt.notifications.frost") as? Bool ?? true)
-            && (currentTemperature.map { $0 <= currentThreshold } ?? false)
+            && (currentTemperature.map { FrostRiskRules.isFrostRisk(temperature: $0, localHour: currentHour) } ?? false)
         let lastCurrentFrostAlertDay = defaults.object(forKey: frostDayKey) as? Date
         let alreadyAlertedForCurrentFrostToday = lastCurrentFrostAlertDay.map {
             swedishCalendar.isDate($0, inSameDayAs: now)
@@ -514,12 +512,9 @@ enum WeatherNotificationScheduler {
 
             if defaults.object(forKey: "Regnvakt.notifications.frost") as? Bool ?? true {
                 let localHour = swedishCalendar.component(.hour, from: date)
-                let overnight = localHour >= 18 || localHour < 9
                 // Forecast temperatures are whole degrees. A 1°C buffer is used
                 // overnight; during daytime, require freezing temperature.
-                let frostThreshold = overnight ? 1 : 0
-
-                if hour.temperature <= frostThreshold {
+                if FrostRiskRules.isFrostRisk(temperature: hour.temperature, localHour: localHour) {
                     let calendar = swedishCalendar
                     let eventDay = calendar.startOfDay(for: date)
                     // One forecast frost warning per local calendar day and

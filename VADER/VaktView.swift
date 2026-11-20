@@ -73,8 +73,7 @@ struct VaktDashboard: View {
         var swedishCalendar = Calendar(identifier: .gregorian)
         swedishCalendar.timeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
         let currentHourOfDay = swedishCalendar.component(.hour, from: Date())
-        let currentFrostThreshold = (currentHourOfDay >= 18 || currentHourOfDay < 9) ? 1 : 0
-        let currentFrost = weather.temperature <= currentFrostThreshold
+        let currentFrost = FrostRiskRules.isFrostRisk(temperature: weather.temperature, localHour: currentHourOfDay)
         let frost = assessment.frost
         let precipitationTitle = "NEDERBÖRDSVAKTEN"
         let firstPrecipitation = upcoming.first { hour in
