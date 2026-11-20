@@ -119,3 +119,13 @@ Detta innebär att samma plats kan få både ett direkt `schedule(...)`-jobb och
 
 ### Viktig risk
 En aktör eller ett serialiserat Task-flöde får inte antas vara tillräckligt utan generationskontroll: Swift actors kan återinträda vid `await`. Ingen destructive operation får utföras av en föråldrad generation.
+
+
+## Klassificering av extern pending-kö
+
+`WeatherNotificationBudget.countExternalPendingRequests(identifiers:forecastPrefix:smhiPrefix:)` klassificerar en och samma pending-snapshot i tre ägarkategorier:
+- `regnvakt.weather.*`: forecast requests som reconciliation får ersätta; räknas inte som extern belastning.
+- `smhi.*`: SMHI requests som ägs av SMHI-servicen och ska räknas in i den delade pending-kapaciteten.
+- Alla andra identifierare: externa/övriga requests som inte får raderas av forecast-schemaläggaren och som också belastar kapaciteten.
+
+Resultatet är `WeatherNotificationPendingCounts(smhi:unrelated:)`. Funktionen är ren och testad, men ännu inte anropad av live-schemaläggaren. Den globala implementationen måste använda samma pending-snapshot för klassificering och för bevarande/rensning, så att köbilden inte blandas från olika tidpunkter.
