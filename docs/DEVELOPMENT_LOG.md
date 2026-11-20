@@ -668,3 +668,17 @@ Varje arbetsomgång ska dokumentera:
 - Säkerhetskrav: omedelbar frost och halkrisk ska ha högsta prioritet; SMHI:s befintliga kö och varningsägarskap ska bevaras; prognosreconciliation får endast ersätta `regnvakt.weather.`-identifierare. Huvudreglagets avsiktliga avstängning av båda kanalerna ska fortsatt hanteras explicit, inte som sidoeffekt av vanlig prognosuppdatering.
 - Ingen kodändring gjord: befintlig arkitektur behöver först omformas till en global reconciliation för att undvika att en isolerad budgethjälpare ger falsk trygghet. Inga tester eller byggen kördes. iPhone-verifiering återstår.
 - Nästa implementation: extrahera en ren, testbar urvalsmodell och koppla den till en enda samlad schemaläggningsoperation. Tester ska omfatta 1, 8, 52 och fler än 52 bevakade platser, kvarvarande frostrequests, SMHI-reserv, redan väntande notiser, noll tillgängliga platser och samtidig uppdatering/avaktivering.
+
+
+### Första implementationen av global notisbudget – 2026-11-20
+- Branch-head vid arbetets start var `a9295161ec3a509ce9f7c75e0d1ffaf0146b6ca9`; draft PR #1 var öppen mot `feature/wind-radar`.
+- Tillagt `VADER/WeatherNotificationBudget.swift`: Foundation-baserad och deterministisk urvalsmodell med prioritetsklasserna omedelbar frost, säkerhetskritisk frost/is och vanlig prognos.
+- Urvalsmodellen deduplicerar stabila identifierare, sorterar deterministiskt, filtrerar redan levererade identifierare och räknar bevarade väntande omedelbara frostnotiser före övriga kandidater. Redan väntande frostnotiser behålls även om de ensamma överskrider inmatad kapacitet; säkerhetsnotiser tas inte bort för att passa ett budgettal.
+- Tillagt `Tests/WeatherNotificationBudgetTests.swift` med tester för kapacitetsgränserna 0, 1, 8 och 52 (80 kandidater från 57 plats-ID:n), global prioritetsordning över flera platser, bevarad frost, leveransdeduplicering, dubbla identifierare och deterministisk sortering.
+- Uppdaterat `project.yml` så att produktionskällan även kompileras direkt i testmålet, i linje med tidigare lösning för fristående regeltester.
+- Uppdaterat `docs/NOTIFICATION_RECONCILIATION_DESIGN.md` med implementeringsstatus och tydlig avgränsning.
+- Verifiering: samtliga fyra ändrade/nya filer återlästa från GitHub. Produktionskällan för urvalsmodellen har klarat `swiftc -typecheck` med Swift 6.2.1 på Linux. Detta är endast syntax-/typkontroll av den fristående filen, inte XCTest, XcodeGen, iOS-bygg eller integrationstest.
+- CI: inga PR-workflow-körningar returnerades för aktuell HEAD `07b66ff07676e32d69f665123e8698d11b6415c4`. Ingen Xcode-miljö finns lokalt. Tester och iOS-build är därför inte verifierade.
+- Viktig begränsning: urvalsmodellen är ännu inte inkopplad i `WeatherNotificationScheduler`. Den globala reconciliationen, kapacitetsberäkningen mot verkliga pending SMHI/övriga requests, samtidighetsskyddet och samlad statusuppdatering återstår. Funktionen får inte betraktas som färdig.
+- Branch/commit: `feature/frost-notification-audit`, aktuell HEAD `07b66ff07676e32d69f665123e8698d11b6415c4`. Draft PR #1 är fortsatt öppen och har inte slagits ihop.
+- Fysisk iPhone-verifiering och IPA är inte aktuella förrän global scheduler-integration och CI har passerat.
