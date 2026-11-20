@@ -621,3 +621,11 @@ Varje arbetsomgång ska dokumentera:
 - Daglig deduplicering markeras endast när request-ID återfinns bland iOS levererade notiser. En request som bara accepterats i väntande kö räknas inte som levererad.
 - Verifierad filblob: `00b6a80761b92dc70e98bca2b2801e8968992df9`.
 - Senaste kodcommit: `c60b2fbcca87705fea2a5f290a645433ca64b12d`. Ny CI-körning #44751029686 är köad; resultat inväntas.
+
+
+### Ytterligare skydd – återhämtning av levererad aktuell frostavisering – 2026-11-20
+- Hittade ett kvarvarande gränsfall: om en omedelbar frostavisering levererats och temperaturen sedan stigit innan nästa prognosuppdatering, kunde den tidigare leveransen missas av den vanliga händelselistan. Dagens frostmarkör riskerade då att inte återställas, vilket kunde tillåta en ny prognosbaserad frostavisering samma dag.
+- Schemaläggaren läser nu levererade iOS-notiser för aktuell plats och återställer frostmarkören från levererade `.frost.current.`-identifierare och deras `alertDay`, även när aktuell temperatur inte längre innebär frostrisk.
+- Verifierat ändringen i aktuell gren genom att läsa tillbaka den skapade filblobben. Automatisk CI-körning #44754835740 är köad för commit `ee8f7ad54fd00cf6695a120d9eabf2ff2f669c19`.
+- Tidigare CI-körningar #44750850638 och #44750635575 har passerat samtliga steg inklusive tester, iOS-byggning och paketering av osignerad IPA. De körningarna föregår den senaste korrigeringen och utgör därför inte slutligt godkännande av aktuell HEAD.
+- Fysisk leverans och notisvisning på iPhone är fortfarande ej verifierade.
