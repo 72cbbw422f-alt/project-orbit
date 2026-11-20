@@ -21,7 +21,35 @@ struct WeatherNotificationCandidate {
     let isPreservedPendingCurrentFrost: Bool
 }
 
+
+struct WeatherNotificationPendingCounts: Equatable {
+    let smhi: Int
+    let unrelated: Int
+}
+
 enum WeatherNotificationBudget {
+    /// Classifies one pending-notification snapshot. Forecast-owned requests are
+    /// deliberately excluded because reconciliation replaces that namespace;
+    /// SMHI and every other owner continue consuming shared pending capacity.
+    static func countExternalPendingRequests(
+        identifiers: [String],
+        forecastPrefix: String = "regnvakt.weather.",
+        smhiPrefix: String = "smhi."
+    ) -> WeatherNotificationPendingCounts {
+        var smhi = 0
+        var unrelated = 0
+        for identifier in identifiers {
+            if identifier.hasPrefix(forecastPrefix) {
+                continue
+            } else if identifier.hasPrefix(smhiPrefix) {
+                smhi += 1
+            } else {
+                unrelated += 1
+            }
+        }
+        return WeatherNotificationPendingCounts(smhi: smhi, unrelated: unrelated)
+    }
+
     /// Calculates how many new forecast requests may be added under the app's
     /// conservative budget. The reserve is headroom in addition to requests
     /// already pending in the SMHI and unrelated namespaces.
