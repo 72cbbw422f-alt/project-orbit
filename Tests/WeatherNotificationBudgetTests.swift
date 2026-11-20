@@ -17,6 +17,42 @@ final class WeatherNotificationBudgetTests: XCTestCase {
         )
     }
 
+    func testAvailableCapacityAccountsForSMHIAndUnrelatedRequests() {
+        XCTAssertEqual(
+            WeatherNotificationBudget.availableForecastCapacity(
+                totalBudget: 52,
+                reservedHeadroom: 8,
+                pendingSMHI: 5,
+                pendingUnrelated: 3
+            ),
+            36
+        )
+    }
+
+    func testAvailableCapacityNeverBecomesNegative() {
+        XCTAssertEqual(
+            WeatherNotificationBudget.availableForecastCapacity(
+                totalBudget: 52,
+                reservedHeadroom: 8,
+                pendingSMHI: 40,
+                pendingUnrelated: 20
+            ),
+            0
+        )
+    }
+
+    func testAvailableCapacityClampsInvalidNegativeInputs() {
+        XCTAssertEqual(
+            WeatherNotificationBudget.availableForecastCapacity(
+                totalBudget: -1,
+                reservedHeadroom: -2,
+                pendingSMHI: -3,
+                pendingUnrelated: -4
+            ),
+            0
+        )
+    }
+
     func testCapacityBoundariesNeverExceedCapacity() {
         let items = (0..<80).map { candidate("n\($0)", location: "p\($0 % 57)", minutes: Double($0)) }
         for capacity in [0, 1, 8, 52] {
