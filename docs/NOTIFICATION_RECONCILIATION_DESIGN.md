@@ -1,6 +1,6 @@
 # Global notification reconciliation
 
-Status: pure selector implemented; scheduler integration not implemented
+Status: pure selector and edge-case tests implemented; scheduler integration not implemented
 Branch: `feature/frost-notification-audit`
 Updated: 2026-11-20
 
@@ -129,3 +129,11 @@ En aktör eller ett serialiserat Task-flöde får inte antas vara tillräckligt 
 - Alla andra identifierare: externa/övriga requests som inte får raderas av forecast-schemaläggaren och som också belastar kapaciteten.
 
 Resultatet är `WeatherNotificationPendingCounts(smhi:unrelated:)`. Funktionen är ren och testad, men ännu inte anropad av live-schemaläggaren. Den globala implementationen måste använda samma pending-snapshot för klassificering och för bevarande/rensning, så att köbilden inte blandas från olika tidpunkter.
+
+
+## Fördjupad kantfallstestning av urvalet – 2026-11-20
+
+- Utökat `Tests/WeatherNotificationBudgetTests.swift` med två explicita kantfall: flera redan väntande aktuella frostnotiser ska alla bevaras även när de överstiger tillgänglig kapacitet, och tomma identifierare ska ignoreras även vid negativ kapacitet.
+- Dessa tester dokumenterar säkerhetsprioriteringen i den rena urvalsmodellen. De innebär inte att modellen är inkopplad i `WeatherNotificationScheduler`.
+- En fristående Swift-körning av budgetmodellens relevanta beteende passerade för namespace-klassificering, kapacitetsavräkning, global prioritetsordning, bevarad frost vid noll kapacitet och deduplicering av levererade identifierare.
+- Den fristående körningen är inte XCTest och verifierar inte iOS/UserNotifications-integration.
