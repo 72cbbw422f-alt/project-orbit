@@ -145,6 +145,26 @@ final class WeatherNotificationBudgetTests: XCTestCase {
         )
     }
 
+    func testMultiplePreservedCurrentFrostRequestsSurviveCapacityOverflow() {
+        let items = [
+            candidate("frost-north", location: "north", priority: .immediateFrost, preserved: true),
+            candidate("frost-south", location: "south", priority: .immediateFrost, preserved: true),
+            candidate("ordinary", location: "west")
+        ]
+        XCTAssertEqual(
+            WeatherNotificationBudget.select(candidates: items, capacity: 0),
+            ["frost-north", "frost-south"]
+        )
+    }
+
+    func testEmptyIdentifiersAreIgnoredAndNegativeCapacityActsAsZero() {
+        let items = [
+            candidate("", priority: .immediateFrost),
+            candidate("ordinary", priority: .forecast)
+        ]
+        XCTAssertTrue(WeatherNotificationBudget.select(candidates: items, capacity: -10).isEmpty)
+    }
+
     func testSelectionIsDeterministicForEqualPriorityAndTime() {
         let items = [
             candidate("b", location: "b"),
