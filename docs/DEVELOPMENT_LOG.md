@@ -789,3 +789,15 @@ Varje arbetsomgång ska dokumentera:
 - `docs/NOTIFICATION_RECONCILIATION_DESIGN.md`: dokumenterade beslutet och dess avgränsning.
 - Verifiering: ändringarna sparades sekventiellt via GitHub och ska återläsas i slutkontrollen. XCTest och iOS-build är inte körda i denna miljö. Ingen CI-körning har ännu verifierats för den nya HEAD.
 - Kvar: implementera den enda generationsskyddade globala reconciliationen och koppla in budget, pending-klassificering och urval. Inga IPA- eller iPhone-tester är genomförda.
+
+
+### Interimistiskt skydd mot notisbudgetens platsöverskridande – 2026-11-20
+
+- GitHub kontrollerades före arbetet: PR #1 var öppen, draft och inte sammanslagen; utvecklingsgrenen var `feature/frost-notification-audit`.
+- `VADER/WeatherNotificationBudget.swift`: lade till `interimPerPlaceLimit(registryCount:)`, som fördelar grundkapaciteten 44 (total appbudget 52 minus reserv 8) mellan registrerade platser och aldrig tvingar fram minst en notis per plats.
+- `VADER/WeatherNotificationScheduler.swift`: den gamla beräkningen `max(1, min(8, 52 / registryCount))` ersattes med den nya tillfälliga hjälpfunktionen. Därmed kan fler än 44 platser inte automatiskt ge minst en ny prognosnotis var.
+- `Tests/WeatherNotificationBudgetTests.swift`: test tillagt för 1, 8, 44, 45, 52 och 0 registrerade platser.
+- `docs/NOTIFICATION_RECONCILIATION_DESIGN.md`: begränsningarna för interimslösningen dokumenterade.
+- Verifiering: GitHub-uppdateringarna lyckades; slutlig återläsning och branch/PR-kontroll följer. XCTest, Xcode/iOS-build och fysisk enhetstestning är inte körda i denna miljö.
+- Begränsning: detta är inte global reconciliation. Kapaciteten tar inte hänsyn till live-pending SMHI/övriga requests, kandidater väljs fortfarande per plats och parallella statusuppdateringar kvarstår.
+- Kvar: implementera en enda global read/select/replace/add/status-cykel med generationsskydd. Ingen IPA byggd.
