@@ -152,3 +152,15 @@ Första integrationsversionen använder följande konservativa app-policy:
 Värdena är nu namngivna konstanter i `WeatherNotificationBudget` och testas uttryckligen. De kan justeras efter verklig enhetsverifiering utan att formeln behöver dupliceras i schemaläggaren. Bevarade omedelbara frostnotiser får fortsatt överstiga budgeten av säkerhetsskäl.
 
 Status: policy fastställd och testfall tillagt; live-schemaläggaren använder ännu inte konstanterna.
+
+
+## Tillfälligt skydd mot överbudget i legacy-schemaläggaren – 2026-11-20
+
+Den gamla platsvisa schemaläggaren har fått ett begränsat skydd medan den globala reconciliationen byggs:
+
+- Per-platsgränsen använder nu `WeatherNotificationBudget.interimPerPlaceLimit(registryCount:)`.
+- Den utgår från appens grundkapacitet 44 (52 totalbudget minus 8 reserverade) och fördelar den över antalet registrerade platser, med max 8 per plats.
+- Den gamla nedre gränsen på en notis per plats är borttagen. Vid 45 eller fler platser kan därför en enskild plats få noll nya vanliga prognosnotiser i denna interimslösning i stället för att summan överskrider grundkapaciteten.
+- Tester täcker 1, 8, 44, 45, 52 och 0 registrerade platser.
+
+**Viktig begränsning:** Detta är endast en skadebegränsande övergångslösning. Den läser ännu inte verkligt väntande SMHI-/övriga notiser vid kapacitetsvalet, gör inte ett globalt prioriterat urval och undanröjer inte parallella statusuppdateringar. Den globala reconciliationen är fortfarande nödvändig.
