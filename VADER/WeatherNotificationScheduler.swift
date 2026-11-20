@@ -353,6 +353,21 @@ enum WeatherNotificationScheduler {
         guard defaults.string(forKey: tokenKey) == token,
               (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken else { return }
         let locationPrefix = prefix + locationID.replacingOccurrences(of: ",", with: "_") + "."
+        // Recover a current-frost alert delivered since the previous refresh,
+        // even if the live temperature has warmed and makeEvents no longer
+        // emits an immediate event. This prevents a second forecast-frost
+        // notification for the same Swedish calendar day.
+        let deliveredCurrentFrostDays = delivered.compactMap { notification -> Date? in
+            let request = notification.request
+            guard request.identifier.hasPrefix(locationPrefix),
+                  request.identifier.contains(".frost.current."),
+                  (request.content.userInfo["immediate"] as? Bool) == true else { return nil }
+            return request.content.userInfo["alertDay"] as? Date
+        }
+        if let latestDeliveredCurrentFrostDay = deliveredCurrentFrostDays.max() {
+            defaults.set(latestDeliveredCurrentFrostDay, forKey: frostDayKey)
+        }
+
         // Keep a current-frost request pending until iOS confirms delivery.
         // A fresh forecast must not cancel an immediate safety alert already queued.
         let preserveCurrentFrost = defaults.object(forKey: "Regnvakt.notifications.frost") as? Bool ?? true
