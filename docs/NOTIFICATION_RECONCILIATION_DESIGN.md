@@ -137,3 +137,18 @@ Resultatet är `WeatherNotificationPendingCounts(smhi:unrelated:)`. Funktionen �
 - Dessa tester dokumenterar säkerhetsprioriteringen i den rena urvalsmodellen. De innebär inte att modellen är inkopplad i `WeatherNotificationScheduler`.
 - En fristående Swift-körning av budgetmodellens relevanta beteende passerade för namespace-klassificering, kapacitetsavräkning, global prioritetsordning, bevarad frost vid noll kapacitet och deduplicering av levererade identifierare.
 - Den fristående körningen är inte XCTest och verifierar inte iOS/UserNotifications-integration.
+
+
+## Fastställd app-policy för notiskapacitet – 2026-11-20
+
+Första integrationsversionen använder följande konservativa app-policy:
+
+- Total budget för Regnvakts samlade pending-kö: **52** notiser.
+- Reserverat extra utrymme: **8** notiser.
+- Befintliga väntande `smhi.*`-notiser och andra namespace räknas dessutom av från kapaciteten.
+- Därmed är grundkapaciteten för prognosnotiser 44 när inga externa notiser väntar.
+- Detta är Regnvakts egen försiktiga budget, inte ett påstående om iOS plattformsgräns.
+
+Värdena är nu namngivna konstanter i `WeatherNotificationBudget` och testas uttryckligen. De kan justeras efter verklig enhetsverifiering utan att formeln behöver dupliceras i schemaläggaren. Bevarade omedelbara frostnotiser får fortsatt överstiga budgeten av säkerhetsskäl.
+
+Status: policy fastställd och testfall tillagt; live-schemaläggaren använder ännu inte konstanterna.
