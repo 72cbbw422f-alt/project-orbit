@@ -94,6 +94,15 @@ final class WeatherNotificationBudgetTests: XCTestCase {
         )
     }
 
+    func testInterimPerPlaceLimitDoesNotForceOneRequestPerPlace() {
+        XCTAssertEqual(WeatherNotificationBudget.interimPerPlaceLimit(registryCount: 1), 8)
+        XCTAssertEqual(WeatherNotificationBudget.interimPerPlaceLimit(registryCount: 8), 5)
+        XCTAssertEqual(WeatherNotificationBudget.interimPerPlaceLimit(registryCount: 44), 1)
+        XCTAssertEqual(WeatherNotificationBudget.interimPerPlaceLimit(registryCount: 45), 0)
+        XCTAssertEqual(WeatherNotificationBudget.interimPerPlaceLimit(registryCount: 52), 0)
+        XCTAssertEqual(WeatherNotificationBudget.interimPerPlaceLimit(registryCount: 0), 0)
+    }
+
     func testCapacityBoundariesNeverExceedCapacity() {
         let items = (0..<80).map { candidate("n\($0)", location: "p\($0 % 57)", minutes: Double($0)) }
         for capacity in [0, 1, 8, 52] {
