@@ -55,4 +55,20 @@ final class WeatherWatchRulesTests: XCTestCase {
         XCTAssertFalse(WeatherWatchRules.isQuietTime(date, setting: "22–22"))
         XCTAssertFalse(WeatherWatchRules.isQuietTime(date, setting: "24–07"))
     }
+
+    func testAlternateQuietHoursUseTheirOwnBoundaries() {
+        XCTAssertFalse(WeatherWatchRules.isQuietTime(stockholmDate("2026-11-20T22:59:00+01:00"), setting: "23–06"))
+        XCTAssertTrue(WeatherWatchRules.isQuietTime(stockholmDate("2026-11-20T23:00:00+01:00"), setting: "23–06"))
+        XCTAssertTrue(WeatherWatchRules.isQuietTime(stockholmDate("2026-11-21T05:59:00+01:00"), setting: "23–06"))
+        XCTAssertFalse(WeatherWatchRules.isQuietTime(stockholmDate("2026-11-21T06:00:00+01:00"), setting: "23–06"))
+    }
+
+    func testQuietHoursRemainCorrectAcrossSwedishDaylightSavingTime() {
+        // Sweden moves from CET to CEST on 2026-03-29; local quiet hours
+        // must remain 22:00–07:00 despite the skipped 02:00 hour.
+        XCTAssertTrue(WeatherWatchRules.isQuietTime(stockholmDate("2026-03-29T01:59:00+01:00"), setting: "22–07"))
+        XCTAssertTrue(WeatherWatchRules.isQuietTime(stockholmDate("2026-03-29T03:00:00+02:00"), setting: "22–07"))
+        XCTAssertTrue(WeatherWatchRules.isQuietTime(stockholmDate("2026-03-29T06:59:00+02:00"), setting: "22–07"))
+        XCTAssertFalse(WeatherWatchRules.isQuietTime(stockholmDate("2026-03-29T07:00:00+02:00"), setting: "22–07"))
+    }
 }
