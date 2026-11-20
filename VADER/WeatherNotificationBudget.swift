@@ -34,6 +34,21 @@ enum WeatherNotificationBudget {
     static let totalPendingBudget = 52
     static let reservedHeadroom = 8
 
+    /// Temporary safety guard for the legacy per-location scheduler.
+    /// This prevents the old minimum-one rule from exceeding the app's
+    /// forecast allocation when more than 44 locations are monitored.
+    /// It is not a substitute for global candidate selection.
+    static func interimPerPlaceLimit(registryCount: Int) -> Int {
+        guard registryCount > 0 else { return 0 }
+        let baseForecastCapacity = availableForecastCapacity(
+            totalBudget: totalPendingBudget,
+            reservedHeadroom: reservedHeadroom,
+            pendingSMHI: 0,
+            pendingUnrelated: 0
+        )
+        return min(8, baseForecastCapacity / registryCount)
+    }
+
     /// Classifies one pending-notification snapshot. Forecast-owned requests are
     /// deliberately excluded because reconciliation replaces that namespace;
     /// SMHI and every other owner continue consuming shared pending capacity.
