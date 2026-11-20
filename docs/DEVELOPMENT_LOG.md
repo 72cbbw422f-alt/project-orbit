@@ -656,3 +656,15 @@ Varje arbetsomgång ska dokumentera:
 - Arkitekturkrav för nästa implementation: behåll tydliga ägarskapsgränser mellan prognosnotiser och SMHI-varningar. Reconciliation ska endast ta bort identifierare som Regnvakt-schemaläggaren äger, räkna verkligt kvarvarande pending-notiser innan kapacitet väljs och aldrig radera SMHI-varningar som bieffekt av en vanlig prognosuppdatering.
 - Ytterligare verifiering krävs av SMHI-tjänstens egna inställningar och identifierarformat innan ändring av avstängningsbeteendet. Ingen kodändring gjord i denna granskning.
 - Tester/build kördes inte i denna dokumentationspass. Branchens aktuella CI-resultat är fortsatt inte bekräftat; fysisk iPhone-verifiering återstår.
+
+
+
+### Kapacitetsmodell och SMHI-kö – fördjupad verifiering – 2026-11-20
+- Återkontrollerade aktuell branch-head: `feature/frost-notification-audit` är identisk med dokumenterad commit `d0377eb86805a29b319f21c722b8b45cfdd96d05`. Draft PR #1 är fortsatt öppen. Inga workflow-körningar returnerades för denna commit; aktuell kod är därför inte CI-verifierad.
+- Lokaliserade SMHI-implementationen till `VADER/NotificationInboxView.swift` och följde dess faktiska köhantering, inte bara anropsställena i inställningsvyn.
+- Bekräftat att SMHI har en egen actor (`SMHIWarningNotificationGate`) för deduplicering och samtidiga anspråk. SMHI-tjänsten räknar befintliga väntande `smhi.`-requests och tillåter högst åtta aktiva SMHI-requests i sin egen kö. Varningar prioriteras röd, orange, gul.
+- Bekräftat att SMHI:s kö och prognosschemaläggarens urval är två separata budgetar. Prognosschemaläggaren väljer upp till 52 notiser i teorin, medan SMHI separat kan lägga till upp till åtta. Prognosbudgeten läser inte in övriga väntande appnotiser som en faktisk global kapacitetsbudget.
+- Förtydligat att enbart ändra `perPlaceLimit` inte löser problemet: platskörningarna skapar, tar bort och ersätter requests asynkront och skriver globala statusfält oberoende av varandra. En korrekt lösning behöver samla kandidater från samtliga registrerade platser, ta hänsyn till redan väntande requests och bevarade omedelbara frostnotiser, göra ett enda globalt urval och skriva status först efter avslutad reconciliation.
+- Säkerhetskrav: omedelbar frost och halkrisk ska ha högsta prioritet; SMHI:s befintliga kö och varningsägarskap ska bevaras; prognosreconciliation får endast ersätta `regnvakt.weather.`-identifierare. Huvudreglagets avsiktliga avstängning av båda kanalerna ska fortsatt hanteras explicit, inte som sidoeffekt av vanlig prognosuppdatering.
+- Ingen kodändring gjord: befintlig arkitektur behöver först omformas till en global reconciliation för att undvika att en isolerad budgethjälpare ger falsk trygghet. Inga tester eller byggen kördes. iPhone-verifiering återstår.
+- Nästa implementation: extrahera en ren, testbar urvalsmodell och koppla den till en enda samlad schemaläggningsoperation. Tester ska omfatta 1, 8, 52 och fler än 52 bevakade platser, kvarvarande frostrequests, SMHI-reserv, redan väntande notiser, noll tillgängliga platser och samtidig uppdatering/avaktivering.
