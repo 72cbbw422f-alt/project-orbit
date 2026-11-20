@@ -17,6 +17,33 @@ final class WeatherNotificationBudgetTests: XCTestCase {
         )
     }
 
+
+    func testPendingRequestClassificationExcludesForecastNamespace() {
+        let counts = WeatherNotificationBudget.countExternalPendingRequests(identifiers: [
+            "regnvakt.weather.north.rain.20261120",
+            "smhi.warning.123",
+            "other.feature.notification",
+            "regnvakt.weather.south.frost.20261120",
+            "smhi.warning.456"
+        ])
+        XCTAssertEqual(counts, WeatherNotificationPendingCounts(smhi: 2, unrelated: 1))
+    }
+
+    func testPendingRequestClassificationHandlesEmptyAndUnknownNamespaces() {
+        XCTAssertEqual(
+            WeatherNotificationBudget.countExternalPendingRequests(identifiers: []),
+            WeatherNotificationPendingCounts(smhi: 0, unrelated: 0)
+        )
+        XCTAssertEqual(
+            WeatherNotificationBudget.countExternalPendingRequests(
+                identifiers: ["", "another.app.alert"],
+                forecastPrefix: "forecast.",
+                smhiPrefix: "official."
+            ),
+            WeatherNotificationPendingCounts(smhi: 0, unrelated: 2)
+        )
+    }
+
     func testAvailableCapacityAccountsForSMHIAndUnrelatedRequests() {
         XCTAssertEqual(
             WeatherNotificationBudget.availableForecastCapacity(
