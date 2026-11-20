@@ -778,3 +778,14 @@ Varje arbetsomgång ska dokumentera:
 - Inga iOS-ramverk, XcodeGen, iOS-build eller fysisk iPhone kunde verifieras i Linux-miljön. Ingen IPA byggd.
 - Filer: `Tests/WeatherNotificationBudgetTests.swift`, `docs/NOTIFICATION_RECONCILIATION_DESIGN.md`, `docs/DEVELOPMENT_LOG.md`.
 - Kodens globala reconciliation är fortfarande inte integrerad. Per-plats `schedule(...)`-jobb, separata pending-snapshots och delade statusuppdateringar kvarstår. Nästa steg är att extrahera requestgenereringen och koppla kandidaterna till en enda generationsskyddad reconciliation.
+
+
+### Fastställd kapacitetspolicy inför global scheduler – 2026-11-20
+
+- GitHub kontrollerades före ändring: PR #1 är fortsatt öppen, draft och osammanslagen. Grenen `feature/frost-notification-audit` låg på `f5647bbfaab27551f16401eaaa5d21108d99e4df`; PR rapporterade `mergeable: true`.
+- Fastställde en första konservativ Regnvakt-policy: total pending-budget 52 och extra reserverat utrymme 8. Detta är appens interna budget, inte en iOS-plattformsgräns. Faktiskt väntande SMHI- och övriga notiser ska dras av utöver reserven.
+- `VADER/WeatherNotificationBudget.swift`: lade till namngivna konstanter för totalbudget och reserv.
+- `Tests/WeatherNotificationBudgetTests.swift`: kapacitetstester använder nu konstanterna och ett uttryckligt policytest verifierar grundkapaciteten 44.
+- `docs/NOTIFICATION_RECONCILIATION_DESIGN.md`: dokumenterade beslutet och dess avgränsning.
+- Verifiering: ändringarna sparades sekventiellt via GitHub och ska återläsas i slutkontrollen. XCTest och iOS-build är inte körda i denna miljö. Ingen CI-körning har ännu verifierats för den nya HEAD.
+- Kvar: implementera den enda generationsskyddade globala reconciliationen och koppla in budget, pending-klassificering och urval. Inga IPA- eller iPhone-tester är genomförda.
