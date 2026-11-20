@@ -353,8 +353,9 @@ enum WeatherNotificationScheduler {
         guard defaults.string(forKey: tokenKey) == token,
               (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken else { return }
         let locationPrefix = prefix + locationID.replacingOccurrences(of: ",", with: "_") + "."
-        let preserveCurrentFrost = currentTemperature == nil
-            && (defaults.object(forKey: "Regnvakt.notifications.frost") as? Bool ?? true)
+        // Keep a current-frost request pending until iOS confirms delivery.
+        // A fresh forecast must not cancel an immediate safety alert already queued.
+        let preserveCurrentFrost = defaults.object(forKey: "Regnvakt.notifications.frost") as? Bool ?? true
 
         // Replace pending requests for this location even when their stable
         // identifier is unchanged. Forecast refreshes can revise the event's
@@ -377,10 +378,15 @@ enum WeatherNotificationScheduler {
             guard defaults.string(forKey: tokenKey) == token,
               (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken else { return }
             let isImmediate = (request.content.userInfo["immediate"] as? Bool) ?? false
-            if deliveredIDs.contains(request.identifier) || preservedPendingIDs.contains(request.identifier) {
+            if deliveredIDs.contains(request.identifier) {
+                // Deduplicate only after iOS has actually delivered the alert.
                 if isImmediate, let alertDay = request.content.userInfo["alertDay"] as? Date {
                     defaults.set(alertDay, forKey: frostDayKey)
                 }
+                continue
+            }
+            if preservedPendingIDs.contains(request.identifier) {
+                // Keep the original near-immediate trigger and stable identifier.
                 continue
             }
             do {
@@ -390,9 +396,8 @@ enum WeatherNotificationScheduler {
                     center.removePendingNotificationRequests(withIdentifiers: [request.identifier])
                     return
                 }
-                if isImmediate, let alertDay = request.content.userInfo["alertDay"] as? Date {
-                    defaults.set(alertDay, forKey: frostDayKey)
-                }
+                // Enqueueing is not delivery. The daily marker is set only
+                // when this identifier appears in deliveredNotifications().
             } catch {
                 defaults.set("Fel vid schemaläggning: \(error.localizedDescription)", forKey: scheduleStatusKey)
             }
