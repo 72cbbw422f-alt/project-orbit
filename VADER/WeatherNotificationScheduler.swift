@@ -321,8 +321,8 @@ enum WeatherNotificationScheduler {
             requests.append(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
         }
 
-        // Keep well below iOS's pending local-notification limit and prioritize
-        // safety-critical frost/ice alerts before ordinary weather notices.
+        // Legacy per-place ordering remains until the global reconciliation
+        // replaces this method. Keep safety events ahead of ordinary forecasts.
         requests.sort {
             let leftImmediate = ($0.content.userInfo["immediate"] as? Bool) ?? false
             let rightImmediate = ($1.content.userInfo["immediate"] as? Bool) ?? false
@@ -334,16 +334,17 @@ enum WeatherNotificationScheduler {
             let rightDate = ($1.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() ?? .distantFuture
             return leftDate < rightDate
         }
-        // Reserve headroom for official SMHI alerts and other app notifications.
-        // Divide the weather-notification budget across every registered place.
+        // Temporary guard: the former max(1, ...) allowed aggregate forecast
+        // requests to exceed the app allocation when more than 44 places were
+        // monitored. The final global reconciler will replace this per-place cap.
         let registryCount: Int
         if let data = defaults.data(forKey: forecastRegistryKey),
            let registry = try? JSONDecoder().decode([String: StoredForecast].self, from: data) {
-            registryCount = max(1, registry.count)
+            registryCount = registry.count
         } else {
             registryCount = 1
         }
-        let perPlaceLimit = max(1, min(8, 52 / registryCount))
+        let perPlaceLimit = WeatherNotificationBudget.interimPerPlaceLimit(registryCount: registryCount)
         let selected = Array(requests.prefix(perPlaceLimit))
 
         
