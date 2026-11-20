@@ -209,7 +209,8 @@ enum WeatherNotificationScheduler {
                   (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken else { return }
             let staleIDs = pending.map(\.identifier).filter { $0.hasPrefix(prefix) }
             center.removePendingNotificationRequests(withIdentifiers: staleIDs)
-            SMHIWarningService.clearPendingNotifications()
+            // SMHI owns its notification namespace; the master settings handler
+            // performs explicit SMHI cleanup when the user disables all alerts.
             defaults.set("Aviseringar avstängda i Regnvakt", forKey: scheduleStatusKey)
             defaults.set(0, forKey: scheduledCountKey)
             defaults.set(Date().timeIntervalSince1970, forKey: scheduleUpdatedKey)
