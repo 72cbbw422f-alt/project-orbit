@@ -604,3 +604,12 @@ Varje arbetsomgång ska dokumentera:
 - Flyttat `FrostRiskRules` till `VADER/FrostRiskRules.swift`. Testmålet kompilerar nu samma källfil direkt i stället för att importera appmodulen.
 - Senaste kodcommit: `83cf4e1a6ae1316d37343e74c2db488bd9b6625b`. CI för denna commit inväntas.
 - Fysisk iPhone-leverans är fortsatt ej verifierad.
+
+
+### Fortsatt regelgranskning – tidsfönster och tysta timmar – 2026-11-20
+- Flyttat `WeatherWatchRules` till den fristående filen `VADER/WeatherWatchRules.swift` så även dessa regler kan testas utan att importera appmodulen.
+- Schemaläggaren använder nu den gemensamma `WeatherWatchRules.isQuietTime`-funktionen i stället för en privat kopia.
+- Tysta timmar tolkas i tidszonen `Europe/Stockholm`, inklusive intervall som passerar midnatt. `none`, ogiltiga intervall och identiska start-/sluttimmar ger inget tyst intervall (fail-open).
+- Lagt till tester för 8-timmars prognos-/notishorisont samt gränserna 21:59, 22:00, 06:59 och 07:00 för standardintervallet 22–07.
+- Bakgrundsgranskning: appens rotvy reagerar på `scenePhase == .active` och uppdaterar då SMHI-varningar. Jag hittar ingen registrerad `BGTaskScheduler`/`BGAppRefreshTask`-hantering i den granskade appkoden. Prognosbaserade lokala notiser är därför beroende av att aktuella prognoser hämtas när appen är aktiv eller när en platsbevakning aktiveras; en kontinuerlig bakgrundshämtning är inte verifierad och ska inte utlovas.
+- Senaste kodcommit: `2f9c1056cb21bf0c962ec88f6d39afea73a82204`. CI-körning inväntas.
