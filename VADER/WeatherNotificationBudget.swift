@@ -22,6 +22,24 @@ struct WeatherNotificationCandidate {
 }
 
 enum WeatherNotificationBudget {
+    /// Calculates how many new forecast requests may be added under the app's
+    /// conservative budget. The reserve is headroom in addition to requests
+    /// already pending in the SMHI and unrelated namespaces.
+    static func availableForecastCapacity(
+        totalBudget: Int,
+        reservedHeadroom: Int,
+        pendingSMHI: Int,
+        pendingUnrelated: Int
+    ) -> Int {
+        max(
+            0,
+            max(0, totalBudget) -
+                max(0, reservedHeadroom) -
+                max(0, pendingSMHI) -
+                max(0, pendingUnrelated)
+        )
+    }
+
     /// Returns stable identifiers in delivery priority order.
     ///
     /// Existing pending current-frost requests are retained even if they
