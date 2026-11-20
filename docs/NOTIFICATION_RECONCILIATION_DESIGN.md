@@ -94,3 +94,28 @@ Do not replace the current scheduler with a helper-only change. The pure selecto
 - det faktiska antalet väntande notiser i andra namespace.
 
 Negativa indata klampas till noll och resultatet kan aldrig bli negativt. Reserverat utrymme är uttryckligen extra marginal utöver de redan väntande notiserna. Funktionen är ännu inte inkopplad i schemaläggaren och anger inte någon dokumenterad iOS-plattformsgräns. Budgetvärden ska fastställas som app-policy innan integration.
+
+
+## Verifierat anropsflöde och integrationskrav (2026-11-20)
+
+Källkodens anropsvägar har följts genom `WeatherViewModel`, `NotificationSettingsView` och `WeatherNotificationScheduler`.
+
+- Appstart: `WeatherViewModel.init()` → `refreshFromStoredForecast()`.
+- Inställningsändring: respektive `onChange` i `NotificationSettingsView` → `refreshFromStoredForecast()`.
+- Aktiverad platsbevakning: `setMonitoring` → `refresh(...)` → `refreshFromStoredForecast()`.
+- Avaktiverad eller borttagen plats: `removeNotifications(...)` → `refreshFromStoredForecast()`.
+- Prognosladdning: `loadWeather` anropar `refresh(...)` för den valda bevakade platsen och varje annan bevakad plats efter separat prognoshämtning.
+
+Detta innebär att samma plats kan få både ett direkt `schedule(...)`-jobb och ett jobb som skapats av `refreshFromStoredForecast()`. En global reconciliation måste därför ersätta båda ingångarna; att bara samordna de befintliga platsjobben räcker inte.
+
+### Refaktorordning
+1. Gör `refresh(...)` till en synkron registeruppdatering och begär därefter en global reconciliation. Ta bort direktanropet till platsvis `schedule(...)`.
+2. Gör `refreshFromStoredForecast()` till en enda reconciliation-begäran med en register-snapshot, inte en Task per plats.
+3. Extrahera ren konstruktion av kandidater/UNNotificationRequest från den nuvarande `schedule(...)`-metoden. Behåll befintlig händelse- och identifierarlogik.
+4. Inför monoton generationsidentifierare. Varje ny refresh eller registerändring invaliderar äldre arbete; kontrollera generationen efter varje `await` och före rensning/tillägg.
+5. Läs pending, delivered och behörighet en gång per global körning. Bevara väntande aktuella frostnotiser och leveransmarkörer.
+6. Räkna SMHI och övriga requests från samma pending-snapshot. Kör `availableForecastCapacity` och `select` på den samlade kandidatlistan.
+7. Ersätt endast forecast-namespace och skriv aggregerad status en gång efter slutlig pending-avläsning.
+
+### Viktig risk
+En aktör eller ett serialiserat Task-flöde får inte antas vara tillräckligt utan generationskontroll: Swift actors kan återinträda vid `await`. Ingen destructive operation får utföras av en föråldrad generation.
