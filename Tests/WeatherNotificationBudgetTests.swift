@@ -47,8 +47,8 @@ final class WeatherNotificationBudgetTests: XCTestCase {
     func testAvailableCapacityAccountsForSMHIAndUnrelatedRequests() {
         XCTAssertEqual(
             WeatherNotificationBudget.availableForecastCapacity(
-                totalBudget: 52,
-                reservedHeadroom: 8,
+                totalBudget: WeatherNotificationBudget.totalPendingBudget,
+                reservedHeadroom: WeatherNotificationBudget.reservedHeadroom,
                 pendingSMHI: 5,
                 pendingUnrelated: 3
             ),
@@ -56,11 +56,25 @@ final class WeatherNotificationBudgetTests: XCTestCase {
         )
     }
 
+    func testDocumentedAppPolicyProvidesExpectedInitialCapacity() {
+        XCTAssertEqual(WeatherNotificationBudget.totalPendingBudget, 52)
+        XCTAssertEqual(WeatherNotificationBudget.reservedHeadroom, 8)
+        XCTAssertEqual(
+            WeatherNotificationBudget.availableForecastCapacity(
+                totalBudget: WeatherNotificationBudget.totalPendingBudget,
+                reservedHeadroom: WeatherNotificationBudget.reservedHeadroom,
+                pendingSMHI: 0,
+                pendingUnrelated: 0
+            ),
+            44
+        )
+    }
+
     func testAvailableCapacityNeverBecomesNegative() {
         XCTAssertEqual(
             WeatherNotificationBudget.availableForecastCapacity(
-                totalBudget: 52,
-                reservedHeadroom: 8,
+                totalBudget: WeatherNotificationBudget.totalPendingBudget,
+                reservedHeadroom: WeatherNotificationBudget.reservedHeadroom,
                 pendingSMHI: 40,
                 pendingUnrelated: 20
             ),
