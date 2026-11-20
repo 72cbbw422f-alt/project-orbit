@@ -28,6 +28,12 @@ struct WeatherNotificationPendingCounts: Equatable {
 }
 
 enum WeatherNotificationBudget {
+    /// Conservative Regnvakt app policy, not an iOS platform limit.
+    /// The reserve is additional headroom after counting already-pending
+    /// SMHI and unrelated notifications.
+    static let totalPendingBudget = 52
+    static let reservedHeadroom = 8
+
     /// Classifies one pending-notification snapshot. Forecast-owned requests are
     /// deliberately excluded because reconciliation replaces that namespace;
     /// SMHI and every other owner continue consuming shared pending capacity.
