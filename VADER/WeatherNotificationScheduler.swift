@@ -416,6 +416,10 @@ enum WeatherNotificationScheduler {
                 // Enqueueing is not delivery. The daily marker is set only
                 // when this identifier appears in deliveredNotifications().
             } catch {
+                // A failed add from an obsolete per-location task must not
+                // overwrite status written by a newer refresh/reconciliation.
+                guard defaults.string(forKey: tokenKey) == token,
+                      (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken else { return }
                 defaults.set("Fel vid schemaläggning: \(error.localizedDescription)", forKey: scheduleStatusKey)
             }
         }
