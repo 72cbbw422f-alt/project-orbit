@@ -682,3 +682,23 @@ Varje arbetsomgång ska dokumentera:
 - Viktig begränsning: urvalsmodellen är ännu inte inkopplad i `WeatherNotificationScheduler`. Den globala reconciliationen, kapacitetsberäkningen mot verkliga pending SMHI/övriga requests, samtidighetsskyddet och samlad statusuppdatering återstår. Funktionen får inte betraktas som färdig.
 - Branch/commit: `feature/frost-notification-audit`, aktuell HEAD `07b66ff07676e32d69f665123e8698d11b6415c4`. Draft PR #1 är fortsatt öppen och har inte slagits ihop.
 - Fysisk iPhone-verifiering och IPA är inte aktuella förrän global scheduler-integration och CI har passerat.
+
+
+## SMHI-ägarskap vid avstängning av prognosnotiser – 2026-11-20
+
+### Ändring
+- `VADER/WeatherNotificationScheduler.swift`: den globala avstängningsgrenen för prognosschemaläggaren tar inte längre bort `smhi.*`-notiser.
+- Prognosschemaläggaren äger endast `regnvakt.weather.*`. SMHI:s notisägare ansvarar för `smhi.*`.
+- Huvudreglaget i `NotificationSettingsView` har redan en uttrycklig avstängningshantering som anropar `SMHIWarningService.clearPendingNotifications()`. Därmed ligger den avsiktliga användaråtgärden kvar hos inställningsflödet i stället för att en vanlig prognosuppdatering kan radera SMHI-notiser.
+
+### Verifiering
+- Källan och inställningsflödet granskades på `feature/frost-notification-audit`.
+- Bekräftat i koden: huvudreglagets `onChange` städar SMHI-notiser när användaren stänger av alla aviseringar; den vanliga prognosschemaläggaren behöver därför inte göra samma sak.
+- Ingen iOS-build eller XCTest körd i denna miljö. Ingen fysisk enhetstestning utförd.
+
+### Filer
+- `VADER/WeatherNotificationScheduler.swift`
+- `docs/DEVELOPMENT_LOG.md`
+
+### Kvarstår
+- Den globala schemaläggaren är fortfarande inte integrerad. Per-plats-jobben och delade statusnycklarna kvarstår och måste ersättas av en enda global reconciliation innan budgetfunktionen kan betraktas som färdig.
