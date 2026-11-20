@@ -629,3 +629,9 @@ Varje arbetsomgång ska dokumentera:
 - Verifierat ändringen i aktuell gren genom att läsa tillbaka den skapade filblobben. Automatisk CI-körning #44754835740 är köad för commit `ee8f7ad54fd00cf6695a120d9eabf2ff2f669c19`.
 - Tidigare CI-körningar #44750850638 och #44750635575 har passerat samtliga steg inklusive tester, iOS-byggning och paketering av osignerad IPA. De körningarna föregår den senaste korrigeringen och utgör därför inte slutligt godkännande av aktuell HEAD.
 - Fysisk leverans och notisvisning på iPhone är fortfarande ej verifierade.
+
+
+### Utökad tidszonstestning – 2026-11-20
+- Utökat `WeatherWatchRulesTests` med gränstester för det alternativa tystnadsintervallet 23–06.
+- Lagt till test av svenska övergången från vintertid till sommartid den 29 mars 2026. Testet kontrollerar att intervallet 22–07 fortfarande bedöms efter svensk lokal klocktid trots att klockan hoppar från 01:59 till 03:00.
+- Senaste kodcommit: `5fc3c7f9d0cd0d65c3357e4b45ab2e60b9d7dc2f`. CI-körning inväntas.
