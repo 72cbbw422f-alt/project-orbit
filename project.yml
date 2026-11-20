@@ -47,6 +47,7 @@ targets:
       - path: Tests
       - path: VADER/FrostRiskRules.swift
       - path: VADER/WeatherWatchRules.swift
+      - path: VADER/WeatherNotificationBudget.swift
     dependencies:
       - target: VADER
     settings:
