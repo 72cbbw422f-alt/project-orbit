@@ -801,3 +801,12 @@ Varje arbetsomgång ska dokumentera:
 - Verifiering: GitHub-uppdateringarna lyckades; slutlig återläsning och branch/PR-kontroll följer. XCTest, Xcode/iOS-build och fysisk enhetstestning är inte körda i denna miljö.
 - Begränsning: detta är inte global reconciliation. Kapaciteten tar inte hänsyn till live-pending SMHI/övriga requests, kandidater väljs fortfarande per plats och parallella statusuppdateringar kvarstår.
 - Kvar: implementera en enda global read/select/replace/add/status-cykel med generationsskydd. Ingen IPA byggd.
+
+### Skydd mot föråldrade schemaläggningsfel – 2026-11-20
+
+- GitHub kontrollerades före arbetet: PR #1 var öppen, draft och osammanslagen. Grenen feature/frost-notification-audit pekade på df6d6d8c3a02cc4e5f4afba79dc207ca2e2c688c; PR var mergeable vid kontrollen.
+- VADER/WeatherNotificationScheduler.swift: felhanteringen efter UNUserNotificationCenter.add kontrollerar nu platsens token och globala token innan den skriver ett schemaläggningsfel till delad status.
+- Syfte: ett äldre asynkront platsjobb som misslyckas efter att ha blivit ogiltigförklarat ska inte kunna skriva över status från en nyare uppdatering.
+- Verifiering: ändringen är avgränsad till felgrenen och bygger på befintliga tokenkontroller i samma metod. Filen ska återläsas och diffen granskas efter commit. XCTest/iOS-build kan inte köras i denna Linux-miljö.
+- Filer: VADER/WeatherNotificationScheduler.swift, docs/DEVELOPMENT_LOG.md.
+- Kvar: detta löser endast en sen status-skrivning; flera platsjobb och separata statusuppdateringar finns fortfarande. Nästa större steg är requestgenerering som gemensam kandidatlista och en enda global reconciliation.
