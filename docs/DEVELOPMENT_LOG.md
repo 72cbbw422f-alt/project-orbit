@@ -768,3 +768,13 @@ Varje arbetsomgång ska dokumentera:
 - Lokal kontroll: `swiftc -typecheck` av den isolerade Foundation-baserade budgetkällan passerade. XCTest/XcodeGen/iOS-build kan inte köras i denna Linux-miljö.
 - Commit: `cfdc03e0ee798f12931870a0c7e30664c09a2de1` (budgetmodell), följt av `c69925f168d63bec9daabe91c9f979ed18c46ee9` (tester).
 - Kvar: koppla klassificeringen till en enda pending-snapshot i global reconciliation och verifiera med integrationstester. Ingen IPA eller fysisk enhetstestning.
+
+
+### Kantfallstestning av global notisbudget – 2026-11-20
+- GitHub kontrollerades före arbetet: `feature/frost-notification-audit` låg på `1166a073790ee6a45722f20b475ec7676abff1dc`; PR #1 var öppen, draft och `mergeable: true`. Commit-status var `pending` utan statuskontroller och inga PR-workflow-körningar returnerades.
+- Utökade `Tests/WeatherNotificationBudgetTests.swift` med två fall: samtliga redan väntande aktuella frostnotiser bevaras även när de tillsammans överstiger kapaciteten, och tomma identifierare ignoreras när kapaciteten är negativ.
+- Uppdaterade `docs/NOTIFICATION_RECONCILIATION_DESIGN.md` så att status och verifieringsgränser speglar testtillägget.
+- Verifiering: en fristående Swift-exekvering av budgetmodellens relevanta logik passerade fem kontroller: namespace-klassificering, avräkning av externa notiser, global säkerhetsprioritet, bevarad frost vid noll kapacitet och deduplicering av levererade ID:n. Detta var en separat harness, inte XCTest och inte full verifiering av repositoryts testmål.
+- Inga iOS-ramverk, XcodeGen, iOS-build eller fysisk iPhone kunde verifieras i Linux-miljön. Ingen IPA byggd.
+- Filer: `Tests/WeatherNotificationBudgetTests.swift`, `docs/NOTIFICATION_RECONCILIATION_DESIGN.md`, `docs/DEVELOPMENT_LOG.md`.
+- Kodens globala reconciliation är fortfarande inte integrerad. Per-plats `schedule(...)`-jobb, separata pending-snapshots och delade statusuppdateringar kvarstår. Nästa steg är att extrahera requestgenereringen och koppla kandidaterna till en enda generationsskyddad reconciliation.
