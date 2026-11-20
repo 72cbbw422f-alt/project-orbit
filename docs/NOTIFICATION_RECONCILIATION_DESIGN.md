@@ -83,3 +83,14 @@ It should return a deterministic selected identifier list and a reason/count sum
 ## Implemented selector (2026-11-20)\n\nAdded `VADER/WeatherNotificationBudget.swift` and unit tests in `Tests/WeatherNotificationBudgetTests.swift`. The selector is deterministic, deduplicates stable identifiers, filters delivered requests, preserves already-pending current-frost requests even when they exceed the supplied capacity, and prioritizes immediate frost, safety-critical alerts, then ordinary forecasts. The caller must supply capacity after accounting for pending SMHI and unrelated notifications. This helper is not yet called by the live scheduler; it does not by itself fix parallel reconciliation.\n\n## Integration boundary
 
 Do not replace the current scheduler with a helper-only change. The pure selector is useful only when wired into a single global reconciliation that owns the complete read/select/replace/add/status lifecycle. Until the integrated implementation passes CI and physical-device checks, this specification is not a completed feature.
+
+
+## Kapacitetsberäkning – förberedande implementation (2026-11-20)
+
+`WeatherNotificationBudget.availableForecastCapacity` har lagts till som en ren funktion för att räkna tillgängliga platser för nya prognosnotiser. Den drar av:
+- appens valda totala budget;
+- reserverat säkerhetsutrymme;
+- det faktiska antalet väntande `smhi.*`-notiser;
+- det faktiska antalet väntande notiser i andra namespace.
+
+Negativa indata klampas till noll och resultatet kan aldrig bli negativt. Reserverat utrymme är uttryckligen extra marginal utöver de redan väntande notiserna. Funktionen är ännu inte inkopplad i schemaläggaren och anger inte någon dokumenterad iOS-plattformsgräns. Budgetvärden ska fastställas som app-policy innan integration.
