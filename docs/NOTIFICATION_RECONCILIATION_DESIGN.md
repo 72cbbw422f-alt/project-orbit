@@ -1,6 +1,6 @@
 # Global notification reconciliation
 
-Status: architecture specification, not implemented
+Status: pure selector implemented; scheduler integration not implemented
 Branch: `feature/frost-notification-audit`
 Updated: 2026-11-20
 
@@ -80,6 +80,6 @@ It should return a deterministic selected identifier list and a reason/count sum
 - A newer refresh or location removal invalidates an older in-flight reconciliation.
 - Aggregate status is written once after final reconciliation, not once per location.
 
-## Integration boundary
+## Implemented selector (2026-11-20)\n\nAdded `VADER/WeatherNotificationBudget.swift` and unit tests in `Tests/WeatherNotificationBudgetTests.swift`. The selector is deterministic, deduplicates stable identifiers, filters delivered requests, preserves already-pending current-frost requests even when they exceed the supplied capacity, and prioritizes immediate frost, safety-critical alerts, then ordinary forecasts. The caller must supply capacity after accounting for pending SMHI and unrelated notifications. This helper is not yet called by the live scheduler; it does not by itself fix parallel reconciliation.\n\n## Integration boundary
 
 Do not replace the current scheduler with a helper-only change. The pure selector is useful only when wired into a single global reconciliation that owns the complete read/select/replace/add/status lifecycle. Until the integrated implementation passes CI and physical-device checks, this specification is not a completed feature.
