@@ -702,3 +702,27 @@ Varje arbetsomgång ska dokumentera:
 
 ### Kvarstår
 - Den globala schemaläggaren är fortfarande inte integrerad. Per-plats-jobben och delade statusnycklarna kvarstår och måste ersättas av en enda global reconciliation innan budgetfunktionen kan betraktas som färdig.
+
+
+## Förberedande kapacitetsberäkning för global notisbudget – 2026-11-20
+
+### Ändringar
+- `VADER/WeatherNotificationBudget.swift`: tillagt `availableForecastCapacity` som räknar tillgängligt utrymme efter total appbudget, reserverad marginal, väntande SMHI-notiser och väntande notiser i andra namespace.
+- `Tests/WeatherNotificationBudgetTests.swift`: tre tester tillagda för avräkning av externa notiser, nollgolv och negativa indata.
+- `docs/NOTIFICATION_RECONCILIATION_DESIGN.md`: beskriver formeln och markerar att den ännu inte används av produktionsschemaläggaren.
+
+### Verifiering
+- Ändrade käll- och testfiler återlästa från GitHub efter uppdatering.
+- Ingen XCTest, XcodeGen eller iOS-build körd. Ingen CI-körning bekräftad.
+- Funktionen är fristående och inte inkopplad i `WeatherNotificationScheduler`; detta är förberedande logik, inte färdig global budgetering.
+
+### Filer
+- `VADER/WeatherNotificationBudget.swift`
+- `Tests/WeatherNotificationBudgetTests.swift`
+- `docs/NOTIFICATION_RECONCILIATION_DESIGN.md`
+- `docs/DEVELOPMENT_LOG.md`
+
+### Kvarstår
+- Fastställ appens konservativa budget/reserv som produktpolicy, utan att kalla den iOS-plattformsgräns.
+- Implementera en enda global reconciliation och koppla in både kapacitetsberäkningen och urvalsmodellen.
+- Lägg till integrationstester för verkliga pending requests, samtidighet, borttagning av platser och aggregerad status.
