@@ -613,3 +613,11 @@ Varje arbetsomgång ska dokumentera:
 - Lagt till tester för 8-timmars prognos-/notishorisont samt gränserna 21:59, 22:00, 06:59 och 07:00 för standardintervallet 22–07.
 - Bakgrundsgranskning: appens rotvy reagerar på `scenePhase == .active` och uppdaterar då SMHI-varningar. Jag hittar ingen registrerad `BGTaskScheduler`/`BGAppRefreshTask`-hantering i den granskade appkoden. Prognosbaserade lokala notiser är därför beroende av att aktuella prognoser hämtas när appen är aktiv eller när en platsbevakning aktiveras; en kontinuerlig bakgrundshämtning är inte verifierad och ska inte utlovas.
 - Senaste kodcommit: `2f9c1056cb21bf0c962ec88f6d39afea73a82204`. CI-körning inväntas.
+
+
+### Slutlig korrigering av väntande frostnotis – 2026-11-20
+- Verifierade att föregående ändring av notisens livscykel inte låg kvar i den aktuella grenens schedulerfil efter senare träduppdateringar. Återinfört och verifierat ändringen direkt mot aktuell branch-head.
+- `preserveCurrentFrost` är nu aktiv så länge Frostvakten är på, oberoende av om en färsk temperatur finns. Befintliga väntande `.frost.current.`-requests behålls vid prognosuppdatering.
+- Daglig deduplicering markeras endast när request-ID återfinns bland iOS levererade notiser. En request som bara accepterats i väntande kö räknas inte som levererad.
+- Verifierad filblob: `00b6a80761b92dc70e98bca2b2801e8968992df9`.
+- Senaste kodcommit: `c60b2fbcca87705fea2a5f290a645433ca64b12d`. Ny CI-körning #44751029686 är köad; resultat inväntas.
