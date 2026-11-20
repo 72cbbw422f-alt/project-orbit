@@ -251,7 +251,7 @@ enum WeatherNotificationScheduler {
             let fireDate = event.immediate ? Date().addingTimeInterval(2) : event.date.addingTimeInterval(-Double(lead) * 60)
             guard event.immediate || fireDate > Date().addingTimeInterval(30) else { continue }
             // Frost and ice alerts are safety-critical and intentionally bypass quiet hours.
-            guard event.safetyCritical || !isQuietTime(fireDate, setting: quietSetting) else { continue }
+            guard event.safetyCritical || !WeatherWatchRules.isQuietTime(fireDate, setting: quietSetting) else { continue }
 
             let content = UNMutableNotificationContent()
             let weatherIcon: String
@@ -566,14 +566,4 @@ enum WeatherNotificationScheduler {
         return result
     }
 
-    private static func isQuietTime(_ date: Date, setting: String) -> Bool {
-        guard setting != "none" else { return false }
-        let parts = setting.split(separator: "–").compactMap { Int($0) }
-        guard parts.count == 2 else { return false }
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
-        let hour = calendar.component(.hour, from: date)
-        let start = parts[0], end = parts[1]
-        return start < end ? (hour >= start && hour < end) : (hour >= start || hour < end)
-    }
 }
