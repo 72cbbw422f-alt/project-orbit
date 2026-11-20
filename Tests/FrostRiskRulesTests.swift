@@ -1,5 +1,4 @@
 import XCTest
-@testable import VADER
 
 final class FrostRiskRulesTests: XCTestCase {
     func testOvernightThresholdIncludesOneDegree() {
