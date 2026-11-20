@@ -635,3 +635,13 @@ Varje arbetsomgång ska dokumentera:
 - Utökat `WeatherWatchRulesTests` med gränstester för det alternativa tystnadsintervallet 23–06.
 - Lagt till test av svenska övergången från vintertid till sommartid den 29 mars 2026. Testet kontrollerar att intervallet 22–07 fortfarande bedöms efter svensk lokal klocktid trots att klockan hoppar från 01:59 till 03:00.
 - Senaste kodcommit: `5fc3c7f9d0cd0d65c3357e4b45ab2e60b9d7dc2f`. CI-körning inväntas.
+
+
+### Granskning av parallell schemaläggning för flera platser – 2026-11-20
+- Läste aktuell `WeatherNotificationScheduler` från utvecklingsgrenen och följde flödet från platsregister till iOS pending/delivered-notiser.
+- Bekräftat: varje plats har egen schemaläggningstoken och egna stabila notis-ID:n. Avaktivering roterar platsens token innan väntande notiser tas bort, vilket skyddar mot att en äldre asynkron körning återlägger notiser för platsen.
+- Identifierat kvarstående samordningsrisk: varje platskörning skriver samma globala `scheduledCountKey`, `scheduleUpdatedKey` och `scheduleStatusKey`. När flera platser schemaläggs parallellt kan status därför representera en mellanliggande ögonblicksbild och skrivas över av en annan platskörning. Det är inte ett tillförlitligt aggregerat slutresultat.
+- Identifierat gränsfall i budgeten: `perPlaceLimit = max(1, min(8, 52 / registryCount))` ger minst en notis per plats. Om antalet registrerade platser överstiger 52 kan summan av platsbudgetarna därför överskrida den avsedda gränsen 52. Bevarade omedelbara frostnotiser ligger dessutom utanför den nya urvalslistans budgetberäkning.
+- Nästa tekniska åtgärd: införa en serialiserad global samordning/kapacitetsbudget som räknar befintliga väntande Regnvakt-notiser, reserverar utrymme för SMHI och prioriterar omedelbar frost/is innan vanliga prognosnotiser. Statusvärden ska räknas och skrivas efter en samlad reconciliation, inte från varje platskörning.
+- Ingen kodändring gjord i denna granskningspass. Inga tester eller byggningar kördes. Fysisk iPhone-verifiering återstår.
+- CI för aktuell branch-head är inte bekräftad via commit-status eller PR-körningslistan i denna kontroll; tidigare godkända körningar gäller äldre commits och får inte räknas som verifiering av aktuell HEAD.
