@@ -186,3 +186,18 @@ Den gamla platsvisa schemaläggaren har fått ett begränsat skydd medan den glo
 `refresh(place:...)` skriver först den nya prognosen i registret och begär därefter en full registerbatch via `refreshFromStoredForecast()`. Varje batch får en ny global generations-token. Registerplatserna sorteras efter `locationID` och behandlas sekventiellt i samma `Task` i stället för att starta en fristående parallell `Task` per plats. En ny batch ogiltigförklarar den föregående; token kontrolleras mellan platser och i den befintliga `schedule(...)`-metoden efter dess asynkrona notification-center-anrop.
 
 Detta minskar konkurrerande schemaläggning och mellanliggande status-skrivningar. Det är dock **inte** global reconciliation: varje plats tar fortfarande egna pending-/delivered-snapshots, använder interimistisk per-platskapacitet och utför egen replace/add/status. Nästa steg är att samla alla requests i en enda kandidatlista och genomföra en enda global avstämning.
+
+
+## Appaktivering och oväntade omedelbara notiser – 2026-11-21
+
+Användarrapport: en banner visas ovanpå appen direkt vid öppning, från antingen väderschemaläggaren eller SMHI; SMHI-innehållet upplevs ofta inaktuellt. SMHI-notiser upplevs samtidigt utebli när appen är stängd.
+
+Källkodsspårning visar två konkreta tvåsekundersvägar:
+- `ContentView.scenePhase == .active` → `WeatherViewModel.refreshSMHIWarnings()` → `SMHIWarningService.checkAndNotify(...)` → ny aktiv SMHI-varning schemaläggs med `UNTimeIntervalNotificationTrigger(timeInterval: 2)`.
+- `WeatherViewModel.init()` → `WeatherNotificationScheduler.refreshFromStoredForecast()`; en färsk nog sparad temperatur kan ge aktuell frostrisk och skapa en omedelbar tvåsekundersnotis.
+
+SMHI-koden filtrerar ut passerade sluttider, men en varning som fortfarande är aktiv enligt SMHI kan ändå notifieras när appen öppnas. Signatur-gaten ska deduplicera redan accepterade varningar; varför användaren ändå ser återkommande banners är inte fastställt utan enhetens pending-/delivered-snapshot och kontroll av epoch/signaturpersistens.
+
+Viktigt: källkodsspårningen visar att SMHI-kontroll sker vid appaktivering och väderladdning. Den visar inte någon verifierad kontinuerlig SMHI-kontroll när appen är stängd. En lokal tvåsekundersnotis kan inte upptäcka en ny SMHI-varning som publiceras efter att appen slutat köra; sådan täckning kräver en fungerande bakgrundskontroll eller extern push-infrastruktur.
+
+Åtgärd ska inte vara att blint rensa notiser vid appstart. Nästa implementation ska separera datakontroll från notifieringsbeslut, bara skapa omedelbar SMHI-notis vid en genuint ny/ändrad aktiv varning, kontrollera giltighet och deduplicering, samt granska foreground-delegate och aktuell-frostens appstartsbeteende. Verifiering på fysisk iPhone krävs för förgrund, bakgrund och avslutad app.
