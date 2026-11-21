@@ -241,13 +241,18 @@ enum WeatherNotificationScheduler {
         guard isCurrentBatch() else { return }
         center.removePendingNotificationRequests(withIdentifiers: plan.pendingIdentifiersToRemove)
 
+        var schedulingFailureCount = 0
+        var firstSchedulingError: String?
         for identifier in plan.identifiersToAdd {
             guard isCurrentBatch(), let request = requestsByID[identifier] else { return }
             do {
                 try await center.add(request)
             } catch {
                 guard isCurrentBatch() else { return }
-                defaults.set("Fel vid schemaläggning: \(error.localizedDescription)", forKey: scheduleStatusKey)
+                schedulingFailureCount += 1
+                if firstSchedulingError == nil {
+                    firstSchedulingError = error.localizedDescription
+                }
             }
             guard isCurrentBatch() else { return }
         }
@@ -257,9 +262,16 @@ enum WeatherNotificationScheduler {
         let finalCount = finalPending.filter { $0.identifier.hasPrefix(prefix) }.count
         defaults.set(finalCount, forKey: scheduledCountKey)
         defaults.set(Date().timeIntervalSince1970, forKey: scheduleUpdatedKey)
-        defaults.set(finalCount == 0
-            ? "Inga framtida risker passerade aviseringsgränserna"
-            : "\(finalCount) väderavisering(ar) schemalagda i iPhone", forKey: scheduleStatusKey)
+        let finalStatus: String
+        if schedulingFailureCount > 0 {
+            let detail = firstSchedulingError.map { ": \($0)" } ?? ""
+            finalStatus = "\(schedulingFailureCount) väderavisering(ar) kunde inte schemaläggas\(detail)"
+        } else if finalCount == 0 {
+            finalStatus = "Inga framtida risker passerade aviseringsgränserna"
+        } else {
+            finalStatus = "\(finalCount) väderavisering(ar) schemalagda i iPhone"
+        }
+        defaults.set(finalStatus, forKey: scheduleStatusKey)
     }
 
     static func removeAll() {
