@@ -1117,3 +1117,14 @@ completionHandler([.banner, .sound, .list])
 - These are pure model tests; they do not replace end-to-end tests of `UNUserNotificationCenter` orchestration.
 - Verification: source write and GitHub readback; XCTest for this exact commit is pending CI.
 - No production source changed in this step. No IPA, physical-device test, or merge.
+
+
+## Explicit policy for preserving current-frost notifications – 2026-11-21
+
+- Extracted pending current-frost preservation into `WeatherNotificationBudget.preservedPendingCurrentFrostIdentifiers`.
+- The policy preserves only identifiers in the Regnvakt forecast namespace that belong to an exact currently registered location and only while the frost-watch preference is enabled.
+- `WeatherNotificationScheduler.reconcileGlobally` now uses this shared policy instead of maintaining its own inline prefix filter.
+- Added XCTest coverage for multiple registered locations, a removed location, foreign SMHI identifiers, unrelated forecast types, and the frost preference being disabled.
+- Files changed: `VADER/WeatherNotificationBudget.swift`, `VADER/WeatherNotificationScheduler.swift`, `Tests/WeatherNotificationBudgetTests.swift`, this log.
+- Verification: GitHub writes completed. CI must run against the resulting code commit; no local Xcode execution or physical-device test is available in this workflow.
+- No merge. PR #1 remains open and draft. No signed IPA or device installation has been verified.
