@@ -130,6 +130,25 @@ enum WeatherNotificationBudget {
         )
     }
 
+    /// Identifies pending immediate-frost requests that may survive a global
+    /// reconciliation. A request is preserved only while its exact monitored
+    /// location remains registered and the frost watch is enabled.
+    static func preservedPendingCurrentFrostIdentifiers(
+        pendingIdentifiers: [String],
+        registeredLocationIDs: Set<String>,
+        isEnabled: Bool,
+        forecastPrefix: String = "regnvakt.weather."
+    ) -> Set<String> {
+        guard isEnabled, !registeredLocationIDs.isEmpty else { return [] }
+        let registeredPrefixes = registeredLocationIDs.map {
+            forecastPrefix + $0.replacingOccurrences(of: ",", with: "_") + "."
+        }
+        return Set(pendingIdentifiers.filter { identifier in
+            identifier.contains(".frost.current.") &&
+                registeredPrefixes.contains(where: { identifier.hasPrefix($0) })
+        })
+    }
+
     /// Reserves shared capacity for already-pending current-frost requests
     /// that are not represented in the freshly generated candidate pool.
     /// Those requests are preserved by the reconciliation plan and must still
