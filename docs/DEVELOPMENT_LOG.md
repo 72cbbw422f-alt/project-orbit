@@ -1042,3 +1042,14 @@ completionHandler([.banner, .sound, .list])
 - Commit med testfix: `974aea4283f3aab51bea0fe4153299895fe1a46f`.
 - Verifiering: testfilen uppdaterad via GitHub Contents API. Ny CI-körning krävs fortfarande; inga XCTest-resultat, iOS-build eller IPA är ännu verifierade.
 - Ingen merge. PR #1 förblir öppen och draft.
+
+
+## XCTest: korrigerad escaped interpolation i budgettest – 2026-11-21
+
+- CI-run `44892108911` för HEAD `91d552f9396f5c2d6b43a431410ccd446bbe7020` passerade XcodeGen och kompilerade SMHI-policytestet, men stoppades av ett Swift-kompileringsfel i `Tests/WeatherNotificationBudgetTests.swift:106`.
+- Felaktig stränginterpolation: testets pending-ID skapades som `"external.\\($0)"` med dubblerad backslash. Swift kunde därför inte inferera closure-argumentet.
+- Korrigerat till riktig interpolation: `"external.\($0)"`. Testet skapar nu 60 unika externa identifierare och verifierar att forecast-kapaciteten kläms till noll när kön är full.
+- Ändrad fil: `Tests/WeatherNotificationBudgetTests.swift`.
+- Dokumentation uppdaterad i samma arbetsgren.
+- Verifiering: felorsaken bekräftad i GitHub Actions-loggen och källraden återläst efter korrigering. Ny CI-körning krävs för att verifiera XCTest och fortsätta till Release-build/IPA.
+- Ingen merge och ingen IPA.
