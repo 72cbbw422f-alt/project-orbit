@@ -30,8 +30,13 @@ private actor SMHIWarningNotificationGate {
     private let persistenceKey = "Regnvakt.smhi.warningSignatures.v1"
     private let notificationEpochKey = "Regnvakt.smhi.notificationEpoch.v1"
 
-    func prepare(current: Set<String>, persisted: Set<String>, epoch: String) {
-        guard (UserDefaults.standard.string(forKey: notificationEpochKey) ?? "") == epoch else { return }
+    func prepare(current: Set<String>, persisted: Set<String>, epoch: String, generation: String) {
+        let defaults = UserDefaults.standard
+        guard (defaults.string(forKey: notificationEpochKey) ?? "") == epoch,
+              SMHIWarningNotificationPolicy.isCurrentCheck(
+                generation,
+                storedGeneration: defaults.string(forKey: "Regnvakt.smhi.checkGeneration.v1")
+              ) else { return }
         if currentEpoch != epoch {
             scheduled.removeAll()
             inFlight.removeAll()
@@ -65,9 +70,13 @@ private actor SMHIWarningNotificationGate {
         UserDefaults.standard.removeObject(forKey: persistenceKey)
     }
 
-    func newlyActiveSignatures(current: Set<String>, epoch: String) -> Set<String> {
+    func newlyActiveSignatures(current: Set<String>, epoch: String, generation: String) -> Set<String> {
         let defaults = UserDefaults.standard
-        guard (defaults.string(forKey: notificationEpochKey) ?? "") == epoch else { return [] }
+        guard (defaults.string(forKey: notificationEpochKey) ?? "") == epoch,
+              SMHIWarningNotificationPolicy.isCurrentCheck(
+                generation,
+                storedGeneration: defaults.string(forKey: "Regnvakt.smhi.checkGeneration.v1")
+              ) else { return [] }
 
         let baselineKey = "Regnvakt.smhi.activeWarningBaseline.v1"
         guard let previousValues = defaults.stringArray(forKey: baselineKey) else {
@@ -368,13 +377,17 @@ enum SMHIWarningService {
             // two concurrent checks from scheduling the same active warning.
             let newlyActiveSignatures = await SMHIWarningNotificationGate.shared.newlyActiveSignatures(
                 current: currentSignatures,
-                epoch: notificationEpoch
+                epoch: notificationEpoch,
+                generation: generation
             )
+            guard isCurrentCheck(generation) else { return }
             await SMHIWarningNotificationGate.shared.prepare(
                 current: currentSignatures,
                 persisted: persistedSignatures,
-                epoch: notificationEpoch
+                epoch: notificationEpoch,
+                generation: generation
             )
+            guard isCurrentCheck(generation) else { return }
             // Existing active warnings are retained in the feed, but only a
             // warning newly observed since the baseline can create a new alert.
             // This prevents app activation from replaying an old active warning.
@@ -444,6 +457,11 @@ enum SMHIWarningService {
                 )
                 do {
                     try await center.add(request)
+                    guard isCurrentCheck(generation) else {
+                        center.removePendingNotificationRequests(withIdentifiers: [request.identifier])
+                        _ = await SMHIWarningNotificationGate.shared.finish(signature, token: claimToken, epoch: notificationEpoch, accepted: false)
+                        return
+                    }
                     let stillEnabled = (defaults.object(forKey: "Regnvakt.notifications.enabled") as? Bool ?? true)
                         && (defaults.object(forKey: "Regnvakt.notifications.smhi") as? Bool ?? true)
                         && (defaults.string(forKey: notificationEpochKey) ?? "") == notificationEpoch
