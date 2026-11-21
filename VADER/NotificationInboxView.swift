@@ -250,7 +250,7 @@ enum SMHIWarningService {
     }
 
     static func isCurrentCheck(_ generation: String, storedGeneration: String?) -> Bool {
-        storedGeneration == generation
+        SMHIWarningNotificationPolicy.isCurrentCheck(generation, storedGeneration: storedGeneration)
     }
 
     private static func isCurrentCheck(_ generation: String) -> Bool {
