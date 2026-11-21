@@ -41,7 +41,7 @@ final class SMHIWarningNotificationPolicyTests: XCTestCase {
     }
 
     func testSMHICheckGenerationRejectsSupersededResponses() {
-        XCTAssertFalse(SMHIWarningService.isCurrentCheck("older", storedGeneration: "newer"))
+        XCTAssertFalse(SMHIWarningNotificationPolicy.isCurrentCheck("older", storedGeneration: "newer"))
         XCTAssertTrue(SMHIWarningService.isCurrentCheck("current", storedGeneration: "current"))
         XCTAssertFalse(SMHIWarningService.isCurrentCheck("current", storedGeneration: nil))
     }
