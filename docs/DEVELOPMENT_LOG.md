@@ -1294,3 +1294,15 @@ completionHandler([.banner, .sound, .list])
 - Kodcommit: 6a5ade3901bfa9aa0347f0e33d5793c59adf4454.
 - Verifiering: ny CI krävs för denna ändring. CI #730–#733 för tidigare commits var fortfarande pågående/köade vid granskningen; inga resultat för denna commit finns ännu. Ingen fysisk iPhone-testning genomförd.
 - PR #1 förblir öppen som draft. Ingen merge eller produktionsändring.
+
+
+## Återförsök för SMHI-varningar utanför notiskön – 2026-11-21
+
+- Kodgranskning av åttaplatserreserven hittade att den aktiva varningsbaslinjen inkluderade alla nytillkomna varningar direkt vid första kontrollen. Om fler än åtta varningar blev aktiva samtidigt kunde de lägre prioriterade varningarna därför falla utanför kön och ändå markeras som hanterade. De skulle då inte bli aktuella igen vid nästa kontroll.
+- Policyn ändrad: när en baslinje redan finns behålls endast signaturer som fortfarande är aktiva och redan fanns i föregående baslinje. Nytillkomna signaturer ligger kvar utanför baslinjen tills runtime registrerar dem efter att iOS accepterat notisen eller återfunnit en befintlig pending-notis.
+- Första observationen behåller fortsatt hela aktuella mängden som baslinje utan att skicka historiska varningar. Avslutade varningar tas fortsatt bort, så en senare återkomst blir ny.
+- Nytt XCTest simulerar att en nytillkommen varning inte får plats i första kön, förblir berättigad vid nästa kontroll och blir hanterad först efter accepterad notis. Testet för återkomst uppdaterat till den nya ack-baserade semantiken.
+- Berörda filer: VADER/SMHIWarningNotificationPolicy.swift, Tests/SMHIWarningNotificationPolicyTests.swift, docs/DEVELOPMENT_LOG.md.
+- Kodcommits: 3ec7866d49f62d24a2fbbd0265b503ef0d53ddf8 och 05f4cce3d2542e20c20c8954b2e5598937caa5b6.
+- Verifiering: CI för de här ändringarna krävs. Tidigare CI #730–#735 var fortfarande köade/pågående vid granskningen; ingen av dem verifierar denna kod.
+- Ingen fysisk iPhone-testning, ingen signerad IPA och ingen merge. PR #1 förblir öppen som draft.
