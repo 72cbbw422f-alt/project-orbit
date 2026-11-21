@@ -103,7 +103,7 @@ final class WeatherNotificationBudgetTests: XCTestCase {
     }
 
     func testPendingSnapshotCapacityClampsAtZeroWhenExternalQueueIsFull() {
-        let pending = (0..<60).map { "external.\\($0)" }
+        let pending = (0..<60).map { "external.\($0)" }
         XCTAssertEqual(
             WeatherNotificationBudget.availableForecastCapacity(pendingIdentifiers: pending),
             0
