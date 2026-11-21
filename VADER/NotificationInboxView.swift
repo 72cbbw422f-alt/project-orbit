@@ -86,6 +86,15 @@ private actor SMHIWarningNotificationGate {
         )
     }
 
+    func releaseBaselineSignature(_ signature: String, epoch: String) {
+        let defaults = UserDefaults.standard
+        guard (defaults.string(forKey: notificationEpochKey) ?? "") == epoch else { return }
+        let baselineKey = "Regnvakt.smhi.activeWarningBaseline.v1"
+        var baseline = Set(defaults.stringArray(forKey: baselineKey) ?? [])
+        baseline.remove(signature)
+        defaults.set(Array(baseline).sorted(), forKey: baselineKey)
+    }
+
     func claim(_ signature: String, epoch: String) -> UUID? {
         guard (UserDefaults.standard.string(forKey: notificationEpochKey) ?? "") == epoch,
               !scheduled.contains(signature), inFlight[signature] == nil else { return nil }
@@ -410,6 +419,7 @@ enum SMHIWarningService {
                     guard stillEnabled else {
                         center.removePendingNotificationRequests(withIdentifiers: [request.identifier])
                         _ = await SMHIWarningNotificationGate.shared.finish(signature, token: claimToken, epoch: notificationEpoch, accepted: false)
+                        await SMHIWarningNotificationGate.shared.releaseBaselineSignature(signature, epoch: notificationEpoch)
                         continue
                     }
                     _ = await SMHIWarningNotificationGate.shared.finish(signature, token: claimToken, epoch: notificationEpoch, accepted: true)
@@ -417,6 +427,7 @@ enum SMHIWarningService {
                     defaults.set(true, forKey: "Regnvakt.notifications.hasUnread")
                 } catch {
                     _ = await SMHIWarningNotificationGate.shared.finish(signature, token: claimToken, epoch: notificationEpoch, accepted: false)
+                    await SMHIWarningNotificationGate.shared.releaseBaselineSignature(signature, epoch: notificationEpoch)
                     // Leave the signature uncommitted so the next check retries.
                 }
             }
