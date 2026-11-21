@@ -6,9 +6,19 @@ enum SMHIWarningNotificationPolicy {
         storedGeneration == generation
     }
 
+    /// Computes the notification transition and the baseline to persist.
+    /// Ended warnings are removed; a later reappearance is treated as new.
+    static func activeWarningTransition(
+        current: Set<String>,
+        previous: Set<String>,
+        hasBaseline: Bool
+    ) -> (newlyActive: Set<String>, retainedBaseline: Set<String>) {
+        guard hasBaseline else { return ([], current) }
+        return (current.subtracting(previous), previous.intersection(current).union(current.subtracting(previous)))
+    }
+
     static func newlyActiveSignatures(current: Set<String>, previous: Set<String>, hasBaseline: Bool) -> Set<String> {
-        guard hasBaseline else { return [] }
-        return current.subtracting(previous)
+        activeWarningTransition(current: current, previous: previous, hasBaseline: hasBaseline).newlyActive
     }
 
     /// Parses SMHI timestamps consistently. Timezone-less values are Swedish local time.
