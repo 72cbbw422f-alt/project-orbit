@@ -1190,3 +1190,12 @@ completionHandler([.banner, .sound, .list])
 - Commit: `3b8291693a802d696503c6d0b0f5e5ddece6cccb`.
 - Verifiering: ändringen är pushad till `feature/frost-notification-audit`. CI för denna commit måste inväntas; ingen lokal Xcode/iOS-build eller fysisk iPhone-test har genomförts i denna arbetsmiljö.
 - Kvarstår: täckning med testbar ren request-generation-helper eller integrerat test, samt verifiering av snabb av/på-växling och borttagning på riktig enhet.
+
+## Skydd även i bakgrundshämtning för övriga bevakade orter – 2026-11-21
+
+- Fortsatt granskning visade en andra väg till samma race: `loadWeather` hämtar prognoser för övriga bevakade orter sekventiellt. Under varje nätverks-`await` kan en ort stängas av eller tas bort, medan den gamla listan `otherPlaces` fortfarande innehåller den.
+- Efter varje hämtning kontrolleras nu att huvudväderförfrågan fortfarande är aktuell, att ortens UUID fortfarande är bevakad och sparad samt att koordinaterna inte har ändrats innan schemaläggaren uppdateras.
+- Därmed skyddas både den separata aktiveringshämtningen i `setMonitoring` och bakgrundsuppdateringen av övriga bevakade orter.
+- Berörd fil: `VADER/WeatherService.swift`.
+- Commit: `f7982002d98e0031e6474ea5f9df413535c1cb0f`.
+- Verifiering: kodändringen är pushad; CI för den nya committen inväntas. Ingen fysisk iPhone-testning genomförd.
