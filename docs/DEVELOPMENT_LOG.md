@@ -1088,3 +1088,14 @@ completionHandler([.banner, .sound, .list])
 - Verification: GitHub Contents API writes completed and readback is required. No XCTest, XcodeGen, iOS build, simulator/device test, or IPA has been run in this environment. CI status must be checked for the resulting HEAD.
 - Known follow-up: add targeted tests for global registry-generation invalidation and multi-location orchestration; inspect whether current-frost preservation should remain enabled when only the frost-specific preference is toggled off. Do not merge until CI and device scenarios pass.
 - No merge. PR #1 remains open and draft.
+
+
+## Global reconciliation capacity regression coverage – 2026-11-21
+
+- `VADER/WeatherNotificationBudget.swift`: extracted `selectionCapacity` as a pure policy function. It reserves capacity for pending current-frost alerts that are preserved by the reconciliation plan but absent from the fresh candidate pool, without double-counting preserved alerts that are represented as candidates.
+- `VADER/WeatherNotificationScheduler.swift`: global reconciliation now calls the tested capacity function before selecting new candidates.
+- `Tests/WeatherNotificationBudgetTests.swift`: added three cases for missing preserved-frost candidates, represented candidates, and capacity overflow.
+- CI investigation: run for commit `ccaf23c` failed in Swift compilation due to an incorrectly escaped key-path expression; the source was corrected in subsequent commit `7a9e8e0`. A separate run on `e84b1e6` reached the test step but could not find the configured iPhone 16 simulator on the `macos-15-intel` runner. The run for `7a9e8e0` was still in progress at the time of this entry.
+- Files changed in this follow-up: `VADER/WeatherNotificationBudget.swift`, `VADER/WeatherNotificationScheduler.swift`, `Tests/WeatherNotificationBudgetTests.swift`, and this log.
+- Verification: GitHub Contents API writes and readbacks only. New XCTest cases have not yet run. No current IPA or physical-device verification.
+- Next: inspect the CI result for the current head; resolve the simulator destination/runtime mismatch if it persists; then add generation/removal race coverage. No merge.
