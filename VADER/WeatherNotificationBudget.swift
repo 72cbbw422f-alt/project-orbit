@@ -28,6 +28,34 @@ struct WeatherNotificationPendingCounts: Equatable {
 }
 
 enum WeatherNotificationBudget {
+    /// Builds the pure priority metadata shared by request construction and
+    /// global selection. Immediate frost is always ranked above other safety
+    /// alerts; ordinary forecast alerts remain last.
+    static func makeCandidate(
+        identifier: String,
+        locationID: String,
+        fireDate: Date,
+        isImmediateFrost: Bool,
+        isSafetyCritical: Bool,
+        isPreservedPendingCurrentFrost: Bool
+    ) -> WeatherNotificationCandidate {
+        let priority: WeatherNotificationPriority
+        if isImmediateFrost {
+            priority = .immediateFrost
+        } else if isSafetyCritical {
+            priority = .safetyCritical
+        } else {
+            priority = .forecast
+        }
+        return WeatherNotificationCandidate(
+            identifier: identifier,
+            locationID: locationID,
+            fireDate: fireDate,
+            priority: priority,
+            isPreservedPendingCurrentFrost: isPreservedPendingCurrentFrost
+        )
+    }
+
     /// Conservative Regnvakt app policy, not an iOS platform limit.
     /// The reserve is additional headroom after counting already-pending
     /// SMHI and unrelated notifications.
