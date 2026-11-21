@@ -115,7 +115,7 @@ enum WeatherNotificationScheduler {
                 let pending = await UNUserNotificationCenter.current().pendingNotificationRequests()
                 guard (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken,
                       defaults.data(forKey: forecastRegistryKey) == registrySnapshot else { return }
-                let ids = pending.map(\\.identifier).filter { $0.hasPrefix(prefix) }
+                let ids = pending.map(\.identifier).filter { $0.hasPrefix(prefix) }
                 UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
                 defaults.set(0, forKey: scheduledCountKey)
                 defaults.set(Date().timeIntervalSince1970, forKey: scheduleUpdatedKey)
