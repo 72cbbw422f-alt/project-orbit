@@ -370,10 +370,20 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                             latitude: savedPlace.latitude,
                             longitude: savedPlace.longitude
                         )
+                        // The user may disable or remove this watch while the
+                        // network request is suspended. Never restore its forecast
+                        // registry from an obsolete snapshot of otherPlaces.
+                        guard requestID == weatherRequestID,
+                              monitoredPlaceIDs.contains(savedPlace.id),
+                              let activePlace = savedPlaces.first(where: { $0.id == savedPlace.id }),
+                              abs(activePlace.latitude - savedPlace.latitude) < 0.000001,
+                              abs(activePlace.longitude - savedPlace.longitude) < 0.000001 else {
+                            continue
+                        }
                         WeatherNotificationScheduler.refresh(
-                            place: savedPlace.name,
-                            latitude: savedPlace.latitude,
-                            longitude: savedPlace.longitude,
+                            place: activePlace.name,
+                            latitude: activePlace.latitude,
+                            longitude: activePlace.longitude,
                             hours: placeForecast.hours,
                             currentTemperature: placeForecast.current.temperature
                         )
