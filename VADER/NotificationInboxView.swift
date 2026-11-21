@@ -409,7 +409,7 @@ enum SMHIWarningService {
                 content.title = "SMHI: \(warning.level)"
                 content.body = "\(warning.title) – \(warning.area)"
                 content.sound = .default
-                content.userInfo = ["watch": "smhi", "warningID": warning.id, "area": warning.area, "level": warning.level, "start": warning.start, "end": warning.end]
+                content.userInfo = ["watch": "smhi", "warningID": warning.id, "area": warning.area, "level": warning.level, "start": warning.start, "end": warning.end, "scheduledAt": Date().timeIntervalSince1970]
                 let request = UNNotificationRequest(
                     identifier: identifier,
                     content: content,
