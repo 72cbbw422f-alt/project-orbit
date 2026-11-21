@@ -249,22 +249,18 @@ enum WeatherNotificationScheduler {
             locationID: locationID
         )
 
-        // Legacy per-place ordering remains until the global reconciliation
-        // replaces this method. Keep safety events ahead of ordinary forecasts.
-        requests.sort {
-            let leftImmediate = ($0.content.userInfo["immediate"] as? Bool) ?? false
-            let rightImmediate = ($1.content.userInfo["immediate"] as? Bool) ?? false
-            if leftImmediate != rightImmediate { return leftImmediate && !rightImmediate }
-            let leftSafetyCritical = ($0.content.userInfo["safetyCritical"] as? Bool) ?? false
-            let rightSafetyCritical = ($1.content.userInfo["safetyCritical"] as? Bool) ?? false
-            if leftSafetyCritical != rightSafetyCritical { return leftSafetyCritical && !rightSafetyCritical }
-            let leftDate = ($0.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() ?? .distantFuture
-            let rightDate = ($1.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() ?? .distantFuture
-            return leftDate < rightDate
-        }
-        // Temporary guard: the former max(1, ...) allowed aggregate forecast
-        // requests to exceed the app allocation when more than 44 places were
-        // monitored. The final global reconciler will replace this per-place cap.
+        // Read the notification center once for this scheduling pass. The
+        // global reconciler will later lift this same snapshot/selection flow
+        // across all registered locations.
+        let pending = await center.pendingNotificationRequests()
+        guard defaults.string(forKey: tokenKey) == token,
+              (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken else { return }
+        let delivered = await center.deliveredNotifications()
+        guard defaults.string(forKey: tokenKey) == token,
+              (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken else { return }
+
+        // Temporary per-place capacity remains until the global reconciler is
+        // integrated, but candidate ranking now uses the shared pure selector.
         let registryCount: Int
         if let data = defaults.data(forKey: forecastRegistryKey),
            let registry = try? JSONDecoder().decode([String: StoredForecast].self, from: data) {
@@ -273,15 +269,25 @@ enum WeatherNotificationScheduler {
             registryCount = 1
         }
         let perPlaceLimit = WeatherNotificationBudget.interimPerPlaceLimit(registryCount: registryCount)
-        let selected = Array(requests.prefix(perPlaceLimit))
+        let pendingIdentifiers = Set(pending.map(\\.identifier))
+        let deliveredIdentifiers = Set(delivered.map { $0.request.identifier })
+        let candidates = makeCandidates(
+            requests: requests,
+            locationID: locationID,
+            pendingIdentifiers: pendingIdentifiers
+        )
+        let selectedIdentifiers = Set(WeatherNotificationBudget.select(
+            candidates: candidates,
+            capacity: perPlaceLimit,
+            deliveredIdentifiers: deliveredIdentifiers
+        ))
+        let requestsByIdentifier = Dictionary(requests.map { ($0.identifier, $0) }, uniquingKeysWith: { first, _ in first })
+        let selected = selectedIdentifiers.compactMap { requestsByIdentifier[$0] }.sorted {
+            let leftDate = $0.trigger?.nextTriggerDate() ?? .distantFuture
+            let rightDate = $1.trigger?.nextTriggerDate() ?? .distantFuture
+            return leftDate < rightDate
+        }
 
-        
-        let pending = await center.pendingNotificationRequests()
-        guard defaults.string(forKey: tokenKey) == token,
-              (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken else { return }
-        let delivered = await center.deliveredNotifications()
-        guard defaults.string(forKey: tokenKey) == token,
-              (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken else { return }
         let locationPrefix = prefix + locationID.replacingOccurrences(of: ",", with: "_") + "."
         // Recover a current-frost alert delivered since the previous refresh,
         // even if the live temperature has warmed and makeEvents no longer
