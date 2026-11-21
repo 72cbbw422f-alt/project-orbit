@@ -234,3 +234,8 @@ Ingen produktionskod ändrad i denna granskning. Enhetstest och iOS-build åters
 - Testfall har lagts till för första observation, ny/ändrad signatur, återkomst och oförändrad signatur.
 
 **Avgränsning:** Befintliga pending-notiser rensas inte generellt. Denna ändring förhindrar nya replay-schemaläggningar från baselinen men garanterar inte att en redan köad notis aldrig levereras vid appöppning. Förgrundspresentationen är oförändrad tills en separat policy kan skilja nya säkerhetsvarningar från äldre/vanliga aviseringar.
+
+
+### Retry- och kapacitetskantfall
+
+Baseline får inte markera alla nyupptäckta varningar som hanterade innan de faktiskt har köats. Implementationens aktuella baseline behåller tidigare aktiva signaturer, men registrerar en ny signatur först när motsvarande request redan finns pending eller när iOS har accepterat den nya requesten. Om SMHI:s köutrymme är fullt eller `UNUserNotificationCenter.add` misslyckas förblir varningen ny och kan försöka igen vid nästa lyckade kontroll.
