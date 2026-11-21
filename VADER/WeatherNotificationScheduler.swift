@@ -60,10 +60,16 @@ enum WeatherNotificationScheduler {
         }
         // All registered forecasts are scheduled through one serialized batch.
         // This prevents each refresh from launching a competing per-place task.
-        refreshFromStoredForecast()
+        // A freshly fetched live forecast may evaluate an immediate current-frost alert.
+        // Restoring persisted forecasts at launch must never replay that alert.
+        refreshFromStoredForecast(allowImmediateCurrentFrost: true)
     }
 
     static func refreshFromStoredForecast() {
+        refreshFromStoredForecast(allowImmediateCurrentFrost: false)
+    }
+
+    private static func refreshFromStoredForecast(allowImmediateCurrentFrost: Bool) {
         let defaults = UserDefaults.standard
         // Every new batch invalidates any older batch before it can continue
         // after an asynchronous notification-center operation.
@@ -87,7 +93,8 @@ enum WeatherNotificationScheduler {
                     guard (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken else { return }
                     let forecastAge = Date().timeIntervalSince(stored.savedAt)
                     let forecastIsFresh = forecastAge >= 0 && forecastAge <= 2 * 60 * 60
-                    let temperature = forecastIsFresh ? stored.currentTemperature : nil
+                    let temperature = forecastIsFresh && allowImmediateCurrentFrost
+                        ? stored.currentTemperature : nil
                     // Stale forecasts cannot arm new future alerts.
                     let hours = forecastIsFresh ? stored.hours : []
                     await schedule(
