@@ -42,8 +42,8 @@ final class SMHIWarningNotificationPolicyTests: XCTestCase {
 
     func testSMHICheckGenerationRejectsSupersededResponses() {
         XCTAssertFalse(SMHIWarningNotificationPolicy.isCurrentCheck("older", storedGeneration: "newer"))
-        XCTAssertTrue(SMHIWarningService.isCurrentCheck("current", storedGeneration: "current"))
-        XCTAssertFalse(SMHIWarningService.isCurrentCheck("current", storedGeneration: nil))
+        XCTAssertTrue(SMHIWarningNotificationPolicy.isCurrentCheck("current", storedGeneration: "current"))
+        XCTAssertFalse(SMHIWarningNotificationPolicy.isCurrentCheck("current", storedGeneration: nil))
     }
 
     func testForegroundPolicyAcceptsFreshActiveSwedishLocalWarning() {
