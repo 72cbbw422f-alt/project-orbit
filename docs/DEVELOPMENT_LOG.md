@@ -1222,3 +1222,15 @@ completionHandler([.banner, .sound, .list])
 - Två icke-blockerande AppIntents-metadata-varningar förekom eftersom appen inte länkar AppIntents.framework.
 - Ingen fysisk iPhone-testning eller verifiering av faktisk notisleverans genomförd.
 - PR #1 lämnas öppen som draft; ingen merge eller produktionsändring.
+
+
+## Skydd mot föråldrade SMHI-hämtningar vid platsbyte – 2026-11-21
+
+- Granskning av SMHI-flödet visade att parallella `checkAndNotify`-anrop saknade generationskontroll för plats-/bevakningssnapshoten. En långsam äldre SMHI-begäran kunde därför fortsätta efter en nyare uppdatering och skriva över varningsstatus eller fortsätta mot notisschemaläggningen med gamla koordinater.
+- Varje SMHI-uppdatering får nu en generation innan asynkron hämtning startar. Resultat från äldre generationer avbryts efter nätverks-/behörighets-/notiscenter-awaits och innan ytterligare varningsnotiser behandlas.
+- Den befintliga notis-epochen för av/på-inställningar är separat och oförändrad; generationsskyddet ersätter inte behörighets- eller avstängningskontrollerna.
+- Lagt till regressionstest för aktuell, äldre och saknad generation.
+- Berörda filer: `VADER/WeatherService.swift`, `VADER/NotificationInboxView.swift`, `Tests/SMHIWarningNotificationPolicyTests.swift`.
+- Kodcommits: `d2498de3f49550cafba6780c5456695c0c8f230f`, `9bdbc7845f552564b7cc45a8f25ea8936125a25f`, `90bf0d0c3d8077974a2cb3de6ef1261e4bdd766f`.
+- CI-hinder före ändringen: Build #716 mot dokumentationscommit `b88f906` stoppade i teststeget eftersom GitHub-runnern inte hade någon tillgänglig iPhone 16-simulator (xcodebuild exit 70). Loggen visar inte ett XCTest-fel; testkörning och IPA-bygge hoppades över. Tidigare Build #715 passerade 54/54 tester och IPA-paketering på commit `1ae4f70`.
+- Status: ny kod är pushad till `feature/frost-notification-audit`; ny CI krävs för exakt kodrevision. Ingen fysisk iPhone-testning genomförd. PR #1 förblir öppen som draft.
