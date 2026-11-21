@@ -19,11 +19,22 @@ final class RegnvaktNotificationDelegate: NSObject, UNUserNotificationCenterDele
         // interrupting the user when an old queued request fires on app launch.
         if watch == "smhi" {
             let level = (userInfo["level"] as? String ?? "").lowercased()
-            let isSevere = level.contains("röd") || level.contains("rod") || level.contains("orange")
+            let isRecognizedLevel = level.contains("röd") || level.contains("rod")
+                || level.contains("orange") || level.contains("gul")
+            let scheduledAt = userInfo["scheduledAt"] as? TimeInterval ?? 0
+            let notificationAge = Date().timeIntervalSince1970 - scheduledAt
+            let wasRecentlyScheduled = notificationAge >= 0 && notificationAge <= 10 * 60
+            let start = userInfo["start"] as? String ?? ""
             let end = userInfo["end"] as? String ?? ""
-            let endDate = ISO8601DateFormatter().date(from: end)
-            let isStillActive = end.isEmpty || (endDate.map { $0 >= Date() } ?? false)
-            completionHandler(isSevere && isStillActive ? [.banner, .sound, .list] : [])
+            let formatter = ISO8601DateFormatter()
+            let startDate = formatter.date(from: start)
+            let endDate = formatter.date(from: end)
+            let hasStarted = startDate.map { $0 <= Date() } ?? false
+            let hasNotEnded = end.isEmpty || (endDate.map { $0 >= Date() } ?? false)
+            completionHandler(
+                isRecognizedLevel && wasRecentlyScheduled && hasStarted && hasNotEnded
+                    ? [.banner, .sound, .list] : []
+            )
             return
         }
 
