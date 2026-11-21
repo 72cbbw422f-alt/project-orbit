@@ -916,3 +916,15 @@ completionHandler([.banner, .sound, .list])
 **Bakgrundsbegränsning:** `VADERApp.swift` importerar `BackgroundTasks`, men den granskade app-entry-filen registrerar ingen BGTask. Källkodsspårningen har ännu inte visat någon verifierad återkommande bakgrundsuppgift som hämtar SMHI-data när appen är avslutad. Lokala notiser kan levereras när de redan är schemalagda, men kan inte på egen hand upptäcka en senare publicerad varning utan att appen körs eller extern push används.
 
 **Status:** Rotorsak för att förgrundsnotiser visas som banners är verifierad i källkoden. Orsaken till upprepade/gamla SMHI-notiser är delvis spårad men behöver pending/delivered-diagnostik på enheten. Ingen produktionskod ändrad.
+
+
+### SMHI-notisernas giltighet och appaktiveringsflöde – fördjupad granskning 2026-11-21
+
+- Återläst hela SMHI-flödet i `VADER/NotificationInboxView.swift`, inklusive `SMHIWarningNotificationGate`, `checkAndNotify(at:)`, identifierargenerering och pending-rensning.
+- Bekräftat att SMHI-signaturen består av varningsområdets ID, nivå, rubrik och starttid. Gate sparar accepterade signaturer i UserDefaults och återanvänder dem endast när de fortfarande finns i den aktuella aktiva mängden. En redan pending request med samma deterministiska ID återhämtas som accepterad i gaten i stället för att läggas till igen.
+- Bekräftat att pending SMHI-requests som inte längre finns i mängden aktiva varningar för de bevakade koordinaterna tas bort vid nästa lyckade SMHI-kontroll. Den kontrollen läser pending-kön och skyddar rensningen med notification epoch.
+- Identifierad begränsning: den skapade SMHI-notisens `userInfo` innehåller endast `watch`, `warningID` och `area`; själva notisen saknar start-/sluttid och explicit giltighetstid. Triggern är två sekunder. Giltighetskontrollen sker alltså före schemaläggning och vid nästa lyckade kontroll/rensning, inte som en separat expiration-policy på den redan skapade notisen.
+- Den här konstruktionen gör inte en gammal varning automatiskt felaktig: en varning som SMHI fortfarande anger som aktiv och som påverkar en bevakad koordinat kan vara legitim att visa. För att avgöra användarens upplevda gamla varning krävs därför jämförelse mellan notisens warningID/area, SMHI:s aktuella start/slut och enhetens pending-/delivered-lista.
+- Ingen kodändring genomförd i denna omgång. Vi ska inte ändra deduplicering eller rensa pending-notiser utan att först fånga faktisk köstatus; det riskerar att förlora giltiga säkerhetsvarningar.
+- Nästa tekniska steg: skapa en ren, testbar notifieringspolicy som skiljer (1) kontroll/uppdatering av varningsdata, (2) ny eller ändrad aktiv varning, (3) tillägg av lokal notis och (4) förgrundspresentation. Appaktivering ska inte ensam vara skäl att återavisera en oförändrad aktiv varning.
+- Verifiering: GitHub-källkod återläst på utvecklingsgrenen. Inga XCTest-, Xcode-/iOS-build- eller fysiska enhetstester har körts. Ingen IPA byggd.
