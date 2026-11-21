@@ -43,6 +43,8 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
     private let geocoder = CLGeocoder()
     private var lastFetch: Date?
     private var weatherRequestID = UUID()
+    // Invalidates forecast fetches started by an older monitoring toggle.
+    private var monitoringRequestIDs: [UUID: UUID] = [:]
 
     override init() {
         super.init()
@@ -163,6 +165,10 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
     }
 
     func setMonitoring(_ place: SavedWeatherPlace, enabled: Bool) {
+        // Every toggle supersedes any fetch started by the previous state.
+        let requestID = UUID()
+        monitoringRequestIDs[place.id] = requestID
+
         if enabled {
             monitoredPlaceIDs.insert(place.id)
             persistMonitoredPlaces()
@@ -170,16 +176,24 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
             Task {
                 do {
                     let forecast = try await OpenMeteoService.fetch(latitude: place.latitude, longitude: place.longitude)
+                    guard monitoringRequestIDs[place.id] == requestID,
+                          monitoredPlaceIDs.contains(place.id),
+                          let activePlace = savedPlaces.first(where: { $0.id == place.id }),
+                          abs(activePlace.latitude - place.latitude) < 0.000001,
+                          abs(activePlace.longitude - place.longitude) < 0.000001 else { return }
+
                     WeatherNotificationScheduler.refresh(
-                        place: place.name,
-                        latitude: place.latitude,
-                        longitude: place.longitude,
+                        place: activePlace.name,
+                        latitude: activePlace.latitude,
+                        longitude: activePlace.longitude,
                         hours: forecast.hours,
                         currentTemperature: forecast.current.temperature
                     )
-                    // refresh(place:) already reconciles the complete monitored registry
-                    // using the freshly fetched forecast; avoid invalidating that batch.
+                    // refresh(place:) reconciles the complete monitored registry.
                 } catch {
+                    guard monitoringRequestIDs[place.id] == requestID,
+                          monitoredPlaceIDs.contains(place.id),
+                          savedPlaces.contains(where: { $0.id == place.id }) else { return }
                     status = "Kunde inte uppdatera bevakningen för \(place.name)."
                 }
             }
@@ -196,6 +210,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
     }
 
     func removePlace(_ place: SavedWeatherPlace) {
+        monitoringRequestIDs[place.id] = UUID()
         monitoredPlaceIDs.remove(place.id)
         persistMonitoredPlaces()
         WeatherNotificationScheduler.removeNotifications(latitude: place.latitude, longitude: place.longitude)
