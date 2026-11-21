@@ -276,17 +276,13 @@ enum WeatherNotificationScheduler {
             locationID: locationID,
             pendingIdentifiers: pendingIdentifiers
         )
-        let selectedIdentifiers = Set(WeatherNotificationBudget.select(
+        let selectedIdentifiers = WeatherNotificationBudget.select(
             candidates: candidates,
             capacity: perPlaceLimit,
             deliveredIdentifiers: deliveredIdentifiers
-        ))
+        )
         let requestsByIdentifier = Dictionary(requests.map { ($0.identifier, $0) }, uniquingKeysWith: { first, _ in first })
-        let selected = selectedIdentifiers.compactMap { requestsByIdentifier[$0] }.sorted {
-            let leftDate = $0.trigger?.nextTriggerDate() ?? .distantFuture
-            let rightDate = $1.trigger?.nextTriggerDate() ?? .distantFuture
-            return leftDate < rightDate
-        }
+        let selected = selectedIdentifiers.compactMap { requestsByIdentifier[$0] }
 
         let locationPrefix = prefix + locationID.replacingOccurrences(of: ",", with: "_") + "."
         // Recover a current-frost alert delivered since the previous refresh,
