@@ -241,85 +241,13 @@ enum WeatherNotificationScheduler {
         }
 
         
-        let frostDayKey = currentFrostAlertDayKey + "." + locationID.replacingOccurrences(of: ",", with: "_")
-        let events = makeEvents(hours: hours, currentTemperature: currentTemperature, defaults: defaults, frostDayKey: frostDayKey)
-        let lead = defaults.object(forKey: "Regnvakt.notifications.leadMinutes") == nil
-            ? 30 : max(0, defaults.integer(forKey: "Regnvakt.notifications.leadMinutes"))
-        let quietSetting = defaults.string(forKey: "Regnvakt.notifications.quietHours") ?? "22–07"
-
-        var requests: [UNNotificationRequest] = []
-        for event in events {
-            let fireDate = event.immediate ? Date().addingTimeInterval(2) : event.date.addingTimeInterval(-Double(lead) * 60)
-            guard event.immediate || fireDate > Date().addingTimeInterval(30) else { continue }
-            // Frost and ice alerts are safety-critical and intentionally bypass quiet hours.
-            guard event.safetyCritical || !WeatherWatchRules.isQuietTime(fireDate, setting: quietSetting) else { continue }
-
-            let content = UNMutableNotificationContent()
-            let weatherIcon: String
-            switch event.type {
-            case "rain": weatherIcon = "🌧️"
-            case "snow": weatherIcon = "❄️"
-            case "wind": weatherIcon = "💨"
-            case "thunder": weatherIcon = "⛈️"
-            case "frost": weatherIcon = "🥶"
-            case "ice": weatherIcon = "🧊"
-            default: weatherIcon = "🌦️"
-            }
-            let probabilityText = event.body.components(separatedBy: "Sannolikhet ").last?.components(separatedBy: "%").first
-            let probability = probabilityText.flatMap { Int($0) }
-            let riskLabel: String
-            if event.safetyCritical {
-                riskLabel = " • Hög risk"
-            } else if let probability, probability >= 70 {
-                riskLabel = " • Hög sannolikhet"
-            } else if let probability, probability >= 50 {
-                riskLabel = " • Medelhög sannolikhet"
-            } else {
-                riskLabel = " • Risk i prognosen"
-            }
-            content.title = "\(weatherIcon) \(event.title)\(riskLabel)"
-            content.body = "\(event.body) • \(place)"
-            content.sound = .default
-            content.userInfo = ["watch": event.type, "place": place, "safetyCritical": event.safetyCritical, "immediate": event.immediate, "alertDay": swedishCalendar.startOfDay(for: event.date), "forecastEventDate": event.date.timeIntervalSince1970, "leadMinutes": lead]
-            var components = swedishCalendar.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
-            components.timeZone = swedishTimeZone
-            let trigger: UNNotificationTrigger
-            if event.immediate {
-                trigger = UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false)
-            } else {
-                trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
-            }
-            let stamp: String
-            if event.immediate {
-                let day = DateFormatter()
-                day.calendar = swedishCalendar
-                day.timeZone = swedishTimeZone
-                day.dateFormat = "yyyyMMdd"
-                stamp = day.string(from: Date())
-            } else if event.type == "frost" {
-                // Stable local-day identity: refreshed hourly forecasts must
-                // update one frost warning, never create a new alert per hour.
-                let day = DateFormatter()
-                day.calendar = swedishCalendar
-                day.timeZone = swedishTimeZone
-                day.dateFormat = "yyyyMMdd"
-                stamp = day.string(from: swedishCalendar.startOfDay(for: event.date))
-            } else {
-                // Forecast feeds can revise the exact timestamp by a few
-                // seconds/minutes while still describing the same displayed
-                // local-hour event. Key the notification by Swedish local hour
-                // so a refresh replaces that event instead of delivering a copy.
-                let hourStamp = DateFormatter()
-                hourStamp.calendar = swedishCalendar
-                hourStamp.timeZone = swedishTimeZone
-                hourStamp.locale = Locale(identifier: "en_US_POSIX")
-                hourStamp.dateFormat = "yyyyMMddHH"
-                stamp = hourStamp.string(from: event.date)
-            }
-            let locationToken = locationID.replacingOccurrences(of: ",", with: "_")
-            let identifier = prefix + locationToken + "." + event.type + (event.immediate ? ".current." : ".") + stamp
-            requests.append(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
-        }
+        let requests = makeRequests(
+            place: place,
+            hours: hours,
+            currentTemperature: currentTemperature,
+            defaults: defaults,
+            locationID: locationID
+        )
 
         // Legacy per-place ordering remains until the global reconciliation
         // replaces this method. Keep safety events ahead of ordinary forecasts.
@@ -434,6 +362,98 @@ enum WeatherNotificationScheduler {
                 ? "Inga framtida risker passerade aviseringsgränserna"
                 : "\(finalCount) väderavisering(ar) schemalagda i iPhone", forKey: scheduleStatusKey)
         }
+    }
+
+    /// Converts one stored forecast into stable notification requests.
+    /// Kept separate from scheduling so the global reconciler can build one
+    /// candidate pool across every monitored location.
+    private static func makeRequests(
+        place: String,
+        hours: [HourForecast],
+        currentTemperature: Int?,
+        defaults: UserDefaults,
+        locationID: String
+    ) -> [UNNotificationRequest] {
+        let frostDayKey = currentFrostAlertDayKey + "." + locationID.replacingOccurrences(of: ",", with: "_")
+        let events = makeEvents(hours: hours, currentTemperature: currentTemperature, defaults: defaults, frostDayKey: frostDayKey)
+        let lead = defaults.object(forKey: "Regnvakt.notifications.leadMinutes") == nil
+            ? 30 : max(0, defaults.integer(forKey: "Regnvakt.notifications.leadMinutes"))
+        let quietSetting = defaults.string(forKey: "Regnvakt.notifications.quietHours") ?? "22–07"
+
+        var requests: [UNNotificationRequest] = []
+        for event in events {
+            let fireDate = event.immediate ? Date().addingTimeInterval(2) : event.date.addingTimeInterval(-Double(lead) * 60)
+            guard event.immediate || fireDate > Date().addingTimeInterval(30) else { continue }
+            // Frost and ice alerts are safety-critical and intentionally bypass quiet hours.
+            guard event.safetyCritical || !WeatherWatchRules.isQuietTime(fireDate, setting: quietSetting) else { continue }
+
+            let content = UNMutableNotificationContent()
+            let weatherIcon: String
+            switch event.type {
+            case "rain": weatherIcon = "🌧️"
+            case "snow": weatherIcon = "❄️"
+            case "wind": weatherIcon = "💨"
+            case "thunder": weatherIcon = "⛈️"
+            case "frost": weatherIcon = "🥶"
+            case "ice": weatherIcon = "🧊"
+            default: weatherIcon = "🌦️"
+            }
+            let probabilityText = event.body.components(separatedBy: "Sannolikhet ").last?.components(separatedBy: "%").first
+            let probability = probabilityText.flatMap { Int($0) }
+            let riskLabel: String
+            if event.safetyCritical {
+                riskLabel = " • Hög risk"
+            } else if let probability, probability >= 70 {
+                riskLabel = " • Hög sannolikhet"
+            } else if let probability, probability >= 50 {
+                riskLabel = " • Medelhög sannolikhet"
+            } else {
+                riskLabel = " • Risk i prognosen"
+            }
+            content.title = "\(weatherIcon) \(event.title)\(riskLabel)"
+            content.body = "\(event.body) • \(place)"
+            content.sound = .default
+            content.userInfo = ["watch": event.type, "place": place, "safetyCritical": event.safetyCritical, "immediate": event.immediate, "alertDay": swedishCalendar.startOfDay(for: event.date), "forecastEventDate": event.date.timeIntervalSince1970, "leadMinutes": lead]
+            var components = swedishCalendar.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
+            components.timeZone = swedishTimeZone
+            let trigger: UNNotificationTrigger
+            if event.immediate {
+                trigger = UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false)
+            } else {
+                trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+            }
+            let stamp: String
+            if event.immediate {
+                let day = DateFormatter()
+                day.calendar = swedishCalendar
+                day.timeZone = swedishTimeZone
+                day.dateFormat = "yyyyMMdd"
+                stamp = day.string(from: Date())
+            } else if event.type == "frost" {
+                // Stable local-day identity: refreshed hourly forecasts must
+                // update one frost warning, never create a new alert per hour.
+                let day = DateFormatter()
+                day.calendar = swedishCalendar
+                day.timeZone = swedishTimeZone
+                day.dateFormat = "yyyyMMdd"
+                stamp = day.string(from: swedishCalendar.startOfDay(for: event.date))
+            } else {
+                // Forecast feeds can revise the exact timestamp by a few
+                // seconds/minutes while still describing the same displayed
+                // local-hour event. Key the notification by Swedish local hour
+                // so a refresh replaces that event instead of delivering a copy.
+                let hourStamp = DateFormatter()
+                hourStamp.calendar = swedishCalendar
+                hourStamp.timeZone = swedishTimeZone
+                hourStamp.locale = Locale(identifier: "en_US_POSIX")
+                hourStamp.dateFormat = "yyyyMMddHH"
+                stamp = hourStamp.string(from: event.date)
+            }
+            let locationToken = locationID.replacingOccurrences(of: ",", with: "_")
+            let identifier = prefix + locationToken + "." + event.type + (event.immediate ? ".current." : ".") + stamp
+            requests.append(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
+        }
+        return requests
     }
 
     private static func makeEvents(hours: [HourForecast], currentTemperature: Int?, defaults: UserDefaults, frostDayKey: String) -> [Event] {
