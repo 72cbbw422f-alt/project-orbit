@@ -995,3 +995,28 @@ completionHandler([.banner, .sound, .list])
 ### Verifiering
 - Källkodsändringarna ska återläsas från GitHub och workflow-status kontrolleras.
 - XCTest, XcodeGen, iOS-build och fysisk iPhone-testning är inte körda i denna arbetsinsats.
+
+
+## SMHI-datumparser och förgrundspolicy – 2026-11-21
+
+### Ändringar
+- `VADER/SMHIWarningNotificationPolicy.swift`: lade till en gemensam Foundation-baserad datumparser som accepterar ISO-8601 med och utan fractional seconds samt SMHI:s tidszonlösa format som svensk lokal tid (`Europe/Stockholm`). Lade till ren policy för om en SMHI-notis får visas i förgrunden.
+- Policyn kräver igenkänd gul/orange/röd nivå, schemaläggning högst tio minuter tidigare och inte i framtiden, giltig starttid som har inträffat samt tom eller giltig sluttid som inte passerat.
+- `VADER/VADERApp.swift`: förgrundsdelegaten använder nu den testbara policyn. Säkerhetskritiska forecast-notiser har oförändrat beteende.
+- `VADER/NotificationInboxView.swift`: den befintliga privata parsern är kvar tills vidare; nästa städsteg är att ersätta den med den gemensamma parsern.
+- `Tests/SMHIWarningNotificationPolicyTests.swift`: lade till tester för fractional ISO8601, standard ISO8601, tidszonlös svensk lokal tid, felaktigt datum, okänd nivå, färsk aktiv varning samt stale/future/expired/malformed varningar.
+
+### Filer
+- `VADER/SMHIWarningNotificationPolicy.swift`
+- `VADER/VADERApp.swift`
+- `Tests/SMHIWarningNotificationPolicyTests.swift`
+- `docs/DEVELOPMENT_LOG.md`
+
+### Verifiering
+- Källkod uppdaterad på `feature/frost-notification-audit`. Efterföljande återläsning och kontroll av aktuell Actions-körning krävs.
+- XCTest, XcodeGen, iOS-build och fysisk iPhone-testning är inte körda i denna arbetsinsats. Ingen IPA byggd.
+
+### Kvar
+- Byt den privata parsern i `NotificationInboxView.swift` till den gemensamma implementationen.
+- Kontrollera aktuell GitHub Actions-build och granska eventuella fel.
+- Global notification reconciliation är fortsatt inte implementerad.
