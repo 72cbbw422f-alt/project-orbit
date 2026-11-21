@@ -862,3 +862,33 @@ Varje arbetsomgång ska dokumentera:
 - Verifiering: ändrad fil återlästes och kontrollerades för sekventiell loop, global generationskontroll, frånvaro av direkt schedule-task i refresh(place:) samt korrekta key paths. XCTest, Swift/iOS-build och fysisk enhetstestning är inte körda.
 - Filer: VADER/WeatherNotificationScheduler.swift, docs/DEVELOPMENT_LOG.md, docs/NOTIFICATION_RECONCILIATION_DESIGN.md.
 - Viktig begränsning: detta är en serialiserad övergångslösning, inte den färdiga globala urvalsalgoritmen. Varje plats använder fortfarande interimistisk kapacitet och läser notification-center snapshots separat. Ett enda globalt kandidatval och en enda replace/add/status-cykel återstår.
+
+
+### Användarrapporterat fel: aviseringar utlöses vid appstart – 2026-11-21
+
+**Rapport:** Användaren får en ny notisbanner ovanpå appen direkt när Regnvakt öppnas. Det gäller både vanliga väderaviseringar och SMHI-aviseringar; SMHI-innehållet upplevs ofta som gammalt. Användaren upplever dessutom att SMHI-aviseringar inte kommer när appen är stängd.
+
+**Källkodsspårning på `feature/frost-notification-audit` (HEAD före denna dokumentationsändring: `4e3f84fc273014dc9320533d59bf0196b388a873`):**
+
+- `VADER/ContentView.swift`: `scenePhase == .active` anropar `weatherModel.refreshSMHIWarnings()`. Detta sker när appen går till aktivt läge.
+- `VADER/WeatherService.swift`: `refreshSMHIWarnings()` startar `SMHIWarningService.checkAndNotify(at:)`. Samma kontroll startas även från `loadWeather(...)`.
+- `VADER/NotificationInboxView.swift`: varje aktiv SMHI-varning som inte redan är deduplicerad skapas som en lokal notis med `UNTimeIntervalNotificationTrigger(timeInterval: 2)`. Det innebär att en kontroll som startar vid appöppning kan skapa en banner ungefär två sekunder senare. Det är en konkret kodväg som matchar användarens observation.
+- `VADER/WeatherService.swift`: `WeatherViewModel.init()` kör `WeatherNotificationScheduler.refreshFromStoredForecast()` vid appstart.
+- `VADER/WeatherNotificationScheduler.swift`: sparad aktuell temperatur kan generera en omedelbar frostrisknotis med två sekunders trigger om prognosposten är högst två timmar gammal och dagens frostdeduplicering inte redan är satt. Detta är en andra konkret kodväg för en notis vid appstart.
+- SMHI-kontrollen filtrerar bort varningar vars sluttid har passerat och skiljer aktiva från kommande varningar. En gammal banner kan därför bero på att varningen fortfarande är aktiv enligt SMHI, eller på att en tidigare lokal begäran redan hunnit köas; detta måste verifieras mot faktisk pending-/delivered-status på enheten.
+- SMHI:s signatur-gate försöker deduplicera accepterade notiser, men källkodsläsning ensam bevisar inte varför användaren ändå ser upprepning. Behöver testa persisted signatures, epoch och pending identifiers på enheten.
+
+**Bedömning:** Det är verifierat i källkoden att appaktivering kan starta en SMHI-kontroll som lägger en tvåsekundersnotis, och att appstart kan återställa en omedelbar frostnotis från sparad prognos. Det är ännu inte verifierat att dessa två vägar ensamma förklarar samtliga banners. Att SMHI-notiser uteblir när appen är stängd behöver separat undersökning av iOS leverans/foreground-presentation och hur ofta SMHI-data faktiskt kontrolleras när appen inte är aktiv. Nuvarande kod visar en kontroll vid appaktivering och väderladdning; någon verifierad serverbaserad pushkanal finns inte i denna implementation.
+
+**Ändringar i denna arbetsinsats:** Endast dokumentation av rapport och källkodsspårning. Ingen produktionslogik ändrad. Ingen notisrensning eller beteendeförändring införs innan pending/delivered-ägarskap och förväntat beteende har verifierats.
+
+**Filer granskade:** `VADER/ContentView.swift`, `VADER/WeatherService.swift`, `VADER/NotificationInboxView.swift`, `VADER/WeatherNotificationScheduler.swift`.
+
+**Verifiering:** GitHub-källkod återläst på PR #1:s head. Ingen iOS-build, XCTest eller fysisk enhetstestning utförd. PR #1 är öppen, draft och omerslagen; inga workflow runs hittades för aktuell head vid kontrollen.
+
+**Nästa steg:**
+1. Spåra `UNUserNotificationCenterDelegate`-registrering och `willPresent`-hantering för att fastställa foreground-presentation.
+2. Kontrollera samtliga anropsvägar för `refreshSMHIWarnings()` och eventuell bakgrundsuppgift.
+3. Lägg till diagnostik/testbar ren logik för att inte schemalägga en ny omedelbar SMHI-notis enbart för att appen aktiveras; notifiering ska styras av ny/ändrad varning och korrekt giltighet, inte av att vyn öppnas.
+4. Granska aktuell-frostens appstartsbeteende så att en gammal sparad temperatur inte orsakar en oönskad omedelbar banner.
+5. Verifiera på iPhone med appen i förgrund, bakgrund och helt avslutad innan felet markeras löst.
