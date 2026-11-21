@@ -41,7 +41,26 @@ final class SMHIWarningNotificationPolicyTests: XCTestCase {
             hasBaseline: true
         )
         XCTAssertEqual(reappeared.newlyActive, ["warning-a"])
-        XCTAssertEqual(reappeared.retainedBaseline, ["warning-a"])
+        XCTAssertTrue(reappeared.retainedBaseline.isEmpty)
+    }
+
+    func testUnscheduledNewWarningRemainsEligibleUntilAccepted() {
+        let firstCheck = SMHIWarningNotificationPolicy.activeWarningTransition(
+            current: ["already-known", "new-warning"],
+            previous: ["already-known"],
+            hasBaseline: true
+        )
+        XCTAssertEqual(firstCheck.newlyActive, ["new-warning"])
+        XCTAssertEqual(firstCheck.retainedBaseline, ["already-known"])
+
+        // Simulate iOS accepting the request: runtime then records the signature.
+        let afterAccepted = firstCheck.retainedBaseline.union(firstCheck.newlyActive)
+        let nextCheck = SMHIWarningNotificationPolicy.activeWarningTransition(
+            current: ["already-known", "new-warning"],
+            previous: afterAccepted,
+            hasBaseline: true
+        )
+        XCTAssertTrue(nextCheck.newlyActive.isEmpty)
     }
 
     func testFirstActiveWarningObservationCreatesBaselineWithoutNotification() {
