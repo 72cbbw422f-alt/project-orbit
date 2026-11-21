@@ -820,3 +820,14 @@ Varje arbetsomgång ska dokumentera:
 - Verifiering: filen återlästes efter ändringen; kontroll visade att makeRequests returnerar request-listan och att anropsstället använder var eftersom den befintliga sorteringen muterar listan. XCTest, Xcode/iOS-build och fysisk enhetstestning är inte körda.
 - Filer: VADER/WeatherNotificationScheduler.swift, docs/DEVELOPMENT_LOG.md.
 - Kvar: schedule(...) är fortfarande platsvis, använder interimistisk per-platsgräns och skriver delad status per jobb. Nästa steg är att extrahera en kandidatmetadatafunktion och därefter införa en enda generationsskyddad global reconciliation.
+
+### Kandidatmetadata inkopplad i befintligt notisurval – 2026-11-21
+
+- GitHub kontrollerades före arbetet: PR #1 var öppen, draft och osammanslagen; feature/frost-notification-audit låg på ae05f52b2af5428a67646c758de1868cad4c8dd2 och PR rapporterade mergeable true.
+- VADER/WeatherNotificationBudget.swift: lade till makeCandidate(...) för gemensam och testbar mappning av notiser till immediateFrost, safetyCritical eller forecast samt flagga för redan väntande aktuell frost.
+- Tests/WeatherNotificationBudgetTests.swift: lade till tester för prioritetsmappning och bevarandeflagga.
+- VADER/WeatherNotificationScheduler.swift: lade till makeCandidates(...) som mappar UNNotificationRequest till kandidatmetadata. Den platsvisa schedule(...) läser nu pending/delivered innan urval och använder WeatherNotificationBudget.select(...) i stället för egen sortering/prefix-selektion. Urvalet bevarar deterministisk ordning från select.
+- docs/NOTIFICATION_RECONCILIATION_DESIGN.md: dokumenterade inkopplingen och avgränsningen.
+- Verifiering: samtliga ändrade filer återlästes efter GitHub-uppdatering. Inga XCTest-, XcodeGen- eller iOS-build-resultat finns; GitHub workflow-körning för HEAD har ännu inte verifierats. Ingen fysisk enhet eller IPA.
+- Filer: VADER/WeatherNotificationBudget.swift, Tests/WeatherNotificationBudgetTests.swift, VADER/WeatherNotificationScheduler.swift, docs/NOTIFICATION_RECONCILIATION_DESIGN.md, docs/DEVELOPMENT_LOG.md.
+- Kvar: urvalet är fortfarande per plats med interimistisk kapacitet. Global pending-snapshot, globalt urval, en enda destructive replace/add-cykel, generationsskydd och en enda aggregerad statusuppdatering är inte implementerade.
