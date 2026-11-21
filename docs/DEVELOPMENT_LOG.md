@@ -1160,3 +1160,12 @@ completionHandler([.banner, .sound, .list])
 - The failed run tested an earlier test revision using shorthand coordinates (for example `60,10`), while production location identifiers are normalized to four decimal places (for example `60.0000_10.0000`).
 - Updated regression test on the current branch head to use the production identifier format. The current branch head is `07cebfc006c3665442533e3a42b55e896939a7fa`; a CI run against this exact head is still required.
 - The failure was in the new test fixture's coordinate format, not evidence of a production-code failure. Do not mark the change verified until the current-head run passes.
+
+
+## Namespace-ägarskap vid full rensning – 2026-11-21
+
+- Granskning mot `docs/NOTIFICATION_RECONCILIATION_DESIGN.md` visade att `WeatherNotificationScheduler.removeAll()` även raderade väntande och levererade `smhi.*`-notiser, trots att SMHI äger det namespace:t och designregeln säger att prognosschemaläggaren aldrig ska radera det som bieffekt.
+- Metoden är inte anropad från nuvarande appflöde, men korrigeras ändå för att göra ägarskapsgränsen säker även vid framtida återanvändning: den tar nu endast bort `regnvakt.weather.*`. Masterinställningen och `SMHIWarningService` fortsätter ansvara för uttrycklig SMHI-rensning.
+- Berörda filer: `VADER/WeatherNotificationScheduler.swift`, `docs/DEVELOPMENT_LOG.md`.
+- Verifiering: CI för föregående commit `d23a5b9` pågår (build #700) vid ändringstillfället. Ny CI-körning krävs för kodändringen. Ingen fysisk iPhone-testning genomförd.
+- Status: kodändring committas separat på `feature/frost-notification-audit`; PR #1 lämnas öppen som draft.
