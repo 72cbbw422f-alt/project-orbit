@@ -302,12 +302,23 @@ enum WeatherNotificationScheduler {
             // reuses the same stable identifier after a rapid re-add.
             let pending = await center.pendingNotificationRequests()
             guard defaults.string(forKey: globalScheduleTokenKey) == removalToken else { return }
-            let pendingIDs = pending.map(\.identifier).filter { $0.hasPrefix(locationPrefix) }
+            let pendingIDs = WeatherNotificationBudget.forecastIdentifiers(
+                for: rawLocationID,
+                in: pending.map(\.identifier),
+                forecastPrefix: prefix
+            )
             center.removePendingNotificationRequests(withIdentifiers: pendingIDs)
 
             let delivered = await center.deliveredNotifications()
-            guard defaults.string(forKey: globalScheduleTokenKey) == removalToken else { return }
-            let deliveredIDs = delivered.map { $0.request.identifier }.filter { $0.hasPrefix(locationPrefix) }
+            // Delivered alerts from a removed location are stale even if another
+            // location starts a newer global batch while this cleanup is running.
+            // Clear them independently; never let a stale cleanup touch pending
+            // requests after its generation token has been superseded.
+            let deliveredIDs = WeatherNotificationBudget.forecastIdentifiers(
+                for: rawLocationID,
+                in: delivered.map { $0.request.identifier },
+                forecastPrefix: prefix
+            )
             center.removeDeliveredNotifications(withIdentifiers: deliveredIDs)
 
             guard defaults.string(forKey: globalScheduleTokenKey) == removalToken else { return }
