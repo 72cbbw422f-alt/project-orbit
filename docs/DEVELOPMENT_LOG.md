@@ -1128,3 +1128,14 @@ completionHandler([.banner, .sound, .list])
 - Files changed: `VADER/WeatherNotificationBudget.swift`, `VADER/WeatherNotificationScheduler.swift`, `Tests/WeatherNotificationBudgetTests.swift`, this log.
 - Verification: GitHub writes completed. CI must run against the resulting code commit; no local Xcode execution or physical-device test is available in this workflow.
 - No merge. PR #1 remains open and draft. No signed IPA or device installation has been verified.
+
+
+## Serialized cleanup when removing a monitored location – 2026-11-21
+
+- `WeatherNotificationScheduler.removeNotifications` now commits the registry removal and rotates the global generation token synchronously, then performs notification-center cleanup in one async sequence.
+- The sequence removes the removed location's pending requests, then delivered notifications, and only then starts reconciliation for the remaining registry.
+- Every async boundary checks the removal generation token. If a newer refresh/reconciliation supersedes cleanup, the stale cleanup exits rather than touching notifications created by the newer state.
+- `WeatherService.setMonitoring` and `removePlace` no longer launch a second immediate reconciliation after calling `removeNotifications`. This removes duplicate global batches and prevents an old asynchronous removal callback from deleting a newly re-added request with the same stable identifier.
+- Files changed: `VADER/WeatherNotificationScheduler.swift`, `VADER/WeatherService.swift`, this log.
+- Verification: source changes committed to the feature branch; GitHub Actions must verify Swift concurrency/API compilation, XCTest, Release build and IPA packaging. No physical-device test in this step.
+- No merge. PR #1 remains open and draft.
