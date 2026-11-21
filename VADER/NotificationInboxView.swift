@@ -240,6 +240,25 @@ enum SMHIWarningService {
 
     private static let notificationEpochKey = "Regnvakt.smhi.notificationEpoch.v1"
     private static let warningSignaturesKey = "Regnvakt.smhi.warningSignatures.v1"
+    private static let checkGenerationKey = "Regnvakt.smhi.checkGeneration.v1"
+
+    /// Starts a new location snapshot evaluation and invalidates older responses.
+    static func beginCheck() -> String {
+        let generation = UUID().uuidString
+        UserDefaults.standard.set(generation, forKey: checkGenerationKey)
+        return generation
+    }
+
+    static func isCurrentCheck(_ generation: String, storedGeneration: String?) -> Bool {
+        storedGeneration == generation
+    }
+
+    private static func isCurrentCheck(_ generation: String) -> Bool {
+        isCurrentCheck(
+            generation,
+            storedGeneration: UserDefaults.standard.string(forKey: checkGenerationKey)
+        )
+    }
 
     static func notificationsReenabled() {
         // Invalidate any asynchronous cleanup that began during the previous opt-out.
@@ -270,18 +289,21 @@ enum SMHIWarningService {
     }
 
     static func checkAndNotify(at coordinate: CLLocationCoordinate2D) async {
-        await checkAndNotify(at: [coordinate])
+        let generation = beginCheck()
+        await checkAndNotify(at: [coordinate], generation: generation)
     }
 
-    static func checkAndNotify(at coordinates: [CLLocationCoordinate2D]) async {
+    static func checkAndNotify(at coordinates: [CLLocationCoordinate2D], generation: String) async {
         let defaults = UserDefaults.standard
         let notificationEpoch = defaults.string(forKey: notificationEpochKey) ?? ""
+        guard isCurrentCheck(generation) else { return }
 
         // One SMHI payload is evaluated against every active monitored place.
         // This avoids repeated requests and prevents one place's empty result
         // from overwriting a warning found for another place.
         do {
             let current = try await warnings(at: coordinates)
+            guard isCurrentCheck(generation) else { return }
             let now = Date()
             // SMHI may publish a warning several hours before it starts.
             // Keep upcoming items visible in the warning feed, but never mark
@@ -313,6 +335,7 @@ enum SMHIWarningService {
             // A user who disables push alerts must still see current nationwide warnings.
             do {
                 let national = try await nationwideWarnings()
+                guard isCurrentCheck(generation) else { return }
                 let nationalSignatures = Set(national.map { $0.id + "|" + $0.level + "|" + $0.title })
                 let nationalKey = "Regnvakt.smhi.nationalSignatures.v1"
                 let previousNational = Set(defaults.stringArray(forKey: nationalKey) ?? [])
@@ -332,6 +355,7 @@ enum SMHIWarningService {
 
             let center = UNUserNotificationCenter.current()
             let authorization = await center.notificationSettings()
+            guard isCurrentCheck(generation) else { return }
             guard authorization.authorizationStatus == .authorized ||
                   authorization.authorizationStatus == .provisional ||
                   authorization.authorizationStatus == .ephemeral else { return }
@@ -374,7 +398,8 @@ enum SMHIWarningService {
                 notificationIdentifier(for: $0, epoch: notificationEpoch)
             })
             let allPendingRequests = await center.pendingNotificationRequests()
-            guard (defaults.string(forKey: notificationEpochKey) ?? "") == notificationEpoch else { return }
+            guard isCurrentCheck(generation),
+                  (defaults.string(forKey: notificationEpochKey) ?? "") == notificationEpoch else { return }
             let pendingSMHIRequests = allPendingRequests.filter { $0.identifier.hasPrefix("smhi.") }
             // Remove queued alerts that no longer affect any currently monitored
             // coordinate, including warnings that ended or belonged to a removed place.
@@ -391,6 +416,8 @@ enum SMHIWarningService {
             let availableSMHISlots = max(0, 8 - currentPendingSMHIRequests.count)
             var queuedSMHIWarnings = 0
             for warning in prioritizedActive {
+                guard isCurrentCheck(generation),
+                      (defaults.string(forKey: notificationEpochKey) ?? "") == notificationEpoch else { return }
                 let signature = warning.id + "|" + warning.level + "|" + warning.title + "|" + warning.start
                 let identifier = notificationIdentifier(for: warning, epoch: notificationEpoch)
 
