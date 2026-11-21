@@ -253,4 +253,63 @@ final class WeatherNotificationBudgetTests: XCTestCase {
             ["a", "b", "c"]
         )
     }
+
+    func testGlobalSelectionSharesCapacityAcrossLocationsAndExternalNamespaces() {
+        let pendingSnapshot = [
+            "smhi.warning.one",
+            "smhi.warning.two",
+            "calendar.reminder.one",
+            "regnvakt.weather.old-place.rain.20261121"
+        ]
+        let capacity = WeatherNotificationBudget.availableForecastCapacity(
+            pendingIdentifiers: pendingSnapshot
+        )
+        XCTAssertEqual(capacity, 41)
+
+        let candidates = [
+            candidate("north-rain", location: "north", minutes: 1),
+            candidate("south-rain", location: "south", minutes: 2),
+            candidate("east-ice", location: "east", priority: .safetyCritical, minutes: 30),
+            candidate("west-current-frost", location: "west", priority: .immediateFrost, minutes: 60)
+        ]
+        XCTAssertEqual(
+            WeatherNotificationBudget.select(candidates: candidates, capacity: 2),
+            ["west-current-frost", "east-ice"]
+        )
+    }
+
+    func testGlobalSelectionPreservesPendingCurrentFrostAcrossLocations() {
+        let pendingSnapshot = [
+            "regnvakt.weather.north.frost.current.20261121",
+            "regnvakt.weather.south.frost.current.20261121",
+            "smhi.warning.one"
+        ]
+        let pending = Set(pendingSnapshot)
+        let candidates = [
+            WeatherNotificationBudget.makeCandidate(
+                identifier: "regnvakt.weather.north.frost.current.20261121",
+                locationID: "north",
+                fireDate: Date(timeIntervalSince1970: 10),
+                isImmediateFrost: true,
+                isSafetyCritical: true,
+                isPreservedPendingCurrentFrost: pending.contains("regnvakt.weather.north.frost.current.20261121")
+            ),
+            WeatherNotificationBudget.makeCandidate(
+                identifier: "regnvakt.weather.south.frost.current.20261121",
+                locationID: "south",
+                fireDate: Date(timeIntervalSince1970: 20),
+                isImmediateFrost: true,
+                isSafetyCritical: true,
+                isPreservedPendingCurrentFrost: pending.contains("regnvakt.weather.south.frost.current.20261121")
+            ),
+            candidate("ordinary", location: "west")
+        ]
+        XCTAssertEqual(
+            WeatherNotificationBudget.select(candidates: candidates, capacity: 0),
+            [
+                "regnvakt.weather.north.frost.current.20261121",
+                "regnvakt.weather.south.frost.current.20261121"
+            ]
+        )
+    }
 }
