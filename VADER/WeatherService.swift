@@ -187,9 +187,6 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
             monitoredPlaceIDs.remove(place.id)
             persistMonitoredPlaces()
             WeatherNotificationScheduler.removeNotifications(latitude: place.latitude, longitude: place.longitude)
-            // Reclaim this place's share of the pending-notification budget
-            // and reschedule the remaining monitored locations.
-            WeatherNotificationScheduler.refreshFromStoredForecast()
             refreshSMHIWarnings()
         }
     }
@@ -208,9 +205,8 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
             savedPlaces[index].isFavorite = true
         }
         persistSavedPlaces()
-        // Removing a place must also release its share of the common queue
-        // and immediately re-evaluate the remaining SMHI coverage.
-        WeatherNotificationScheduler.refreshFromStoredForecast()
+        // Notification cleanup triggers one global reconciliation after the
+        // removed location's pending and delivered requests have been cleared.
         refreshSMHIWarnings()
     }
 
