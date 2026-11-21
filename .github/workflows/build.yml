@@ -2,7 +2,7 @@ name: Build Regnvakt iOS
 
 on:
   push:
-    branches: [main, feature/wind-radar]
+    branches: [main, feature/frost-notification-audit]
   workflow_dispatch:
 
 permissions:
@@ -32,6 +32,16 @@ jobs:
 
       - name: Generate Xcode project
         run: xcodegen generate
+
+      - name: Run frost risk unit tests
+        run: |
+          xcodebuild \
+            -project VADER.xcodeproj \
+            -scheme VADERTests \
+            -configuration Debug \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            CODE_SIGNING_ALLOWED=NO \
+            test
 
       - name: Build for iOS device
         run: |

@@ -1,11 +1,25 @@
 import SwiftUI
 import MapLibre
-import Combine
 import UIKit
 
 private enum RadarProvider: String {
     case smhi = "SMHI QCOMP"
     case rainViewer = "RainViewer"
+    case libreWXR = "LibreWXR"
+}
+
+private enum RadarImageError: LocalizedError {
+    case httpStatus(Int, String?)
+    case invalidImage
+
+    var errorDescription: String? {
+        switch self {
+        case .httpStatus(let status, let hint):
+            return hint.map { "HTTP \(status) • \($0)" } ?? "HTTP \(status)"
+        case .invalidImage:
+            return "Svaret kunde inte avkodas som PNG-bild"
+        }
+    }
 }
 
 private struct RadarFrame: Identifiable, Equatable {
@@ -30,17 +44,82 @@ private enum RadarService {
                 let path: String
             }
             let past: [Frame]
+            let nowcast: [Frame]?
         }
         let host: String
         let radar: Radar
     }
 
-    static func loadFrames() async throws -> (String, RadarProvider, [RadarFrame]) {
-        if let smhi = try? await loadSMHIFrames(), !smhi.isEmpty {
-            return ("", .smhi, smhi)
+    static func loadFrames(coordinate: CLLocationCoordinate2D) async throws -> (String, RadarProvider, [RadarFrame], String?) {
+        // Prefer SMHI's official QCOMP image product for Sweden. It is a
+        // georeferenced national image and avoids relying on third-party tile
+        // templates whose metadata may load while the map tiles remain blank.
+        do {
+            let frames = try await loadSMHIFrames()
+            return ("", .smhi, frames, nil)
+        } catch {
+            let smhiError = error.localizedDescription
+            // Fall back to tile providers only when the official SMHI feed is
+            // unavailable or stale. Validate an actual tile before selecting it.
+            do {
+                let (host, frames) = try await loadLibreWXRFrames()
+                guard let latestObserved = frames.last(where: { $0.time <= Date() }) else { throw URLError(.dataNotAllowed) }
+                try await validateTile(host: host, frame: latestObserved, coordinate: coordinate)
+                return (host, .libreWXR, frames, "SMHI: \(smhiError)")
+            } catch {
+                let libreError = error.localizedDescription
+                let (host, frames) = try await loadRainViewerFrames()
+                guard let latest = frames.last else { throw URLError(.dataNotAllowed) }
+                try await validateTile(host: host, frame: latest, coordinate: coordinate)
+                return (host, .rainViewer, frames, "SMHI: \(smhiError) • LibreWXR: \(libreError)")
+            }
         }
-        let (host, frames) = try await loadRainViewerFrames()
-        return (host, .rainViewer, frames)
+    }
+
+    private static func tileURL(host: String, frame: RadarFrame, coordinate: CLLocationCoordinate2D, zoom: Double) throws -> URL {
+        let tileCount = pow(2.0, zoom)
+        let latitude = min(85.0511, max(-85.0511, coordinate.latitude))
+        let x = Int(floor((coordinate.longitude + 180.0) / 360.0 * tileCount))
+        let radians = latitude * .pi / 180.0
+        let y = Int(floor((1.0 - log(tan(radians) + 1.0 / cos(radians)) / .pi) / 2.0 * tileCount))
+        let normalizedHost = host.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let normalizedFramePath = frame.path.hasPrefix("/") ? frame.path : "/\(frame.path)"
+        let path = "\(normalizedHost)\(normalizedFramePath)/512/\(Int(zoom))/\(x)/\(y)/10/1_1.png"
+        guard let url = URL(string: path) else { throw URLError(.badURL) }
+        return url
+    }
+
+    private static func validateTile(host: String, frame: RadarFrame, coordinate: CLLocationCoordinate2D) async throws {
+        let url = try tileURL(host: host, frame: frame, coordinate: coordinate, zoom: 7)
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 12
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.setValue("image/png,image/*;q=0.8", forHTTPHeaderField: "Accept")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+              let image = UIImage(data: data), image.cgImage != nil else {
+            let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+            let contentType = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type") ?? "okänd content-type"
+            let body = String(data: data.prefix(180), encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let detail = [contentType, body].compactMap { $0 }.joined(separator: " • ")
+            throw RadarImageError.httpStatus(status, "LibreWXR tile: \(detail) • \(url.absoluteString)")
+        }
+    }
+
+    private static func smhiFailureDescription(_ error: Error) -> String {
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .cannotLoadFromNetwork: return "SMHI:s senaste bild är för gammal"
+            case .cannotParseResponse: return "SMHI:s bildlista kunde inte tolkas"
+            case .timedOut: return "SMHI svarade inte i tid"
+            case .notConnectedToInternet, .networkConnectionLost: return "Nätverksfel mot SMHI"
+            case .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed: return "SMHI:s server kunde inte nås"
+            case .badServerResponse: return "SMHI skickade ett ogiltigt serversvar"
+            default: return "SMHI:s radarflöde kunde inte läsas"
+            }
+        }
+        return "SMHI:s bildlista kunde inte tolkas"
     }
 
     private static func loadSMHIFrames() async throws -> [RadarFrame] {
@@ -75,8 +154,51 @@ private enum RadarService {
         let unique = Dictionary(grouping: frames, by: { $0.time })
         let sorted = unique.values.compactMap { $0.first }.sorted { $0.time < $1.time }
         let recent = Array(sorted.suffix(25))
-        guard !recent.isEmpty else { throw URLError(.cannotParseResponse) }
+        guard let newest = recent.last?.time else { throw URLError(.cannotParseResponse) }
+
+        // QCOMP frames are generated every five minutes. Do not keep presenting
+        // an old SMHI image as live radar during an upstream outage; let the
+        // RainViewer fallback take over when the newest frame is stale.
+        let frameAge = Date().timeIntervalSince(newest)
+        guard frameAge >= -5 * 60, frameAge <= 20 * 60 else {
+            throw URLError(.cannotLoadFromNetwork)
+        }
+
+        // A directory listing and a recent timestamp do not prove that the
+        // actual radar PNG is downloadable or decodable. Validate the newest
+        // QCOMP image before selecting SMHI as the active provider; otherwise
+        // loadFrames falls through to the independently validated tile feeds.
+        guard let newestFrame = recent.last else {
+            throw URLError(.cannotParseResponse)
+        }
+        _ = try await loadImage(for: newestFrame)
+
         return recent
+    }
+
+    static func loadLibreWXRFrames() async throws -> (String, [RadarFrame]) {
+        let url = URL(string: "https://api.librewxr.net/public/weather-maps.json")!
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.setValue("Regnvakt iOS", forHTTPHeaderField: "User-Agent")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        let manifest = try JSONDecoder().decode(RainViewerManifest.self, from: data)
+        let past = manifest.radar.past.map {
+            RadarFrame(time: Date(timeIntervalSince1970: $0.time), path: $0.path, provider: .libreWXR)
+        }
+        let nowcast = (manifest.radar.nowcast ?? []).map {
+            RadarFrame(time: Date(timeIntervalSince1970: $0.time), path: $0.path, provider: .libreWXR)
+        }
+        let frames = (past + nowcast).sorted { $0.time < $1.time }
+        guard !past.isEmpty else { throw URLError(.dataNotAllowed) }
+        // Validate the latest observed radar frame. Nowcast tiles are included
+        // for playback but must not make the provider fail if a forecast frame
+        // is temporarily not yet rendered.
+        return (manifest.host, Array(frames.suffix(31)))
     }
 
     static func loadRainViewerFrames() async throws -> (String, [RadarFrame]) {
@@ -98,7 +220,7 @@ private enum RadarService {
     }
 
     static func hasPrecipitation(host: String, frame: RadarFrame, coordinate: CLLocationCoordinate2D) async throws -> Bool {
-        let zoom = 7.0
+        let zoom = frame.provider == .libreWXR ? 12.0 : 7.0
         let tileCount = pow(2.0, zoom)
         let latitude = min(85.0511, max(-85.0511, coordinate.latitude))
         let xPosition = (coordinate.longitude + 180.0) / 360.0 * tileCount
@@ -108,7 +230,9 @@ private enum RadarService {
         let tileY = Int(floor(yPosition))
         let pixelX = min(511, max(0, Int((xPosition - Double(tileX)) * 512)))
         let pixelY = min(511, max(0, Int((yPosition - Double(tileY)) * 512)))
-        let urlString = "\(host)\(frame.path)/512/\(tileX)/\(tileY)/2/1_1.png"
+        let normalizedHost = host.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let normalizedFramePath = frame.path.hasPrefix("/") ? frame.path : "/\(frame.path)"
+        let urlString = "\(normalizedHost)\(normalizedFramePath)/512/\(Int(zoom))/\(tileX)/\(tileY)/10/1_1.png"
         guard let url = URL(string: urlString) else { throw URLError(.badURL) }
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
@@ -158,11 +282,23 @@ private enum RadarService {
         request.timeoutInterval = 20
         request.cachePolicy = .reloadIgnoringLocalCacheData
         request.setValue("image/png,image/*;q=0.8", forHTTPHeaderField: "Accept")
-        request.setValue("Regnvakt iOS", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard (response as? HTTPURLResponse)?.statusCode == 200,
-              let image = UIImage(data: data) else {
-            throw URLError(.cannotDecodeContentData)
+        guard let http = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        guard http.statusCode == 200 else {
+            let challenge = http.value(forHTTPHeaderField: "WWW-Authenticate")
+            let body = String(data: data.prefix(180), encoding: .utf8)?
+                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let hint = challenge ?? body
+            throw RadarImageError.httpStatus(http.statusCode, hint)
+        }
+        guard let image = UIImage(data: data),
+              image.cgImage != nil,
+              image.size.width >= 256,
+              image.size.height >= 256 else {
+            throw RadarImageError.invalidImage
         }
         return image
     }
@@ -176,6 +312,17 @@ private struct WindSample: Identifiable {
     let speed: Double
     let direction: Double
     let gust: Double
+    let cloudCover: Double
+    let precipitationType: Int
+    let precipitation: Double
+}
+
+
+
+private struct WindScreenPoint: Identifiable {
+    let id: Int
+    let x: Double
+    let y: Double
 }
 
 private enum WindLayer: String, CaseIterable {
@@ -184,69 +331,132 @@ private enum WindLayer: String, CaseIterable {
 }
 
 private struct WindFieldOverlay: View {
+    private typealias WindVector = (u: Double, v: Double, speed: Double)
+
     let samples: [WindSample]
+    let projectedPoints: [WindScreenPoint]
     let show: Bool
     let gustMode: Bool
 
+    private let nx = 12
+    private let ny = 10
+
+    // This derived field depends only on model samples, map center and gust mode.
+    // Keep it outside TimelineView so 8 Hz particle animation does not rebuild
+    // the 120-cell interpolation grid on every animation tick.
+    private var fieldGrid: [WindVector] {
+        var grid = [WindVector](repeating: (0, 0, 0), count: nx * ny)
+        guard samples.count >= 9, projectedPoints.count == samples.count else { return grid }
+        let screenPositions = Dictionary(uniqueKeysWithValues: projectedPoints.map { ($0.id, $0) })
+        // Ignore samples far beyond the visible viewport. The model grid already
+        // includes a deliberate geographic margin, so a loose screen-space bound
+        // preserves edge support while preventing distant samples from biasing
+        // the interpolation after a pan or zoom.
+        let visibleSamples = samples.filter { sample in
+            guard let point = screenPositions[sample.id] else { return false }
+            return point.x >= -0.35 && point.x <= 1.35 &&
+                   point.y >= -0.35 && point.y <= 1.35
+        }
+        let interpolationSamples = visibleSamples.count >= 9 ? visibleSamples : samples
+
+        for gy in 0..<ny {
+            for gx in 0..<nx {
+                let px = (Double(gx) + 0.5) / Double(nx)
+                let py = (Double(gy) + 0.5) / Double(ny)
+                var total = 0.0
+                var u = 0.0
+                var v = 0.0
+                var speed = 0.0
+                for sample in interpolationSamples {
+                    guard let projected = screenPositions[sample.id] else { continue }
+                    let dx = px - projected.x
+                    let dy = py - projected.y
+                    let weight = 1.0 / max(dx * dx + dy * dy, 0.0025)
+                    let magnitude = gustMode ? sample.gust : sample.speed
+                    let radians = sample.direction * .pi / 180
+                    u += -sin(radians) * magnitude * weight
+                    v += -cos(radians) * magnitude * weight
+                    speed += magnitude * weight
+                    total += weight
+                }
+                if total > 0 {
+                    grid[gy * nx + gx] = (u / total, v / total, speed / total)
+                }
+            }
+        }
+        return grid
+    }
+
     private func tint(_ speed: Double) -> Color {
         switch speed {
-        case ..<4: return Color(red: 0.25, green: 0.82, blue: 0.96)
-        case ..<8: return Color(red: 0.20, green: 0.88, blue: 0.56)
-        case ..<12: return Color(red: 1.0, green: 0.82, blue: 0.18)
-        case ..<17: return Color(red: 1.0, green: 0.48, blue: 0.18)
-        default: return Color(red: 0.98, green: 0.20, blue: 0.28)
+        case ..<4: return Color(red: 0.34, green: 0.76, blue: 0.88)
+        case ..<8: return Color(red: 0.34, green: 0.78, blue: 0.58)
+        case ..<12: return Color(red: 0.88, green: 0.73, blue: 0.30)
+        case ..<17: return Color(red: 0.88, green: 0.52, blue: 0.32)
+        default: return Color(red: 0.86, green: 0.36, blue: 0.40)
         }
     }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !show || samples.count < 9)) { timeline in
+        let fieldGrid = self.fieldGrid
+        TimelineView(.animation(minimumInterval: 1.0 / 8.0, paused: !show || samples.count < 9)) { timeline in
             Canvas { context, size in
                 guard show, samples.count >= 9 else { return }
 
-                func vector(at point: CGPoint) -> (u: Double, v: Double, speed: Double) {
-                    var total = 0.0
-                    var u = 0.0
-                    var v = 0.0
-                    var speed = 0.0
-                    for sample in samples {
-                        let sx = 0.5 + (sample.longitude - samples[samples.count / 2].longitude) / 0.90
-                        let sy = 0.5 - (sample.latitude - samples[samples.count / 2].latitude) / 0.80
-                        let dx = Double(point.x / max(size.width, 1)) - sx
-                        let dy = Double(point.y / max(size.height, 1)) - sy
-                        let weight = 1.0 / max(dx * dx + dy * dy, 0.0025)
-                        let magnitude = gustMode ? sample.gust : sample.speed
-                        let radians = (sample.direction + 180) * .pi / 180
-                        u += -sin(radians) * magnitude * weight
-                        v += cos(radians) * magnitude * weight
-                        speed += magnitude * weight
-                        total += weight
+                func vector(at point: CGPoint) -> WindVector {
+                    let gx = min(Double(nx - 1), max(0, Double(point.x / max(size.width, 1)) * Double(nx) - 0.5))
+                    let gy = min(Double(ny - 1), max(0, Double(point.y / max(size.height, 1)) * Double(ny) - 0.5))
+                    let x0 = min(nx - 1, max(0, Int(gx)))
+                    let y0 = min(ny - 1, max(0, Int(gy)))
+                    let x1 = min(nx - 1, x0 + 1)
+                    let y1 = min(ny - 1, y0 + 1)
+                    let tx = gx - Double(x0)
+                    let ty = gy - Double(y0)
+                    let a = fieldGrid[y0 * nx + x0]
+                    let b = fieldGrid[y0 * nx + x1]
+                    let c = fieldGrid[y1 * nx + x0]
+                    let d = fieldGrid[y1 * nx + x1]
+                    func blend(_ key: (WindVector) -> Double) -> Double {
+                        let top = key(a) * (1 - tx) + key(b) * tx
+                        let bottom = key(c) * (1 - tx) + key(d) * tx
+                        return top * (1 - ty) + bottom * ty
                     }
-                    return (u / total, v / total, speed / total)
+                    return (blend { $0.u }, blend { $0.v }, blend { $0.speed })
                 }
 
                 let now = timeline.date.timeIntervalSinceReferenceDate
-                let particleCount = 420
+                // Fewer, longer-lived trails create a calmer visual field and
+                // leave more rendering headroom on older iPhones.
+                let particleCount = 64
                 for index in 0..<particleCount {
                     // Deterministic pseudo-random seed points; particles drift continuously
                     // through the interpolated Open-Meteo wind field and then respawn.
-                    let seedX = CGFloat((index * 73 + 19) % 997) / 997.0
-                    let seedY = CGFloat((index * 193 + 47) % 991) / 991.0
+                    let seedX = CGFloat((index * 377 + 113) % 997) / 997.0
+                    let seedY = CGFloat((index * 613 + 271) % 991) / 991.0
                     let seed = CGPoint(x: seedX * size.width, y: seedY * size.height)
-                    let duration = 5.2 + Double(index % 9) * 0.48
+                    let duration = 4.8 + Double((index * 7) % 13) * 0.43
                     let phase = (now / duration + Double(index) * 0.137).truncatingRemainder(dividingBy: 1.0)
-                    let steps = max(1, Int(phase * 42.0))
+                    let progress = phase * 28.0
+                    let steps = Int(progress)
+                    let remainder = progress - Double(steps)
                     var point = seed
                     var trail: [CGPoint] = [seed]
                     var localSpeed = 0.0
 
                     for _ in 0..<steps {
                         let field = vector(at: point)
-                        localSpeed = field.speed
-                        let magnitude = max(0.1, hypot(field.u, field.v))
-                        let step = min(6.5, max(2.8, magnitude * 0.48))
+                        let firstMagnitude = max(0.1, hypot(field.u, field.v))
+                        let step = min(5.5, max(2.4, firstMagnitude * 0.42))
+                        let midpoint = CGPoint(
+                            x: point.x + CGFloat(field.u / firstMagnitude) * step * 0.5,
+                            y: point.y - CGFloat(field.v / firstMagnitude) * step * 0.5
+                        )
+                        let midField = vector(at: midpoint)
+                        localSpeed = midField.speed
+                        let magnitude = max(0.1, hypot(midField.u, midField.v))
                         point = CGPoint(
-                            x: point.x + CGFloat(field.u / magnitude) * step,
-                            y: point.y - CGFloat(field.v / magnitude) * step
+                            x: point.x + CGFloat(midField.u / magnitude) * step,
+                            y: point.y - CGFloat(midField.v / magnitude) * step
                         )
                         if point.x < -8 || point.x > size.width + 8 || point.y < -8 || point.y > size.height + 8 {
                             break
@@ -254,23 +464,61 @@ private struct WindFieldOverlay: View {
                         trail.append(point)
                     }
 
+                    // A fractional final integration step removes the visible
+                    // one-pixel jumps caused by rounding particle progress to frames.
+                    if remainder > 0.015,
+                       point.x >= -8, point.x <= size.width + 8,
+                       point.y >= -8, point.y <= size.height + 8 {
+                        let field = vector(at: point)
+                        localSpeed = field.speed
+                        let magnitude = max(0.1, hypot(field.u, field.v))
+                        let step = min(6.5, max(2.8, magnitude * 0.48)) * remainder
+                        point = CGPoint(
+                            x: point.x + CGFloat(field.u / magnitude) * step,
+                            y: point.y - CGFloat(field.v / magnitude) * step
+                        )
+                        trail.append(point)
+                    }
+
                     guard let head = trail.last else { continue }
                     let color = tint(localSpeed)
-                    if trail.count > 1 {
-                        let first = max(0, trail.count - 16)
-                        for segment in first..<trail.count - 1 {
-                            var path = Path()
-                            path.move(to: trail[segment])
-                            path.addLine(to: trail[segment + 1])
-                            let opacity = Double(segment - first + 1) / Double(trail.count - first)
-                            context.stroke(path, with: .color(color.opacity(0.12 + opacity * 0.58)),
-                                           style: StrokeStyle(lineWidth: 1.2 + opacity * 1.5, lineCap: .round))
+                    if trail.count > 2 {
+                        let visibleTrail = Array(trail.suffix(16))
+                        var smoothPath = Path()
+                        smoothPath.move(to: visibleTrail[0])
+                        if visibleTrail.count > 2 {
+                            for index in 1..<(visibleTrail.count - 1) {
+                                let midpoint = CGPoint(
+                                    x: (visibleTrail[index].x + visibleTrail[index + 1].x) * 0.5,
+                                    y: (visibleTrail[index].y + visibleTrail[index + 1].y) * 0.5
+                                )
+                                smoothPath.addQuadCurve(to: midpoint, control: visibleTrail[index])
+                            }
                         }
+                        if let last = visibleTrail.last {
+                            smoothPath.addLine(to: last)
+                        }
+                        // Soft halo plus a fine luminous core gives the trails
+                        // the continuous, fluid appearance expected from a wind map.
+                        context.stroke(smoothPath, with: .color(color.opacity(0.075)),
+                                       style: StrokeStyle(lineWidth: 2.8, lineCap: .round, lineJoin: .round))
+                        context.stroke(
+                            smoothPath,
+                            with: .linearGradient(
+                                Gradient(colors: [color.opacity(0.015), color.opacity(0.62)]),
+                                startPoint: visibleTrail[0],
+                                endPoint: head
+                            ),
+                            style: StrokeStyle(lineWidth: 1.1, lineCap: .round, lineJoin: .round)
+                        )
                     }
-                    let radius: CGFloat = 1.25 + CGFloat(min(localSpeed, 20)) * 0.055
+                    let radius: CGFloat = 0.9 + CGFloat(min(localSpeed, 20)) * 0.035
+                    let halo = Path(ellipseIn: CGRect(x: head.x - radius * 2.2, y: head.y - radius * 2.2,
+                                                      width: radius * 4.4, height: radius * 4.4))
+                    context.fill(halo, with: .color(color.opacity(0.16)))
                     let particle = Path(ellipseIn: CGRect(x: head.x - radius, y: head.y - radius,
                                                           width: radius * 2, height: radius * 2))
-                    context.fill(particle, with: .color(color.opacity(0.98)))
+                    context.fill(particle, with: .color(color.opacity(0.96)))
                 }
             }
         }
@@ -326,19 +574,28 @@ struct RadarMapView: View {
     let coordinate: CLLocationCoordinate2D?
     let place: String
 
-    @State private var radarHost = "https://tilecache.rainviewer.com"
-    @State private var provider: RadarProvider = .smhi
+    @State private var radarHost = "https://api.librewxr.net"
+    @State private var provider: RadarProvider = .libreWXR
     @State private var frames: [RadarFrame] = []
     @State private var selectedIndex = 0
+    @State private var scrubberIndex = 0.0
     @State private var selectedImage: UIImage?
+    @State private var radarImageCache: [TimeInterval: UIImage] = [:]
+    @State private var imageLoadID = UUID()
+    @State private var imageLoadingID: UUID?
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var radarSourceStatus: String?
     @State private var lastUpdated: Date?
     @State private var isPlaying = false
+    @State private var radarFrameReady = true
     @State private var showRadar = true
     @State private var precipitationType = "Hämtar nederbördstyp…"
     @State private var typeDetail = "Modellbedömning vid vald plats"
     @State private var radarAtPlace = "Kontrollerar radar över vald plats…"
+    @State private var radarPlaceRequestID = UUID()
+    @State private var precipitationTypeRequestID = UUID()
+    @State private var nowcastRequestID = UUID()
     @State private var showTypeInfo = false
     @State private var nowcastPoints: [NowcastPoint] = []
     @State private var nowcastStatus = "Hämtar närprognos…"
@@ -346,10 +603,21 @@ struct RadarMapView: View {
     @State private var windSamples: [WindSample] = []
     @State private var windLayer: WindLayer = .speed
     @State private var showWind = false
+    @State private var showClouds = false
+    @State private var showPrecipitationTypes = false
     @State private var windStatus = "Hämtar vindfält…"
+    @State private var precipitationDiagnostics = "Väntar på modellvärden…"
     @State private var windUpdated: Date?
+    // Center belonging to the last successfully fetched sample set.
+    // Keep it separate from the camera's pending center while the user pans.
+    @State private var windSamplesCenter: CLLocationCoordinate2D?
+    @State private var windScreenPoints: [WindScreenPoint] = []
+    @State private var windMapCenter: CLLocationCoordinate2D?
+    @State private var windMapZoom: Double = 7.0
+    @State private var windMapSize: CGSize = CGSize(width: 390, height: 300)
+    @State private var windRequestID = UUID()
+    @State private var windRefreshTask: Task<Void, Never>?
 
-    private let playback = Timer.publish(every: 0.75, on: .main, in: .common).autoconnect()
 
     private var mapCoordinate: CLLocationCoordinate2D {
         let value = coordinate ?? CLLocationCoordinate2D(latitude: 61.7274, longitude: 17.1058)
@@ -359,13 +627,19 @@ struct RadarMapView: View {
         )
     }
 
+    private var coordinateKey: String {
+        String(format: "%.5f,%.5f", mapCoordinate.latitude, mapCoordinate.longitude)
+    }
+
     private var selectedFrame: RadarFrame? {
         frames.indices.contains(selectedIndex) ? frames[selectedIndex] : nil
     }
 
     private var radarTileURL: String? {
-        guard showRadar, let frame = selectedFrame, frame.provider == .rainViewer else { return nil }
-        return "\(radarHost)\(frame.path)/512/{z}/{x}/{y}/2/1_1.png"
+        guard showRadar, let frame = selectedFrame, frame.provider == .rainViewer || frame.provider == .libreWXR else { return nil }
+        let normalizedHost = radarHost.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let normalizedFramePath = frame.path.hasPrefix("/") ? frame.path : "/\(frame.path)"
+        return "\(normalizedHost)\(normalizedFramePath)/512/{z}/{x}/{y}/10/1_1.png"
     }
 
     var body: some View {
@@ -389,6 +663,7 @@ struct RadarMapView: View {
                     Spacer()
                     Button {
                         showWind.toggle()
+                        showClouds = false
                         showRadar = !showWind
                         if showWind && windSamples.isEmpty { Task { await refreshWindField() } }
                     } label: {
@@ -417,18 +692,61 @@ struct RadarMapView: View {
                         coordinate: mapCoordinate,
                         radarImage: showRadar && provider == .smhi ? selectedImage : nil,
                         radarTileURL: radarTileURL,
-                        locationTitle: place
+                        locationTitle: place,
+                        cloudSamples: windSamples,
+                        showClouds: showClouds,
+                        showPrecipitationTypes: showPrecipitationTypes,
+                        onWindProjectionChange: { points in windScreenPoints = points },
+                        onRadarFrameReady: { radarFrameReady = true },
+                        onRegionChange: { center, zoom, size in
+                            windMapCenter = center
+                            windMapZoom = zoom
+                            if size.width > 0 && size.height > 0 { windMapSize = size }
+                            // Invalidate any response for the previous camera position immediately.
+                            windRequestID = UUID()
+                            if showWind || showClouds || showPrecipitationTypes {
+                                // Keep the last successful field visible at its own coordinates
+                                // while the replacement request is debounced and fetched.
+                                // WindFieldOverlay uses windSamplesCenter, never the pending camera center.
+                                windStatus = windSamples.isEmpty
+                                    ? "Kartområdet ändras – hämtar nya modellvärden…"
+                                    : "Kartområdet ändras – visar senast hämtade data tills nya värden är klara…"
+                                // Debounce intermediate map-camera updates during a pan.
+                                windRefreshTask?.cancel()
+                                windRefreshTask = Task { @MainActor in
+                                    try? await Task.sleep(nanoseconds: 700_000_000)
+                                    guard !Task.isCancelled else { return }
+                                    await refreshWindField(center: center, zoom: zoom, size: size)
+                                }
+                            }
+                        }
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    WindFieldOverlay(samples: windSamples, show: showWind, gustMode: windLayer == .gust)
+                    WindFieldOverlay(
+                        samples: windSamples,
+                        projectedPoints: windScreenPoints,
+                        show: showWind,
+                        gustMode: windLayer == .gust
+                    )
                         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     HStack(spacing: 7) {
                         Circle().fill(Color(red: 0.35, green: 0.88, blue: 0.83)).frame(width: 7, height: 7)
-                        Text(showWind ? "VIND • OPEN-METEO" : "RADAR • \(provider.rawValue.uppercased())")
+                        Text(showWind ? "VIND • OPEN-METEO" : (showPrecipitationTypes ? "NEDERBÖRDSTYP • OPEN-METEO" : (showClouds ? "MOLNTÄCKE • OPEN-METEO" : "RADAR • \(provider.rawValue.uppercased())")))
                             .font(.system(size: 12, weight: .heavy))
                             .tracking(0.8)
                             .foregroundStyle(.white)
-                        Spacer()
+                        if showRadar && !showWind && !showClouds && !showPrecipitationTypes && provider == .libreWXR {
+                            Link("LibreWXR • CC BY 4.0", destination: URL(string: "https://librewxr.net")!)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.92))
+                                .lineLimit(1)
+                        } else if showRadar && !showWind && !showClouds && !showPrecipitationTypes && provider == .rainViewer {
+                            Link("Weather data by RainViewer", destination: URL(string: "https://www.rainviewer.com")!)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.92))
+                                .lineLimit(1)
+                        }
+                        Spacer(minLength: 6)
                         Text("© OpenStreetMap")
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(.white.opacity(0.85))
@@ -440,33 +758,121 @@ struct RadarMapView: View {
                 }
                 .padding(.horizontal, 12)
                 .frame(maxWidth: .infinity)
-                .frame(height: 300)
+                .frame(height: 340)
+
+                if let radarSourceStatus, !showWind {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "info.circle.fill")
+                            .foregroundStyle(Color(red: 0.98, green: 0.68, blue: 0.40))
+                        Text(radarSourceStatus)
+                            .foregroundStyle(.white.opacity(0.86))
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                    }
+                    .font(.system(size: 12, weight: .medium))
+                    .padding(11)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
+                    .padding(.horizontal, 12)
+                    .padding(.top, 5)
+                }
+
+                if !showWind, let selectedFrame {
+                    HStack(spacing: 9) {
+                        Button { selectedIndex = max(0, selectedIndex - 1) } label: {
+                            Image(systemName: "backward.end.fill").font(.system(size: 12, weight: .bold))
+                                .frame(width: 28, height: 34)
+                        }
+                        VStack(alignment: .leading, spacing: 1) {
+                            HStack {
+                                Text(provider == .libreWXR ? "LIBREWXR" : provider == .rainViewer ? "RAINVIEWER" : "RADAR").font(.system(size: 10, weight: .heavy)).tracking(0.8).foregroundStyle(Color.cyan)
+                                Spacer()
+                                let previewIndex = min(max(0, Int(scrubberIndex.rounded())), frames.count - 1)
+                                Text(frames.indices.contains(previewIndex)
+                                     ? frames[previewIndex].time.formatted(date: .omitted, time: .shortened)
+                                     : selectedFrame.time.formatted(date: .omitted, time: .shortened))
+                                    .font(.system(size: 13, weight: .bold, design: .rounded).monospacedDigit())
+                            }
+                            Slider(value: $scrubberIndex,
+                                   in: 0...Double(max(0, frames.count - 1)),
+                                   onEditingChanged: { editing in
+                                       if editing {
+                                           isPlaying = false
+                                       } else {
+                                           selectedIndex = min(max(0, Int(scrubberIndex.rounded())), frames.count - 1)
+                                       }
+                                   })
+                            .tint(Color(red: 0.98, green: 0.58, blue: 0.40))
+                            .disabled(frames.count < 2)
+                        }
+                        Button { isPlaying.toggle() } label: {
+                            Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                                .font(.system(size: 13, weight: .bold))
+                                .frame(width: 34, height: 34)
+                                .background(Color(red: 0.98, green: 0.66, blue: 0.47), in: Circle())
+                                .foregroundStyle(Color(red: 0.07, green: 0.10, blue: 0.14))
+                        }
+                        Button { selectedIndex = min(frames.count - 1, selectedIndex + 1) } label: {
+                            Image(systemName: "forward.end.fill").font(.system(size: 12, weight: .bold))
+                                .frame(width: 28, height: 34)
+                        }
+                    }
+                    .foregroundStyle(Color(red: 0.98, green: 0.66, blue: 0.47))
+                    .padding(.horizontal, 11).padding(.vertical, 6)
+                    .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 13))
+                    .padding(.horizontal, 12).padding(.top, 7).padding(.bottom, 3)
+                }
 
                 VStack(spacing: 13) {
-                    HStack(spacing: 10) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
                         Button {
                             showWind = false
+                            showClouds = false
+                            showPrecipitationTypes = false
                             showRadar = true
                         } label: {
                             Label("Regn", systemImage: "cloud.rain.fill")
                                 .font(.system(size: 15, weight: .bold))
-                                .frame(maxWidth: .infinity).frame(height: 48)
-                                .foregroundStyle(!showWind ? Color(red: 0.10, green: 0.13, blue: 0.17) : .white)
-                                .background(!showWind ? Color(red: 0.98, green: 0.62, blue: 0.43) : Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 13))
-                                .overlay(RoundedRectangle(cornerRadius: 13).stroke(!showWind ? Color.white.opacity(0.35) : Color.white.opacity(0.16), lineWidth: 1))
+                                .frame(maxWidth: .infinity).frame(height: 64)
+                                .foregroundStyle(!showWind && !showPrecipitationTypes ? Color(red: 0.10, green: 0.13, blue: 0.17) : .white)
+                                .background(!showWind && !showPrecipitationTypes ? Color(red: 0.98, green: 0.62, blue: 0.43) : Color(red: 0.15, green: 0.22, blue: 0.31), in: RoundedRectangle(cornerRadius: 13))
+                                .overlay(RoundedRectangle(cornerRadius: 13).stroke(!showWind && !showPrecipitationTypes ? Color.white.opacity(0.55) : Color.white.opacity(0.18), lineWidth: 1))
                         }
                         .buttonStyle(.plain)
+
                         Button {
                             showWind = true
+                            showClouds = false
+                            showPrecipitationTypes = false
                             showRadar = false
                             if windSamples.isEmpty { Task { await refreshWindField() } }
                         } label: {
                             Label("Vind", systemImage: "wind")
                                 .font(.system(size: 15, weight: .bold))
-                                .frame(maxWidth: .infinity).frame(height: 48)
-                                .foregroundStyle(showWind ? Color(red: 0.05, green: 0.12, blue: 0.15) : .white)
-                                .background(showWind ? Color.cyan : Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 13))
-                                .overlay(RoundedRectangle(cornerRadius: 13).stroke(showWind ? Color.white.opacity(0.38) : Color.white.opacity(0.16), lineWidth: 1))
+                                .frame(maxWidth: .infinity).frame(height: 64)
+                                .foregroundStyle(showWind ? Color(red: 0.10, green: 0.13, blue: 0.17) : .white)
+                                .background(showWind ? Color(red: 0.98, green: 0.62, blue: 0.43) : Color(red: 0.15, green: 0.22, blue: 0.31), in: RoundedRectangle(cornerRadius: 13))
+                                .overlay(RoundedRectangle(cornerRadius: 13).stroke(showWind ? Color.white.opacity(0.55) : Color.white.opacity(0.18), lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+
+
+                        Button {
+                            showWind = false
+                            showClouds = false
+                            showPrecipitationTypes = true
+                            // Type mode is a forecast-model layer, not a radar-image
+                            // overlay. Hide the radar raster so it cannot mask or muddy
+                            // the rain/snow/mixed classification beneath it.
+                            showRadar = false
+                            Task { await refreshWindField(center: windMapCenter ?? mapCoordinate) }
+                        } label: {
+                            Label("Prognos", systemImage: "cloud.snow.fill")
+                                .font(.system(size: 15, weight: .bold))
+                                .frame(maxWidth: .infinity).frame(height: 64)
+                                .foregroundStyle(showPrecipitationTypes ? Color(red: 0.10, green: 0.13, blue: 0.17) : .white)
+                                .background(showPrecipitationTypes ? Color(red: 0.98, green: 0.62, blue: 0.43) : Color(red: 0.15, green: 0.22, blue: 0.31), in: RoundedRectangle(cornerRadius: 13))
+                                .overlay(RoundedRectangle(cornerRadius: 13).stroke(showPrecipitationTypes ? Color.white.opacity(0.55) : Color.white.opacity(0.18), lineWidth: 1))
                         }
                         .buttonStyle(.plain)
                     }
@@ -495,8 +901,8 @@ struct RadarMapView: View {
                     if showWind {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(windStatus).font(.system(size: 13, weight: .semibold)).foregroundStyle(.white)
-                            if let sample = windSamples.first(where: { $0.id == 4 }) {
-                                Text("\(windLayer == .gust ? "Byvind" : "Vind") vid \(place): \(String(format: "%.1f", windLayer == .gust ? sample.gust : sample.speed)) m/s • \(Int(sample.direction.rounded()))°")
+                            if let sample = windSamples.first(where: { $0.id == 40 }) {
+                                Text("\(windLayer == .gust ? "Byvind" : "Vind") vid kartans mittpunkt: \(String(format: "%.1f", windLayer == .gust ? sample.gust : sample.speed)) m/s • \(Int(sample.direction.rounded()))°")
                                     .font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.82))
                             }
                             HStack(spacing: 10) {
@@ -508,78 +914,51 @@ struct RadarMapView: View {
                         .padding(12).frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color(red: 0.12, green: 0.16, blue: 0.21), in: RoundedRectangle(cornerRadius: 15))
                     }
-                    if !showWind {
-                    HStack(spacing: 9) {
-                        Image(systemName: precipitationSymbol)
-                            .font(.system(size: 19, weight: .semibold))
-                            .foregroundStyle(Color(red: 0.98, green: 0.58, blue: 0.40))
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(precipitationType).font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
-                            Text(typeDetail).font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.68))
-                            Text(radarAtPlace).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color(red: 0.35, green: 0.88, blue: 0.83))
-                        }
-                        Spacer()
-                        Button { showTypeInfo = true } label: {
-                            Image(systemName: "info.circle").font(.system(size: 19)).foregroundStyle(Color(red: 0.98, green: 0.58, blue: 0.40))
-                        }
-                    }
-                    .padding(12)
-                    .background(Color(red: 0.12, green: 0.16, blue: 0.21), in: RoundedRectangle(cornerRadius: 15))
-                    }
-
-
-                    if isLoading {
-                        HStack(spacing: 8) {
-                            ProgressView().tint(.cyan)
-                            Text("Hämtar radarobservationer…")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.8))
-                        }.frame(maxWidth: .infinity, alignment: .leading)
-                    } else if let errorMessage {
-                        Text(errorMessage).font(.system(size: 12, weight: .medium)).foregroundStyle(.orange)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-
-                    if !showWind {
-                    if let selectedFrame {
-                        HStack(alignment: .firstTextBaseline) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("VALD RADARTID").font(.system(size: 12, weight: .heavy)).tracking(1).foregroundStyle(Color.cyan)
-                                Text(selectedFrame.time.formatted(date: .omitted, time: .shortened))
-                                    .font(.system(size: 24, weight: .bold, design: .rounded).monospacedDigit()).foregroundStyle(.white)
+                    if showClouds {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("MOLNTÄCKE ÖVER KARTOMRÅDET")
+                                .font(.system(size: 12, weight: .heavy)).tracking(0.8).foregroundStyle(Color.cyan)
+                            Text("Open-Meteo-modell • geografiskt placerade mätpunkter, inte satellitbilder.")
+                                .font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.68))
+                            HStack {
+                                Text(windStatus)
+                                Spacer()
+                                Text(windUpdated?.formatted(date: .omitted, time: .shortened) ?? "—")
+                                    .monospacedDigit()
                             }
-                            Spacer()
-                            Text("SENASTE 2 TIMMARNA").font(.system(size: 12, weight: .heavy)).tracking(0.8).foregroundStyle(.white.opacity(0.6))
-                        }
-                        Slider(value: Binding(
-                            get: { Double(selectedIndex) },
-                            set: { selectedIndex = Int($0.rounded()) }
-                        ), in: 0...Double(max(0, frames.count - 1)), step: 1)
-                        .tint(Color(red: 0.98, green: 0.58, blue: 0.40))
-                        .disabled(frames.count < 2)
-                        HStack(spacing: 18) {
-                            Button { selectedIndex = max(0, selectedIndex - 1) } label: { Image(systemName: "backward.end.fill").font(.system(size: 17)) }
-                            Button { isPlaying.toggle() } label: {
-                                Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                                    .font(.system(size: 18, weight: .bold))
-                                    .foregroundStyle(Color(red: 0.07, green: 0.10, blue: 0.14))
-                                    .frame(width: 48, height: 48)
-                                    .background(Color(red: 0.98, green: 0.66, blue: 0.47), in: Circle())
-                            }
-                            Button { selectedIndex = min(frames.count - 1, selectedIndex + 1) } label: { Image(systemName: "forward.end.fill").font(.system(size: 17)) }
-                            Spacer()
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text("UPPDATERAD").font(.system(size: 12, weight: .heavy)).tracking(0.8).foregroundStyle(.white.opacity(0.48))
-                                Text(lastUpdated?.formatted(date: .omitted, time: .shortened) ?? "—")
-                                    .font(.system(size: 12, weight: .semibold)).foregroundStyle(.white.opacity(0.75))
+                            .font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.62))
+                            if let center = windSamples.first(where: { $0.id == 40 }) {
+                                Text("Molnighet vid kartans mittpunkt: \(Int(center.cloudCover.rounded())) %")
+                                    .font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
                             }
                         }
-                        .foregroundStyle(Color(red: 0.98, green: 0.66, blue: 0.47))
-                    } else {
-                        Text("Radarhistorik visas här när data har hämtats.")
-                            .font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.7))
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(red: 0.12, green: 0.16, blue: 0.21), in: RoundedRectangle(cornerRadius: 15))
                     }
+                    if showPrecipitationTypes {
+                        let rainCount = windSamples.filter { $0.precipitationType == 1 && $0.precipitation >= 0.05 }.count
+                        let snowCount = windSamples.filter { $0.precipitationType == 2 && $0.precipitation >= 0.05 }.count
+                        let mixedCount = windSamples.filter { $0.precipitationType == 3 && $0.precipitation >= 0.05 }.count
+                        VStack(alignment: .leading, spacing: 9) {
+                            Text("NEDERBÖRDSTYP ÖVER KARTAN")
+                                .font(.system(size: 12, weight: .heavy)).tracking(0.8).foregroundStyle(Color.cyan)
+                            Text("Prognosmodell från Open-Meteo – inte en klassificering av radarbildens pixlar.")
+                                .font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.68))
+                            Text("Vill du se uppmätt nederbörd? Slå på regnlagret för radardata.")
+                                .font(.system(size: 11, weight: .semibold)).foregroundStyle(Color(red: 0.98, green: 0.68, blue: 0.49))
+                            Text(precipitationDiagnostics)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.82))
+                            HStack(spacing: 12) {
+                                legendItem("Regn", color: Color(red: 0.18, green: 0.58, blue: 0.96), count: rainCount)
+                                legendItem("Snö", color: Color(red: 0.82, green: 0.92, blue: 1.0), count: snowCount)
+                                legendItem("Blandat", color: Color(red: 0.68, green: 0.42, blue: 0.88), count: mixedCount)
+                            }
+                        }
+                        .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(red: 0.12, green: 0.16, blue: 0.21), in: RoundedRectangle(cornerRadius: 15))
+                    }
+
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
@@ -593,24 +972,24 @@ struct RadarMapView: View {
                                 .font(.system(size: 11, weight: .semibold).monospacedDigit()).foregroundStyle(.white.opacity(0.55))
                         }
                         Text(nowcastStatus)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.88))
-                            .lineLimit(3)
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.90))
+                            .lineLimit(4)
                             .fixedSize(horizontal: false, vertical: true)
                         if !nowcastPoints.isEmpty {
                             HStack(alignment: .bottom, spacing: 5) {
                                 ForEach(nowcastPoints.prefix(6)) { point in
                                     VStack(spacing: 2) {
                                         Text(String(format: "%.1f", point.precipitationRate ?? 0))
-                                            .font(.system(size: 11, weight: .bold).monospacedDigit())
+                                            .font(.system(size: 13, weight: .bold).monospacedDigit())
                                             .foregroundStyle(.white)
                                         Capsule()
                                             .fill(Color.cyan.opacity(0.9))
                                             .frame(maxWidth: 38)
                                             .frame(height: max(3, min(30, CGFloat(point.precipitationRate ?? 0) * 18)))
                                         Text(point.time.formatted(date: .omitted, time: .shortened))
-                                            .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                                            .foregroundStyle(.white.opacity(0.82))
+                                            .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                                            .foregroundStyle(.white.opacity(0.88))
                                             .lineLimit(1)
                                             .minimumScaleFactor(0.8)
                                     }
@@ -626,10 +1005,8 @@ struct RadarMapView: View {
                     .padding(12)
                     .background(Color(red: 0.12, green: 0.16, blue: 0.21), in: RoundedRectangle(cornerRadius: 15))
 
-                    }
-
                     HStack {
-                        Text(provider == .smhi ? "Radar: SMHI • 5 min" : "Reservradar: RainViewer")
+                        Text(provider == .smhi ? "Radar: SMHI • 5 min" : provider == .libreWXR ? "Radar: LibreWXR • OPERA" : "Radar: RainViewer • historik")
                         Spacer()
                         Text("Karta © OpenStreetMap")
                     }
@@ -648,34 +1025,99 @@ struct RadarMapView: View {
               }
               .padding(.bottom, 112)
             }
+            .safeAreaPadding(.top, 10)
         }
         .task {
-            await refreshRadar()
-            await refreshPrecipitationType()
-            await refreshNowcast()
-            await refreshWindField()
+            // These three requests are independent. Start them together so the
+            // radar, point classification and nowcast do not wait in a serial
+            // network queue during first presentation.
+            async let radarLoad: Void = refreshRadar()
+            async let typeLoad: Void = refreshPrecipitationType()
+            async let nowcastLoad: Void = refreshNowcast()
+            _ = await (radarLoad, typeLoad, nowcastLoad)
+            // Wind/cloud/type grid data is fetched on demand when its layer is
+            // selected. Do not make a 25-point model request on radar startup.
         }
-        .onChange(of: selectedIndex) { _, _ in
+        .onChange(of: selectedIndex) { _, newIndex in
+            scrubberIndex = Double(newIndex)
+            // Invalidate a tile inspection for the previously selected frame
+            // before the asynchronous image load or place check can complete.
+            radarPlaceRequestID = UUID()
             Task {
-                await loadSelectedImage()
+                // RainViewer frames are map tiles; only the legacy SMHI image
+                // provider needs a separately downloaded UIImage per frame.
+                if selectedFrame?.provider == .smhi {
+                    await loadSelectedImage()
+                }
                 await refreshRadarAtPlace()
             }
         }
-        .onReceive(playback) { _ in
-            guard isPlaying, !frames.isEmpty else { return }
-            selectedIndex = selectedIndex >= frames.count - 1 ? 0 : selectedIndex + 1
+        .onChange(of: isPlaying) { _, playing in
+            if playing {
+                // Invalidate any inspection already in flight. Playback may
+                // advance and even wrap around before that network request ends.
+                radarPlaceRequestID = UUID()
+            } else {
+                // Refresh once playback is paused, not on every animation frame.
+                Task { await refreshRadarAtPlace() }
+            }
+        }
+        .onChange(of: coordinateKey) { _, _ in
+            // Invalidate every location-bound response as soon as the map moves.
+            radarPlaceRequestID = UUID()
+            precipitationTypeRequestID = UUID()
+            nowcastRequestID = UUID()
+            // A newly selected town is a new geographic map context.
+            Task {
+                if showWind || showClouds || showPrecipitationTypes {
+                    await refreshWindField(center: mapCoordinate)
+                }
+                await refreshPrecipitationType()
+                await refreshNowcast()
+                await refreshRadarAtPlace()
+            }
+        }
+        .task(id: isPlaying) {
+            guard isPlaying else { return }
+            // A cancellable clock exists only during playback. This avoids a
+            // permanently firing Combine timer while the radar is idle.
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(nanoseconds: 2_000_000_000)
+                } catch {
+                    break
+                }
+                guard !Task.isCancelled, radarFrameReady, !frames.isEmpty, imageLoadingID == nil else { continue }
+                // Advance only after MapLibre confirms the previous frame's visible tiles rendered.
+                // This prevents slow network responses from stacking radar sources during playback.
+                radarFrameReady = false
+                selectedIndex = selectedIndex >= frames.count - 1 ? 0 : selectedIndex + 1
+            }
         }
         .alert("Om nederbördstyp", isPresented: $showTypeInfo) {
             Button("Stäng", role: .cancel) {}
         } message: {
-            Text("Radarn visar observerad nederbörd. SMHI används i första hand. RainViewer används som reserv om SMHI:s radarflöde inte är tillgängligt. Nederbördstypen hämtas separat från en vädermodell och är en bedömning, inte en direkt klassificering av varje radar-pixel.")
+            Text("Radarn visar observerad nederbörd från den aktiva radarkällan (LibreWXR eller RainViewer). Prognoslagret hämtas separat från Open-Meteo och är en modellbedömning, inte en direkt klassificering av radarbildens pixlar.")
+        }
+    }
+
+    private func legendItem(_ title: String, color: Color, count: Int) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: title == "Regn" ? "drop.fill" : title == "Snö" ? "snowflake" : "cloud.sleet.fill")
+                .font(.system(size: 12, weight: .bold)).foregroundStyle(color).frame(width: 14)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(.system(size: 10, weight: .bold)).foregroundStyle(.white)
+                Text("\(count) punkter").font(.system(size: 9, weight: .medium)).foregroundStyle(.white.opacity(0.58))
+            }
         }
     }
 
     private var precipitationSymbol: String {
         let text = precipitationType.lowercased()
+        if text.contains("blandad") { return "cloud.sleet.fill" }
         if text.contains("snö") { return "cloud.snow.fill" }
         if text.contains("hagel") { return "cloud.hail.fill" }
+        if text.contains("duggregn") { return "cloud.drizzle.fill" }
         if text.contains("regn") { return "cloud.rain.fill" }
         return "cloud.fill"
     }
@@ -686,11 +1128,13 @@ struct RadarMapView: View {
         isLoading = true
         isPlaying = false
         errorMessage = nil
+        radarSourceStatus = nil
         do {
-            let result = try await RadarService.loadFrames()
+            let result = try await RadarService.loadFrames(coordinate: mapCoordinate)
             radarHost = result.0
             provider = result.1
             frames = result.2
+            radarSourceStatus = result.3.map { "Reservkälla: \($0). Visar \(provider.rawValue)." }
             selectedIndex = frames.count - 1
             await loadSelectedImage()
             await refreshRadarAtPlace()
@@ -698,30 +1142,56 @@ struct RadarMapView: View {
         } catch {
             frames = []
             selectedImage = nil
-            errorMessage = "Varken SMHI eller reservradarn kunde nås. Kontrollera anslutningen och försök igen."
+            radarSourceStatus = nil
+            errorMessage = "Ingen radarkälla kunde leverera användbar radardata. Kontrollera internetanslutningen och försök igen."
         }
         isLoading = false
     }
 
     @MainActor
     private func loadSelectedImage() async {
+        let requestID = UUID()
+        imageLoadID = requestID
+        imageLoadingID = nil
         guard let frame = selectedFrame else { selectedImage = nil; return }
         guard frame.provider == .smhi else { selectedImage = nil; return }
+        imageLoadingID = requestID
+        defer {
+            if imageLoadingID == requestID { imageLoadingID = nil }
+        }
+        if let cached = radarImageCache[frame.id] {
+            selectedImage = cached
+            errorMessage = nil
+            return
+        }
         do {
-            selectedImage = try await RadarService.loadImage(for: frame)
+            let image = try await RadarService.loadImage(for: frame)
+            // Only the currently selected frame may be displayed. Keep a small
+            // in-memory cache so playback does not redownload frames it revisits.
+            guard imageLoadID == requestID, selectedFrame?.id == frame.id else { return }
+            radarImageCache[frame.id] = image
+            if radarImageCache.count > 30,
+               let oldest = radarImageCache.keys.min() {
+                radarImageCache.removeValue(forKey: oldest)
+            }
+            selectedImage = image
             errorMessage = nil
         } catch {
+            guard imageLoadID == requestID, selectedFrame?.id == frame.id else { return }
             selectedImage = nil
-            errorMessage = "SMHI-bilden kunde inte hämtas. Försöker använda reservradarn."
+            errorMessage = nil
+            radarSourceStatus = "Radartile kunde inte hämtas (\(error.localizedDescription)). Försöker med reservkälla."
             do {
                 let (host, fallback) = try await RadarService.loadRainViewerFrames()
+                guard imageLoadID == requestID, selectedFrame?.id == frame.id else { return }
                 radarHost = host
                 provider = .rainViewer
                 frames = fallback
                 selectedIndex = max(0, frames.count - 1)
-                errorMessage = nil
+                radarSourceStatus = "SMHI:s radarbild misslyckades (\(error.localizedDescription)). Visar RainViewer som reserv."
                 await refreshRadarAtPlace()
             } catch {
+                guard imageLoadID == requestID else { return }
                 errorMessage = "SMHI-bilden kunde inte hämtas och reservradarn är inte tillgänglig."
             }
         }
@@ -729,42 +1199,96 @@ struct RadarMapView: View {
 
     @MainActor
     private func refreshRadarAtPlace() async {
-        guard showRadar, let frame = selectedFrame, frame.provider == .rainViewer else {
+        // Each inspection owns a token. Only the newest request for the same
+        // frame and coordinate may publish a result to the UI.
+        let requestID = UUID()
+        radarPlaceRequestID = requestID
+        let requestedCoordinateKey = coordinateKey
+
+        guard !isPlaying else { return }
+        guard showRadar, let frame = selectedFrame, frame.provider == .rainViewer || frame.provider == .libreWXR else {
             radarAtPlace = "Platsavläsning inte tillgänglig för denna radarkälla"
             return
         }
+
         do {
             let hit = try await RadarService.hasPrecipitation(
                 host: radarHost,
                 frame: frame,
                 coordinate: mapCoordinate
             )
+            guard radarPlaceRequestID == requestID,
+                  !isPlaying,
+                  showRadar,
+                  selectedFrame?.id == frame.id,
+                  coordinateKey == requestedCoordinateKey else { return }
             radarAtPlace = hit ? "Radarträff vid vald plats" : "Ingen tydlig radarträff vid vald plats"
         } catch {
+            guard radarPlaceRequestID == requestID,
+                  !isPlaying,
+                  showRadar,
+                  selectedFrame?.id == frame.id,
+                  coordinateKey == requestedCoordinateKey else { return }
             radarAtPlace = "Kunde inte läsa av radar över vald plats"
         }
     }
 
     @MainActor
     private func refreshPrecipitationType() async {
+        let requestID = UUID()
+        precipitationTypeRequestID = requestID
+        let requestedCoordinate = mapCoordinate
+        let requestedPlace = place
+
         var components = URLComponents(string: "https://api.open-meteo.com/v1/forecast")!
         components.queryItems = [
-            URLQueryItem(name: "latitude", value: String(mapCoordinate.latitude)),
-            URLQueryItem(name: "longitude", value: String(mapCoordinate.longitude)),
-            URLQueryItem(name: "current", value: "temperature_2m,weather_code"),
+            URLQueryItem(name: "latitude", value: String(requestedCoordinate.latitude)),
+            URLQueryItem(name: "longitude", value: String(requestedCoordinate.longitude)),
+            URLQueryItem(name: "current", value: "temperature_2m,weather_code,precipitation,rain,showers,snowfall"),
             URLQueryItem(name: "timezone", value: "auto")
         ]
-        guard let url = components.url else { return }
+        guard let url = components.url else {
+            guard precipitationTypeRequestID == requestID else { return }
+            precipitationType = "Nederbördstyp saknas"
+            typeDetail = "Kunde inte skapa modellbegäran"
+            return
+        }
+
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 15
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard !Task.isCancelled, precipitationTypeRequestID == requestID,
+                  coordinateKey == String(format: "%.5f,%.5f", requestedCoordinate.latitude, requestedCoordinate.longitude) else { return }
             guard (response as? HTTPURLResponse)?.statusCode == 200,
                   let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let current = root["current"] as? [String: Any] else { return }
-            let temp = (current["temperature_2m"] as? NSNumber)?.doubleValue ?? 0
-            let code = (current["weather_code"] as? NSNumber)?.intValue ?? 0
-            precipitationType = Self.precipitationName(code: code, temperature: temp)
-            typeDetail = "Modellbedömning • \(Int(temp.rounded()))°C vid \(place)"
+                  let current = root["current"] as? [String: Any],
+                  let temperature = (current["temperature_2m"] as? NSNumber)?.doubleValue,
+                  temperature.isFinite,
+                  let code = (current["weather_code"] as? NSNumber)?.intValue else {
+                throw URLError(.cannotParseResponse)
+            }
+
+            // Optional precipitation components may be absent in a valid model
+            // response; the WMO code remains the fallback classification.
+            let rain = (current["rain"] as? NSNumber)?.doubleValue ?? 0
+            let showers = (current["showers"] as? NSNumber)?.doubleValue ?? 0
+            let snow = (current["snowfall"] as? NSNumber)?.doubleValue ?? 0
+            guard rain.isFinite, showers.isFinite, snow.isFinite else {
+                throw URLError(.cannotParseResponse)
+            }
+
+            guard !Task.isCancelled, precipitationTypeRequestID == requestID else { return }
+            precipitationType = Self.precipitationName(
+                code: code,
+                temperature: temperature,
+                rain: max(0, rain) + max(0, showers),
+                snow: max(0, snow)
+            )
+            typeDetail = "Modellbedömning • \(Int(temperature.rounded()))°C vid \(requestedPlace)"
         } catch {
+            guard !Task.isCancelled, precipitationTypeRequestID == requestID else { return }
             precipitationType = "Nederbördstyp saknas"
             typeDetail = "Kunde inte hämta modellbedömning"
         }
@@ -772,12 +1296,21 @@ struct RadarMapView: View {
 
     @MainActor
     private func refreshNowcast() async {
+        let requestID = UUID()
+        nowcastRequestID = requestID
+        let requestedCoordinate = mapCoordinate
+
         var components = URLComponents(string: "https://api.met.no/weatherapi/nowcast/2.0/complete")!
         components.queryItems = [
-            URLQueryItem(name: "lat", value: String(mapCoordinate.latitude)),
-            URLQueryItem(name: "lon", value: String(mapCoordinate.longitude))
+            URLQueryItem(name: "lat", value: String(requestedCoordinate.latitude)),
+            URLQueryItem(name: "lon", value: String(requestedCoordinate.longitude))
         ]
-        guard let url = components.url else { return }
+        guard let url = components.url else {
+            guard nowcastRequestID == requestID else { return }
+            nowcastPoints = []
+            nowcastStatus = "Kunde inte skapa närprognosbegäran."
+            return
+        }
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
         request.cachePolicy = .reloadIgnoringLocalCacheData
@@ -785,13 +1318,13 @@ struct RadarMapView: View {
         request.setValue("application/geo+json, application/json", forHTTPHeaderField: "Accept")
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
+            guard !Task.isCancelled, nowcastRequestID == requestID,
+                  coordinateKey == String(format: "%.5f,%.5f", requestedCoordinate.latitude, requestedCoordinate.longitude) else { return }
             guard (response as? HTTPURLResponse)?.statusCode == 200,
                   let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let properties = root["properties"] as? [String: Any],
                   let timeseries = properties["timeseries"] as? [[String: Any]] else {
-                nowcastPoints = []
-                nowcastStatus = "Närprognosen är inte tillgänglig just nu."
-                return
+                throw URLError(.cannotParseResponse)
             }
 
             let meta = properties["meta"] as? [String: Any]
@@ -807,8 +1340,13 @@ struct RadarMapView: View {
                 let nextHour = data["next_1_hours"] as? [String: Any]
                 let nextDetails = nextHour?["details"] as? [String: Any]
                 let amount = (nextDetails?["precipitation_amount"] as? NSNumber)?.doubleValue
-                return NowcastPoint(time: date, precipitationRate: rate, amountNextHour: amount)
+                return NowcastPoint(
+                    time: date,
+                    precipitationRate: rate?.isFinite == true ? max(0, rate!) : nil,
+                    amountNextHour: amount?.isFinite == true ? max(0, amount!) : nil
+                )
             }
+            guard !Task.isCancelled, nowcastRequestID == requestID else { return }
             nowcastPoints = Array(parsed.prefix(8))
             nowcastUpdated = Date()
 
@@ -829,55 +1367,201 @@ struct RadarMapView: View {
                     : "Modellprognos tillgänglig; radarbaserad nederbördsintensitet saknas."
             }
         } catch {
+            guard !Task.isCancelled, nowcastRequestID == requestID else { return }
             nowcastPoints = []
             nowcastStatus = "Kunde inte hämta MET Norways närprognos."
         }
     }
 
-
     @MainActor
-    private func refreshWindField() async {
+    private func refreshWindField(
+        center requestedCenter: CLLocationCoordinate2D? = nil,
+        zoom requestedZoom: Double? = nil,
+        size requestedSize: CGSize? = nil
+    ) async {
+        let requestID = UUID()
+        windRequestID = requestID
         windStatus = "Hämtar vinddata över området…"
-        let center = mapCoordinate
-        let grid = [-0.40, -0.20, 0.0, 0.20, 0.40]
-        let offsets: [(Double, Double)] = grid.flatMap { lat in
-            grid.map { lon in (lat, lon) }
+        let center = requestedCenter ?? windMapCenter ?? mapCoordinate
+        let zoom = min(18, max(3, requestedZoom ?? windMapZoom))
+        let mapSize = requestedSize ?? windMapSize
+        windMapCenter = center
+        windMapZoom = zoom
+        if mapSize.width > 0 && mapSize.height > 0 { windMapSize = mapSize }
+
+        // Scale the 9×9 model grid to the visible map footprint. Web-Mercator
+        // longitude span is constant per pixel; latitude span contracts by cos(latitude).
+        // A 30% margin keeps interpolation stable near the viewport edges.
+        let worldPixels = 256.0 * pow(2.0, zoom)
+        let longitudeSpan = Double(max(mapSize.width, 1)) * 360.0 / worldPixels
+        let latitudeSpan = Double(max(mapSize.height, 1)) * 360.0 / worldPixels
+            * max(0.08, cos(center.latitude * .pi / 180.0))
+        let halfLongitude = min(45.0, max(0.04, longitudeSpan * 0.65))
+        let halfLatitude = min(35.0, max(0.04, latitudeSpan * 0.65))
+        let latitudeGrid = (-4...4).map { Double($0) * halfLatitude / 4.0 }
+        let longitudeGrid = (-4...4).map { Double($0) * halfLongitude / 4.0 }
+        let offsets: [(Double, Double)] = latitudeGrid.flatMap { lat in
+            longitudeGrid.map { lon in (lat, lon) }
         }
-        var results: [WindSample] = []
-        await withTaskGroup(of: WindSample?.self) { group in
-            for (index, offset) in offsets.enumerated() {
-                let lat = center.latitude + offset.0
-                let lon = center.longitude + offset.1
-                group.addTask {
-                    var components = URLComponents(string: "https://api.open-meteo.com/v1/forecast")!
-                    components.queryItems = [
-                        URLQueryItem(name: "latitude", value: String(lat)),
-                        URLQueryItem(name: "longitude", value: String(lon)),
-                        URLQueryItem(name: "current", value: "wind_speed_10m,wind_direction_10m,wind_gusts_10m"),
-                        URLQueryItem(name: "wind_speed_unit", value: "ms"),
-                        URLQueryItem(name: "timezone", value: "auto")
-                    ]
-                    guard let url = components.url,
-                          let (data, response) = try? await URLSession.shared.data(from: url),
-                          (response as? HTTPURLResponse)?.statusCode == 200,
-                          let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                          let current = root["current"] as? [String: Any],
-                          let speed = (current["wind_speed_10m"] as? NSNumber)?.doubleValue,
-                          let direction = (current["wind_direction_10m"] as? NSNumber)?.doubleValue,
-                          let gust = (current["wind_gusts_10m"] as? NSNumber)?.doubleValue else { return nil }
-                    return WindSample(id: index, latitude: lat, longitude: lon, speed: speed, direction: direction, gust: gust)
-                }
+        let coordinates = offsets.map { offset in
+            (min(85.0, max(-85.0, center.latitude + offset.0)),
+             ((center.longitude + offset.1 + 540.0).truncatingRemainder(dividingBy: 360.0)) - 180.0)
+        }
+
+        var components = URLComponents(string: "https://api.open-meteo.com/v1/forecast")!
+        components.queryItems = [
+            URLQueryItem(name: "latitude", value: coordinates.map { String($0.0) }.joined(separator: ",")),
+            URLQueryItem(name: "longitude", value: coordinates.map { String($0.1) }.joined(separator: ",")),
+            URLQueryItem(name: "current", value: "wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,precipitation,rain,showers,snowfall,weather_code"),
+            URLQueryItem(name: "hourly", value: "precipitation_type,precipitation,rain,snowfall"),
+            URLQueryItem(name: "wind_speed_unit", value: "ms"),
+            URLQueryItem(name: "timezone", value: "auto")
+        ]
+
+        guard let url = components.url else {
+            windStatus = "Kunde inte skapa begäran för vinddata."
+            return
+        }
+
+        do {
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 20
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard !Task.isCancelled, windRequestID == requestID else { return }
+            guard (response as? HTTPURLResponse)?.statusCode == 200,
+                  let locations = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                throw URLError(.cannotParseResponse)
             }
-            for await sample in group { if let sample { results.append(sample) } }
+
+            var results: [WindSample] = []
+            let commonForecastTarget = Date().addingTimeInterval(30 * 60)
+            for (index, root) in locations.enumerated() {
+                guard index < coordinates.count,
+                      let current = root["current"] as? [String: Any],
+                      let speed = (current["wind_speed_10m"] as? NSNumber)?.doubleValue,
+                      let direction = (current["wind_direction_10m"] as? NSNumber)?.doubleValue else { continue }
+                // Gusts are optional in some model responses. A missing gust
+                // value must not discard an otherwise valid wind observation.
+                let gust = (current["wind_gusts_10m"] as? NSNumber)?.doubleValue ?? speed
+
+                let cloud = (current["cloud_cover"] as? NSNumber)?.doubleValue ?? 0
+                let rain = (current["rain"] as? NSNumber)?.doubleValue ?? 0
+                let showers = (current["showers"] as? NSNumber)?.doubleValue ?? 0
+                let snow = (current["snowfall"] as? NSNumber)?.doubleValue ?? 0
+                let precipitation = (current["precipitation"] as? NSNumber)?.doubleValue ?? max(rain + showers, snow)
+                let code = (current["weather_code"] as? NSNumber)?.intValue ?? 0
+
+                // Prefer Open-Meteo's explicit hourly precipitation classification.
+                // The hourly type is instantaneous; precipitation is the preceding-hour amount.
+                let hourly = root["hourly"] as? [String: Any]
+                let hourlyTimes = hourly?["time"] as? [String] ?? []
+                let hourlyTypes = hourly?["precipitation_type"] as? [NSNumber] ?? []
+                let hourlyAmounts = hourly?["precipitation"] as? [NSNumber] ?? []
+                let hourlyRain = hourly?["rain"] as? [NSNumber] ?? []
+                let hourlySnow = hourly?["snowfall"] as? [NSNumber] ?? []
+                // Open-Meteo normally returns ISO-8601 timestamps with an explicit
+                // UTC offset. Keep a local-time fallback for responses without an offset.
+                let timeZoneName = root["timezone"] as? String ?? "Europe/Stockholm"
+                let localTimeZone = TimeZone(identifier: timeZoneName) ?? .current
+                let isoFormatter = ISO8601DateFormatter()
+                isoFormatter.formatOptions = [.withInternetDateTime]
+                let localFormatter = DateFormatter()
+                localFormatter.locale = Locale(identifier: "en_US_POSIX")
+                localFormatter.timeZone = localTimeZone
+                localFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
+                // Use one shared forecast instant for every point in the map.
+                // Choosing each point's wettest hour independently creates a
+                // spatially incoherent layer (different places, different times).
+                // Aim 30 minutes ahead so the nearest hourly timestamp normally
+                // resolves to the next forecast hour across the whole grid.
+                let nearestHourlyIndex = hourlyTimes.enumerated().compactMap { item -> (Int, TimeInterval)? in
+                    let date = isoFormatter.date(from: item.element) ?? localFormatter.date(from: item.element)
+                    guard let date else { return nil }
+                    return (item.offset, abs(date.timeIntervalSince(commonForecastTarget)))
+                }.min { $0.1 < $1.1 }?.0
+
+                let explicitType = nearestHourlyIndex.flatMap { hourlyTypes.indices.contains($0) ? hourlyTypes[$0].intValue : nil }
+                let explicitAmount = nearestHourlyIndex.flatMap { hourlyAmounts.indices.contains($0) ? hourlyAmounts[$0].doubleValue : nil }
+                let forecastRain = nearestHourlyIndex.flatMap { hourlyRain.indices.contains($0) ? hourlyRain[$0].doubleValue : nil } ?? 0
+                let forecastSnow = nearestHourlyIndex.flatMap { hourlySnow.indices.contains($0) ? hourlySnow[$0].doubleValue : nil } ?? 0
+                let classifiedAmount = explicitAmount ?? precipitation
+                let type: Int
+                // Use the model's actual rain/snow amount components first.
+                // precipitation_type can be missing or reported as "none" at
+                // the boundary of an hourly accumulation period.
+                if forecastRain > 0.02 && forecastSnow > 0.02 {
+                    type = 3
+                } else if forecastSnow > 0.02 {
+                    type = 2
+                } else if forecastRain > 0.02 {
+                    type = 1
+                } else if let explicitType, classifiedAmount >= 0.05 {
+                    switch explicitType {
+                    case 1: type = 1                         // rain
+                    case 5, 6: type = 2                      // snow / wet snow
+                    case 3, 7, 8, 12: type = 3               // freezing / mixed / ice pellets
+                    default: type = 0
+                    }
+                } else if snow > 0.02 && rain + showers > 0.02 {
+                    type = 3
+                } else if snow > 0.02 || (71...77).contains(code) || (85...86).contains(code) {
+                    type = 2
+                } else if rain + showers > 0.02 || (51...67).contains(code) || (80...82).contains(code) {
+                    type = 1
+                } else {
+                    type = 0
+                }
+
+                let coordinate = coordinates[index]
+                results.append(WindSample(
+                    id: index,
+                    latitude: coordinate.0,
+                    longitude: coordinate.1,
+                    speed: speed,
+                    direction: direction,
+                    gust: gust,
+                    cloudCover: cloud,
+                    precipitationType: type,
+                    precipitation: classifiedAmount
+                ))
+            }
+
+            guard !Task.isCancelled, windRequestID == requestID else { return }
+            windSamples = results.sorted { $0.id < $1.id }
+            windSamplesCenter = center
+            windUpdated = Date()
+            let rainCount = results.filter { $0.precipitationType == 1 && $0.precipitation >= 0.05 }.count
+            let snowCount = results.filter { $0.precipitationType == 2 && $0.precipitation >= 0.05 }.count
+            let mixedCount = results.filter { $0.precipitationType == 3 && $0.precipitation >= 0.05 }.count
+            let wetCount = results.filter { $0.precipitation >= 0.05 }.count
+            precipitationDiagnostics = "Nederbördsdata: \(wetCount) våta punkter • regn \(rainCount), snö \(snowCount), blandat \(mixedCount) av \(results.count) svar"
+            windStatus = results.count == offsets.count
+                ? (showClouds ? "Molntäcke • 81 geografiskt placerade modellpunkter" : "Vindfält • 81 modellpunkter runt kartans mittpunkt")
+                : (showClouds ? "Molntäcke delvis tillgängligt • \(results.count) av 81 punkter" : "Vindfält delvis tillgängligt • \(results.count) av 81 punkter")
+        } catch {
+            guard !Task.isCancelled, windRequestID == requestID else { return }
+            windStatus = windSamples.isEmpty
+                ? "Kunde inte hämta vinddata för kartområdet. Försök igen."
+                : "Kunde inte uppdatera kartområdet. Visar senast hämtade modellvärden."
         }
-        windSamples = results.sorted { $0.id < $1.id }
-        windUpdated = Date()
-        windStatus = results.count == offsets.count
-            ? "Vindfält • 25 modellpunkter runt \(place)"
-            : "Vindfält delvis tillgängligt • \(results.count) av 25 punkter"
     }
 
-    private static func precipitationName(code: Int, temperature: Double) -> String {
+    private static func precipitationName(
+        code: Int,
+        temperature: Double,
+        rain: Double,
+        snow: Double
+    ) -> String {
+        // Prefer the model's current precipitation components when present.
+        // This distinguishes mixed precipitation from a generic weather code.
+        if rain > 0.02 && snow > 0.02 { return "Blandad nederbörd" }
+        if snow > 0.02 { return "Snö" }
+        if rain > 0.02 {
+            return temperature <= 0 ? "Möjligen underkylt regn" : "Regn"
+        }
+
+        // Fall back to the WMO weather code when current amounts are zero.
         switch code {
         case 51...57: return temperature <= 0 ? "Möjligen underkylt duggregn" : "Duggregn"
         case 61...67: return temperature <= 0 ? "Möjligen underkylt regn" : "Regn"
@@ -894,6 +1578,12 @@ private struct RegnvaktMapView: UIViewRepresentable {
     let radarImage: UIImage?
     let radarTileURL: String?
     let locationTitle: String
+    let cloudSamples: [WindSample]
+    let showClouds: Bool
+    let showPrecipitationTypes: Bool
+    let onWindProjectionChange: ([WindScreenPoint]) -> Void
+    let onRadarFrameReady: () -> Void
+    let onRegionChange: (CLLocationCoordinate2D, Double, CGSize) -> Void
     private let styleURL = URL(string: "https://tiles.openfreemap.org/styles/fiord")!
 
     func makeUIView(context: Context) -> MLNMapView {
@@ -906,36 +1596,76 @@ private struct RegnvaktMapView: UIViewRepresentable {
         map.allowsRotating = false
         map.allowsTilting = false
         map.minimumZoomLevel = 3
-        // RainViewer's radar tiles are not available at higher zoom levels.
-        // Cap the map at the provider's supported detail level to avoid its
-        // 'Zoom level not supported' tile placeholder covering the map.
-        map.maximumZoomLevel = 7
+        // LibreWXR supports zoom 12; RainViewer free tiles stop at zoom 7.
+        map.maximumZoomLevel = radarTileURL?.contains("api.librewxr.net") == true ? 12 : 7
         map.setCenter(coordinate, zoomLevel: 7.0, animated: false)
         context.coordinator.lastCoordinate = coordinate
         context.coordinator.latestImage = radarImage
         context.coordinator.latestTileURL = radarTileURL
+        context.coordinator.latestCloudSamples = cloudSamples
+        context.coordinator.cloudsVisible = showClouds
+        context.coordinator.precipitationTypesVisible = showPrecipitationTypes
+        context.coordinator.onRadarFrameReady = onRadarFrameReady
+        context.coordinator.onRegionChange = onRegionChange
+        context.coordinator.onWindProjectionChange = onWindProjectionChange
         context.coordinator.updateLocationMarker(on: map, coordinate: coordinate, title: locationTitle)
         return map
     }
 
     func updateUIView(_ map: MLNMapView, context: Context) {
+        // Use the zoom limit belonging to the active radar tile provider.
+        map.maximumZoomLevel = radarTileURL?.contains("api.librewxr.net") == true ? 12 : (radarTileURL == nil ? 10 : 7)
         context.coordinator.latestImage = radarImage
         context.coordinator.latestTileURL = radarTileURL
+        context.coordinator.latestCloudSamples = cloudSamples
+        context.coordinator.cloudsVisible = showClouds
+        context.coordinator.precipitationTypesVisible = showPrecipitationTypes
+        context.coordinator.onRadarFrameReady = onRadarFrameReady
+        context.coordinator.onRegionChange = onRegionChange
+        context.coordinator.onWindProjectionChange = onWindProjectionChange
         context.coordinator.updateLocationMarker(on: map, coordinate: coordinate, title: locationTitle)
+        let projectionIdentity = "\(Int(map.bounds.width))x\(Int(map.bounds.height))|" + cloudSamples.map { "\($0.id):\($0.latitude):\($0.longitude)" }.joined(separator: "|")
+        if context.coordinator.projectionSamplesIdentity != projectionIdentity {
+            context.coordinator.publishWindProjectionIfNeeded(from: map, identity: projectionIdentity)
+        }
+        if let previous = context.coordinator.lastCoordinate,
+           abs(previous.latitude - coordinate.latitude) > 0.001 ||
+           abs(previous.longitude - coordinate.longitude) > 0.001 {
+            context.coordinator.lastCoordinate = coordinate
+            map.setCenter(coordinate, zoomLevel: max(map.zoomLevel, 7.0), animated: true)
+        }
         context.coordinator.applyRadarIfReady()
+        context.coordinator.applyCloudsIfReady()
+        context.coordinator.applyPrecipitationTypesIfReady()
         // Deliberately do not recenter when GPS/model state changes.
         // The initial camera is set once in makeUIView; the location marker can move independently.
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator() }
+    func makeCoordinator() -> Coordinator { Coordinator(onRegionChange: onRegionChange) }
 
     final class Coordinator: NSObject, MLNMapViewDelegate {
+        var onRegionChange: (CLLocationCoordinate2D, Double, CGSize) -> Void
+        var onRadarFrameReady: () -> Void = {}
+        var onWindProjectionChange: ([WindScreenPoint]) -> Void = { _ in }
+        init(onRegionChange: @escaping (CLLocationCoordinate2D, Double, CGSize) -> Void) {
+            self.onRegionChange = onRegionChange
+        }
         weak var mapView: MLNMapView?
         var latestImage: UIImage?
         var latestTileURL: String?
+        var latestCloudSamples: [WindSample] = []
+        var cloudsVisible = false
+        var precipitationTypesVisible = false
         var lastCoordinate: CLLocationCoordinate2D?
         private var styleReady = false
+        var projectionSamplesIdentity: String?
         private var appliedIdentity: String?
+        private var appliedCloudIdentity: String?
+        private var appliedPrecipitationIdentity: String?
+        private var radarLayerSequence = 0
+        private var activeRadarLayerID: String?
+        private var activeRadarSourceID: String?
+        private var retiredRadarLayers: [(layerID: String, sourceID: String)] = []
         private var locationMarker: MLNPointAnnotation?
 
         func updateLocationMarker(on map: MLNMapView, coordinate: CLLocationCoordinate2D, title: String) {
@@ -971,42 +1701,274 @@ private struct RegnvaktMapView: UIViewRepresentable {
             return view
         }
 
+        func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
+            publishWindProjection(from: mapView)
+            onRegionChange(mapView.centerCoordinate, mapView.zoomLevel, mapView.bounds.size)
+        }
+
+        func publishWindProjectionIfNeeded(from mapView: MLNMapView, identity: String) {
+            guard projectionSamplesIdentity != identity else { return }
+            projectionSamplesIdentity = identity
+            publishWindProjection(from: mapView)
+        }
+
+        private func publishWindProjection(from mapView: MLNMapView) {
+            guard mapView.bounds.width > 0, mapView.bounds.height > 0, !latestCloudSamples.isEmpty else {
+                DispatchQueue.main.async { [weak self] in
+                    self?.onWindProjectionChange([])
+                }
+                return
+            }
+            let width = Double(mapView.bounds.width)
+            let height = Double(mapView.bounds.height)
+            let points = latestCloudSamples.map { sample -> WindScreenPoint in
+                let point = mapView.convert(
+                    CLLocationCoordinate2D(latitude: sample.latitude, longitude: sample.longitude),
+                    toPointTo: mapView
+                )
+                return WindScreenPoint(
+                    id: sample.id,
+                    x: Double(point.x) / width,
+                    y: Double(point.y) / height
+                )
+            }
+            // Defer SwiftUI state delivery: this method can be reached from
+            // UIViewRepresentable.updateUIView, where synchronous state writes
+            // would mutate the view hierarchy during an update pass.
+            DispatchQueue.main.async { [weak self] in
+                self?.onWindProjectionChange(points)
+            }
+        }
+
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             self.mapView = mapView
             styleReady = true
             appliedIdentity = nil
+            appliedCloudIdentity = nil
+            appliedPrecipitationIdentity = nil
+            activeRadarLayerID = nil
+            activeRadarSourceID = nil
+            retiredRadarLayers.removeAll()
             applyRadarIfReady()
+            applyCloudsIfReady()
+            applyPrecipitationTypesIfReady()
+            publishWindProjection(from: mapView)
+            onRegionChange(mapView.centerCoordinate, mapView.zoomLevel, mapView.bounds.size)
+        }
+
+        func applyCloudsIfReady() {
+            guard styleReady, let style = mapView?.style else { return }
+            let identity = cloudsVisible
+                ? latestCloudSamples.map { "\($0.id):\(String(format: "%.4f", $0.latitude)),\(String(format: "%.4f", $0.longitude)):\(Int($0.cloudCover.rounded()))" }.joined(separator: "|")
+                : "hidden"
+            guard identity != appliedCloudIdentity else { return }
+            appliedCloudIdentity = identity
+
+            let features: [MLNPointFeature] = latestCloudSamples.map { sample in
+                let feature = MLNPointFeature()
+                feature.coordinate = CLLocationCoordinate2D(latitude: sample.latitude, longitude: sample.longitude)
+                feature.attributes = ["cloudCover": NSNumber(value: sample.cloudCover)]
+                return feature
+            }
+            let shape = MLNShapeCollectionFeature(shapes: features)
+            let sourceID = "regnvakt-cloud-source"
+            let source: MLNShapeSource
+            if let existing = style.source(withIdentifier: sourceID) as? MLNShapeSource {
+                existing.shape = shape
+                source = existing
+            } else {
+                source = MLNShapeSource(identifier: sourceID, shape: shape, options: nil)
+                style.addSource(source)
+            }
+            let layerID = "regnvakt-cloud-layer"
+            if style.layer(withIdentifier: layerID) == nil {
+                let layer = MLNCircleStyleLayer(identifier: layerID, source: source)
+                // Small, geographically anchored points prevent the sampled
+                // field from blending into one oversized blob.
+                layer.circleColor = NSExpression(forConstantValue: UIColor(red: 0.38, green: 0.68, blue: 0.94, alpha: 1))
+                layer.circleOpacity = NSExpression(format: "cloudCover / 100.0 * 0.22")
+                // The samples are model grid points, not cloud-shaped polygons.
+                // Keep their footprint restrained so the basemap remains readable.
+                layer.circleRadius = NSExpression(forConstantValue: 8)
+                layer.circleBlur = NSExpression(forConstantValue: 0.85)
+                style.addLayer(layer)
+            }
+            if let layer = style.layer(withIdentifier: layerID) {
+                layer.isVisible = cloudsVisible
+            }
+        }
+
+        func applyPrecipitationTypesIfReady() {
+            guard styleReady, let style = mapView?.style else { return }
+            let identity = precipitationTypesVisible
+                ? latestCloudSamples.map { "\($0.id):\(String(format: "%.4f", $0.latitude)),\(String(format: "%.4f", $0.longitude)):\($0.precipitationType):\(String(format: "%.2f", $0.precipitation))" }.joined(separator: "|")
+                : "hidden"
+            guard identity != appliedPrecipitationIdentity else { return }
+            appliedPrecipitationIdentity = identity
+
+            let definitions: [(name: String, type: Int, color: UIColor)] = [
+                ("rain", 1, UIColor(red: 0.12, green: 0.56, blue: 0.98, alpha: 1)),
+                ("snow", 2, UIColor(red: 0.82, green: 0.93, blue: 1.0, alpha: 1)),
+                ("mixed", 3, UIColor(red: 0.72, green: 0.42, blue: 0.92, alpha: 1))
+            ]
+            for definition in definitions {
+                let features: [MLNPointFeature] = latestCloudSamples.compactMap { sample in
+                    guard sample.precipitationType == definition.type,
+                          sample.precipitation >= 0.05 else { return nil }
+                    let feature = MLNPointFeature()
+                    feature.coordinate = CLLocationCoordinate2D(latitude: sample.latitude, longitude: sample.longitude)
+                    // Normalize mm/h into a useful heatmap weight range while
+                    // preserving stronger precipitation as a denser contribution.
+                    let weight = min(2.0, max(0.12, sample.precipitation / 2.0))
+                    feature.attributes = [
+                        "precipitation": NSNumber(value: sample.precipitation),
+                        "heatmapWeight": NSNumber(value: weight)
+                    ]
+                    return feature
+                }
+                let sourceID = "regnvakt-precip-type-\(definition.name)-source"
+                let layerID = "regnvakt-precip-type-\(definition.name)-layer"
+                let shape = MLNShapeCollectionFeature(shapes: features)
+                let source: MLNShapeSource
+                if let existing = style.source(withIdentifier: sourceID) as? MLNShapeSource {
+                    existing.shape = shape
+                    source = existing
+                } else {
+                    source = MLNShapeSource(identifier: sourceID, shape: shape, options: nil)
+                    style.addSource(source)
+                }
+                if style.layer(withIdentifier: layerID) == nil {
+                    // Heatmap expressions are not rendered consistently by the
+                    // current MapLibre style/runtime. Use geographically anchored
+                    // blurred circles so each classified model point is visible.
+                    let layer = MLNCircleStyleLayer(identifier: layerID, source: source)
+                    layer.circleColor = NSExpression(forConstantValue: definition.color)
+                    // Neighboring 9x9 model points are roughly 10–15 km apart
+                    // at this grid spacing. A wider, softer footprint blends
+                    // adjacent samples into a field without hiding the basemap.
+                    layer.circleOpacity = NSExpression(forConstantValue: 0.58)
+                    layer.circleRadius = NSExpression(forConstantValue: 26)
+                    layer.circleBlur = NSExpression(forConstantValue: 0.82)
+                    style.addLayer(layer)
+                }
+                if let layer = style.layer(withIdentifier: layerID) {
+                    layer.isVisible = precipitationTypesVisible
+                }
+            }
+        }
+
+        func mapViewDidBecomeIdle(_ mapView: MLNMapView) {
+            // MapLibre enters idle only after requested visible tiles and
+            // style transitions have completed. Keep the previous radar layer
+            // underneath until this point, then retire it in one cleanup pass.
+            guard let style = mapView.style, !retiredRadarLayers.isEmpty else { return }
+            for item in retiredRadarLayers {
+                if let layer = style.layer(withIdentifier: item.layerID) {
+                    style.removeLayer(layer)
+                }
+                if let source = style.source(withIdentifier: item.sourceID) {
+                    style.removeSource(source)
+                }
+            }
+            retiredRadarLayers.removeAll()
+            onRadarFrameReady()
         }
 
         func applyRadarIfReady() {
             guard styleReady, let style = mapView?.style else { return }
             let identity = latestImage.map { "smhi-\(ObjectIdentifier($0))" } ?? latestTileURL ?? "none"
             guard identity != appliedIdentity else { return }
-            if let layer = style.layer(withIdentifier: "regnvakt-radar-layer") { style.removeLayer(layer) }
-            if let source = style.source(withIdentifier: "regnvakt-radar-source") { style.removeSource(source) }
-            appliedIdentity = identity
+
+            // If there is no replacement image, remove the current layer immediately.
+            // There may be no incoming source to trigger mapViewDidBecomeIdle, so
+            // deferring this cleanup could leave stale precipitation visible.
+            guard latestImage != nil || latestTileURL != nil else {
+                if let layerID = activeRadarLayerID {
+                    if let layer = style.layer(withIdentifier: layerID) {
+                        style.removeLayer(layer)
+                    }
+                }
+                if let sourceID = activeRadarSourceID {
+                    if let source = style.source(withIdentifier: sourceID) {
+                        style.removeSource(source)
+                    }
+                }
+                activeRadarLayerID = nil
+                activeRadarSourceID = nil
+                // A feed can be cleared while a replacement frame is still
+                // pending. Retired frames must also be removed here; otherwise
+                // an older image can remain visible indefinitely because no
+                // incoming source exists to drive the map back to idle.
+                for item in retiredRadarLayers {
+                    if let layer = style.layer(withIdentifier: item.layerID) {
+                        style.removeLayer(layer)
+                    }
+                    if let source = style.source(withIdentifier: item.sourceID) {
+                        style.removeSource(source)
+                    }
+                }
+                retiredRadarLayers.removeAll()
+                appliedIdentity = identity
+                mapView?.setNeedsDisplay()
+                return
+            }
+
+            // Give every frame its own source/layer IDs. The old frame remains
+            // visible below the incoming frame while MapLibre fetches its tiles.
+            // It is removed only from mapViewDidBecomeIdle after the new frame
+            // has finished rendering, preventing the blank-map flash on every
+            // ten-minute timestamp change.
+            // Keep exactly one previous frame beneath the incoming frame.
+            // If rapid refreshes arrive before MapLibre reaches idle, older
+            // retired sources must not accumulate indefinitely. The active
+            // frame remains visible while the newest source is loading.
+            for item in retiredRadarLayers {
+                if let layer = style.layer(withIdentifier: item.layerID) {
+                    style.removeLayer(layer)
+                }
+                if let source = style.source(withIdentifier: item.sourceID) {
+                    style.removeSource(source)
+                }
+            }
+            retiredRadarLayers.removeAll()
+
+            if let layerID = activeRadarLayerID, let sourceID = activeRadarSourceID {
+                retiredRadarLayers.append((layerID, sourceID))
+            }
+
+            radarLayerSequence += 1
+            let suffix = String(radarLayerSequence)
+            let sourceID = "regnvakt-radar-source-\(suffix)"
+            let layerID = "regnvakt-radar-layer-\(suffix)"
 
             if let image = latestImage {
                 let source = MLNImageSource(
-                    identifier: "regnvakt-radar-source",
+                    identifier: sourceID,
                     coordinateQuad: SWEREF99.imageQuad,
                     image: image
                 )
-                let layer = MLNRasterStyleLayer(identifier: "regnvakt-radar-layer", source: source)
+                let layer = MLNRasterStyleLayer(identifier: layerID, source: source)
                 layer.rasterOpacity = NSExpression(forConstantValue: 0.86)
                 style.addSource(source)
                 style.addLayer(layer)
             } else if let template = latestTileURL {
                 let source = MLNRasterTileSource(
-                    identifier: "regnvakt-radar-source",
+                    identifier: sourceID,
                     tileURLTemplates: [template],
                     options: nil
                 )
-                let layer = MLNRasterStyleLayer(identifier: "regnvakt-radar-layer", source: source)
+                let layer = MLNRasterStyleLayer(identifier: layerID, source: source)
                 layer.rasterOpacity = NSExpression(forConstantValue: 0.76)
+                layer.rasterFadeDuration = NSExpression(forConstantValue: 100)
                 style.addSource(source)
                 style.addLayer(layer)
             }
+
+            activeRadarLayerID = layerID
+            activeRadarSourceID = sourceID
+            appliedIdentity = identity
+            applyCloudsIfReady()
+            applyPrecipitationTypesIfReady()
         }
     }
 }
