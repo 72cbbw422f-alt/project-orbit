@@ -1234,3 +1234,14 @@ completionHandler([.banner, .sound, .list])
 - Kodcommits: `d2498de3f49550cafba6780c5456695c0c8f230f`, `9bdbc7845f552564b7cc45a8f25ea8936125a25f`, `90bf0d0c3d8077974a2cb3de6ef1261e4bdd766f`.
 - CI-hinder före ändringen: Build #716 mot dokumentationscommit `b88f906` stoppade i teststeget eftersom GitHub-runnern inte hade någon tillgänglig iPhone 16-simulator (xcodebuild exit 70). Loggen visar inte ett XCTest-fel; testkörning och IPA-bygge hoppades över. Tidigare Build #715 passerade 54/54 tester och IPA-paketering på commit `1ae4f70`.
 - Status: ny kod är pushad till `feature/frost-notification-audit`; ny CI krävs för exakt kodrevision. Ingen fysisk iPhone-testning genomförd. PR #1 förblir öppen som draft.
+
+
+## Korrigering av testbar SMHI-generationsregel – 2026-11-21
+
+- CI #717–#720 visade kompileringsfel i regressionstestet för generationsskyddet. Testmålet inkluderar inte hela NotificationInboxView.swift, där SMHIWarningService ligger, och ska därför inte referera direkt till den appinterna tjänsten.
+- Flyttat den rena jämförelsen av generation och lagrat generationstoken till SMHIWarningNotificationPolicy, som redan ingår explicit i testmålet. SMHI-tjänsten använder nu samma policyfunktion i sin runtime-kontroll.
+- Regressionstestet testar policyn direkt och är därmed frikopplat från appens UI-/notistjänst.
+- Berörda filer: VADER/SMHIWarningNotificationPolicy.swift, VADER/NotificationInboxView.swift, Tests/SMHIWarningNotificationPolicyTests.swift, docs/DEVELOPMENT_LOG.md.
+- CI-felorsak verifierad i loggar: #717 rapporterade saknad beginCheck vid den tidigare mellanliggande committen; #718–#720 rapporterade att SMHIWarningService inte var tillgänglig från testmålet. Detta är Swift-mål-/källkonfiguration, inte simulatorbrist.
+- Ny CI-körning krävs för att verifiera korrigeringen. Tidigare verifierade 54/54 tester på commit 1ae4f70 gäller inte den här ändringen.
+- Ingen fysisk iPhone-testning genomförd. PR #1 förblir draft och ingen merge görs.
