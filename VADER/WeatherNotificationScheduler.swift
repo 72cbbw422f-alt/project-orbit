@@ -62,14 +62,14 @@ enum WeatherNotificationScheduler {
         // This prevents each refresh from launching a competing per-place task.
         // A freshly fetched live forecast may evaluate an immediate current-frost alert.
         // Restoring persisted forecasts at launch must never replay that alert.
-        refreshFromStoredForecast(allowImmediateCurrentFrost: true)
+        refreshFromStoredForecast(allowImmediateCurrentFrost: true, immediateFrostLocationID: locationKey)
     }
 
     static func refreshFromStoredForecast() {
-        refreshFromStoredForecast(allowImmediateCurrentFrost: false)
+        refreshFromStoredForecast(allowImmediateCurrentFrost: false, immediateFrostLocationID: nil)
     }
 
-    private static func refreshFromStoredForecast(allowImmediateCurrentFrost: Bool) {
+    private static func refreshFromStoredForecast(allowImmediateCurrentFrost: Bool, immediateFrostLocationID: String?) {
         let defaults = UserDefaults.standard
         // Every new batch invalidates any older batch before it can continue
         // after an asynchronous notification-center operation.
@@ -84,7 +84,8 @@ enum WeatherNotificationScheduler {
                     registry: registry,
                     registrySnapshot: registryData,
                     globalToken: globalToken,
-                    allowImmediateCurrentFrost: allowImmediateCurrentFrost
+                    allowImmediateCurrentFrost: allowImmediateCurrentFrost,
+                    immediateFrostLocationID: immediateFrostLocationID
                 )
             }
             return
@@ -142,7 +143,8 @@ enum WeatherNotificationScheduler {
         registry: [String: StoredForecast],
         registrySnapshot: Data?,
         globalToken: String,
-        allowImmediateCurrentFrost: Bool
+        allowImmediateCurrentFrost: Bool,
+        immediateFrostLocationID: String?
     ) async {
         let defaults = UserDefaults.standard
         let center = UNUserNotificationCenter.current()
@@ -191,7 +193,6 @@ enum WeatherNotificationScheduler {
             return
         }
 
-        let newestLocationID = registry.values.max(by: { $0.savedAt < $1.savedAt })?.locationID
         var requestsByID: [String: UNNotificationRequest] = [:]
         var candidates: [WeatherNotificationCandidate] = []
         for stored in registry.values.sorted(by: { $0.locationID < $1.locationID }) {
@@ -199,7 +200,7 @@ enum WeatherNotificationScheduler {
             let age = Date().timeIntervalSince(stored.savedAt)
             let fresh = age >= 0 && age <= 2 * 60 * 60
             let liveTemperature = allowImmediateCurrentFrost &&
-                stored.locationID == newestLocationID && fresh ? stored.currentTemperature : nil
+                stored.locationID == immediateFrostLocationID && fresh ? stored.currentTemperature : nil
             let requests = makeRequests(
                 place: stored.place,
                 hours: fresh ? stored.hours : [],
