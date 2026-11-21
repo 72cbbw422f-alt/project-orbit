@@ -294,7 +294,6 @@ enum WeatherNotificationScheduler {
         let removalToken = UUID().uuidString
         defaults.set(removalToken, forKey: globalScheduleTokenKey)
 
-        let locationPrefix = prefix + locationID + "."
         let center = UNUserNotificationCenter.current()
         Task {
             // Finish cleanup before starting the replacement global batch. This
