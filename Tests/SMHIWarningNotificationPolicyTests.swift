@@ -1,5 +1,4 @@
 import XCTest
-@testable import VADER
 
 final class SMHIWarningNotificationPolicyTests: XCTestCase {
     func testFirstObservationEstablishesBaselineWithoutNotifyingExistingWarnings() {
