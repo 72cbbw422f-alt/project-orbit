@@ -841,3 +841,12 @@ Varje arbetsomgång ska dokumentera:
 - Verifiering: ändringarna skrevs till GitHub. XCTest och iOS-build är inte körda i denna miljö; återläsning och slutlig branch-/PR-kontroll ska genomföras.
 - Filer: VADER/WeatherNotificationBudget.swift, Tests/WeatherNotificationBudgetTests.swift, docs/NOTIFICATION_RECONCILIATION_DESIGN.md, docs/DEVELOPMENT_LOG.md.
 - Kvar: helpern är ännu inte inkopplad i live-schemaläggaren. Nästa steg är den globala reconciliationen som använder en enda pending-/delivered-snapshot för samtliga platser.
+
+
+### Korrigerat förväntat kapacitetsvärde i test – 2026-11-21
+
+- Vid eftergranskning av det nya testet för blandade pending-namespace upptäcktes ett fel i testets förväntade värde: 52 totalbudget − 8 reserverade − 2 SMHI − 2 övriga = 40, inte 34.
+- Tests/WeatherNotificationBudgetTests.swift: korrigerade förväntat värde till 40. Produktionslogiken ändrades inte.
+- Verifiering: aritmetiken kontrollerad manuellt och ändringen sparad i GitHub. XCTest är inte körda.
+- Filer: Tests/WeatherNotificationBudgetTests.swift, docs/DEVELOPMENT_LOG.md.
+- Kvar: global reconciliation är fortfarande inte inkopplad i live-schemaläggaren.
