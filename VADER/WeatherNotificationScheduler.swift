@@ -268,11 +268,11 @@ enum WeatherNotificationScheduler {
         UserDefaults.standard.set(UUID().uuidString, forKey: globalScheduleTokenKey)
         let center = UNUserNotificationCenter.current()
         center.getPendingNotificationRequests { requests in
-            let ids = requests.map(\.identifier).filter { $0.hasPrefix(prefix) }
+            let ids = WeatherNotificationBudget.forecastIdentifiers(in: requests.map(\.identifier), forecastPrefix: prefix)
             center.removePendingNotificationRequests(withIdentifiers: ids)
         }
         center.getDeliveredNotifications { notifications in
-            let ids = notifications.map { $0.request.identifier }.filter { $0.hasPrefix(prefix) }
+            let ids = WeatherNotificationBudget.forecastIdentifiers(in: notifications.map { $0.request.identifier }, forecastPrefix: prefix)
             center.removeDeliveredNotifications(withIdentifiers: ids)
         }
     }
