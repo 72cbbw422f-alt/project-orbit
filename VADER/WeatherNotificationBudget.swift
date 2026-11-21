@@ -130,6 +130,19 @@ enum WeatherNotificationBudget {
         )
     }
 
+    /// Reserves shared capacity for already-pending current-frost requests
+    /// that are not represented in the freshly generated candidate pool.
+    /// Those requests are preserved by the reconciliation plan and must still
+    /// consume budget so new alerts cannot overfill the app's queue policy.
+    static func selectionCapacity(
+        availableCapacity: Int,
+        preservedPendingIdentifiers: Set<String>,
+        candidateIdentifiers: Set<String>
+    ) -> Int {
+        let unrepresentedPreserved = preservedPendingIdentifiers.subtracting(candidateIdentifiers).count
+        return max(0, max(0, availableCapacity) - unrepresentedPreserved)
+    }
+
     /// Returns stable identifiers in delivery priority order.
     ///
     /// Existing pending current-frost requests are retained even if they
