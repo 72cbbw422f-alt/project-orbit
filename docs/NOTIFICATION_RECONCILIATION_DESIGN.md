@@ -1,6 +1,6 @@
 # Global notification reconciliation
 
-Status: pure selector and edge-case tests implemented; scheduler integration not implemented
+Status: global reconciliation is integrated in the live scheduler; physical-device verification remains outstanding
 Branch: `feature/frost-notification-audit`
 Updated: 2026-11-20
 
@@ -239,3 +239,22 @@ Ingen produktionskod ändrad i denna granskning. Enhetstest och iOS-build åters
 ### Retry- och kapacitetskantfall
 
 Baseline får inte markera alla nyupptäckta varningar som hanterade innan de faktiskt har köats. Implementationens aktuella baseline behåller tidigare aktiva signaturer, men registrerar en ny signatur först när motsvarande request redan finns pending eller när iOS har accepterat den nya requesten. Om SMHI:s köutrymme är fullt eller `UNUserNotificationCenter.add` misslyckas förblir varningen ny och kan försöka igen vid nästa lyckade kontroll.
+
+## Global reconciliation inkopplad – statusuppdatering 2026-11-21
+
+Den tidigare statusen ovan och de historiska formuleringarna om att schemaläggarintegrationen återstår beskriver utvecklingsläget före den senaste integrationen. Följande finns nu i den aktiva kodvägen när ett prognosregister finns:
+
+- `refreshFromStoredForecast()` skickar en gemensam register-snapshot till `reconcileGlobally(...)`.
+- En och samma körning läser notisbehörighet, pending och delivered en gång och kontrollerar global generations-token samt register-snapshot efter asynkrona avbrott.
+- Kandidater byggs för samtliga registrerade platser och väljs globalt via `WeatherNotificationBudget`.
+- Kapaciteten räknas från pending-snapshoten; befintliga SMHI- och övriga notiser räknas av. Endast `regnvakt.weather.*` ersätts.
+- Väntande aktuella frostnotiser från fortfarande registrerade platser bevaras och deras kapacitet räknas med.
+- Slutlig prognosräkning och status skrivs efter en sista pending-avläsning.
+- Den gamla platsvisa `schedule(...)`-vägen finns kvar för migration av installationer som saknar det nya registret; den är inte den normala vägen när registret finns.
+
+### Kvarvarande begränsningar
+
+- Den globala integrationen är ännu inte verifierad på fysisk iPhone med verklig notiskö och snabba ändringar av bevakningar.
+- iOS accepterar eller avvisar varje `center.add` separat; CI kan verifiera kompilering och XCTest men inte verklig leverans.
+- Statusrapporteringen samlar nu upp antal misslyckade `add`-anrop i stället för att skriva ett fel som sedan skrivs över av en generell framgångsstatus.
+- Historiska avsnitt i detta dokument beskriver respektive tidigare utvecklingssteg och ska läsas som tidsstämplad historik, inte som aktuell status.
