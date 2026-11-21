@@ -48,6 +48,7 @@ targets:
       - path: VADER/FrostRiskRules.swift
       - path: VADER/WeatherWatchRules.swift
       - path: VADER/WeatherNotificationBudget.swift
+      - path: VADER/SMHIWarningNotificationPolicy.swift
     dependencies:
       - target: VADER
     settings:
