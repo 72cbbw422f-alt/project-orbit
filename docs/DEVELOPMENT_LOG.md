@@ -1306,3 +1306,14 @@ completionHandler([.banner, .sound, .list])
 - Kodcommits: 3ec7866d49f62d24a2fbbd0265b503ef0d53ddf8 och 05f4cce3d2542e20c20c8954b2e5598937caa5b6.
 - Verifiering: CI för de här ändringarna krävs. Tidigare CI #730–#735 var fortfarande köade/pågående vid granskningen; ingen av dem verifierar denna kod.
 - Ingen fysisk iPhone-testning, ingen signerad IPA och ingen merge. PR #1 förblir öppen som draft.
+
+
+## Generationsskydd även vid SMHI-baslinjens kvittens – 2026-11-21
+
+- En eftergranskning av den nya återförsökslogiken hittade att baslinjen kvitterades via actor-metoden `recordBaselineSignature` efter att ett notistillägg accepterats eller en väntande notis återfunnits. Metoden kontrollerade tidigare bara notis-epochen.
+- En ny platskontroll kan starta medan föregående kontroll väntar på actor-anrop. En gammal kontroll kunde då lägga in en signatur från den tidigare platsuppsättningen i den nya kontrollens baseline och i värsta fall dölja en relevant varning.
+- Baslinjekvittensen kräver nu både aktuell notis-epoch och aktuell SMHI-kontrollgeneration. Samma kontroll gäller både återfunnen pending-notis och lyckat notistillägg.
+- Berörd fil: `VADER/NotificationInboxView.swift`.
+- Kodcommit: `b79e6387578cd48a3ab9fbc5265929d14d115046`.
+- Verifiering: CI för denna commit inväntas. Befintligt policytest för generationsjämförelse täcker den rena regeln, men actor-/notisflödet behöver fortfarande verifieras via CI och senare fysisk iPhone-testning.
+- PR #1 förblir öppen som draft. Ingen merge eller signerad IPA.
