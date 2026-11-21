@@ -1020,3 +1020,13 @@ completionHandler([.banner, .sound, .list])
 - Byt den privata parsern i `NotificationInboxView.swift` till den gemensamma implementationen.
 - Kontrollera aktuell GitHub Actions-build och granska eventuella fel.
 - Global notification reconciliation är fortsatt inte implementerad.
+
+
+## Åtgärdade CI-kompileringsfel i notisschemaläggaren – 2026-11-21
+
+- GitHub Actions-loggen för commit `ad324de55621cc427834a1469f505bbcb35ba6f2` visade att appens Swift-kompilering stoppades före testkörning av tre fel i `VADER/WeatherNotificationScheduler.swift`: två referenser till `frostDayKey` utanför dess lokala scope samt ett anrop till `nextTriggerDate()` på bastypen `UNNotificationTrigger`.
+- `VADER/WeatherNotificationScheduler.swift`: skapade den platsunika `frostDayKey` i `schedule(...)`, där den används för att återställa deduplicering från levererade frostnotiser. Den lokala nyckeln i `makeRequests(...)` behålls för eventgenereringen.
+- Bytte triggerdatumavläsningen till explicit hantering av `UNCalendarNotificationTrigger` och `UNTimeIntervalNotificationTrigger`. Okänd/omedelbar trigger får en konservativ fallback på två sekunder.
+- Filer ändrade: `VADER/WeatherNotificationScheduler.swift`, `docs/DEVELOPMENT_LOG.md`.
+- Verifiering före ändringen: GitHub Actions körning 44890811018 kompilerade appens källor men föll i `Run frost risk unit tests` på ovanstående tre compile errors. Därför kördes inga XCTest-fall. Ändringen är incheckad men ny CI-körning krävs.
+- Ingen IPA byggd. Ingen merge.
