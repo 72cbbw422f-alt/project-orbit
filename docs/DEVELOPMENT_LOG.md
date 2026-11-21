@@ -1073,3 +1073,18 @@ completionHandler([.banner, .sound, .list])
 - Viktig avgränsning: planmodellen är ännu inte inkopplad i `VADER/WeatherNotificationScheduler.swift`. Den aktiva schemaläggaren använder fortfarande interimistisk per-platsbudget. Detta är ett isolerat och testbart steg inför scheduler-integrationen, inte en färdig global notifieringslösning.
 - Verifiering: GitHub-readback och CI/XCTest krävs. Ingen iOS-build, IPA eller fysisk iPhone-testning genomförd i denna insats.
 - Ingen merge. PR #1 förblir öppen och draft.
+
+
+## Global forecast-notification reconciliation integrated – 2026-11-21
+
+- `VADER/WeatherNotificationScheduler.swift`: registered forecasts now enter one global reconciliation task instead of a sequential loop that invokes the legacy per-place scheduler.
+- The global pass reads notification authorization once, then takes one pending snapshot and one delivered snapshot for all monitored locations. It builds one candidate pool, calculates capacity from external pending requests, and applies the shared deterministic priority selector.
+- `WeatherNotificationReconciliationPlan` is now used by the live scheduler. It replaces only pending identifiers in `regnvakt.weather.*`, preserves already-pending current-frost alerts, and never removes or re-adds SMHI/foreign identifiers or delivered identifiers.
+- Every async boundary is guarded by both the global generation token and the exact forecast-registry snapshot. Removing one watch now invalidates an in-flight global pass and starts reconciliation for the remaining registry.
+- When global notifications are disabled or permission is unavailable, only Regnvakt forecast pending requests are cleaned up. SMHI remains outside this scheduler's ownership.
+- Immediate current-frost evaluation is restricted to the most recently refreshed registry entry during a live refresh; restored forecasts do not replay current frost.
+- The legacy single-cache migration fallback and old per-place scheduler remain in source for installations without a migrated forecast registry. The normal registered multi-location path no longer calls the per-place scheduler.
+- Files changed: `VADER/WeatherNotificationScheduler.swift`, `docs/DEVELOPMENT_LOG.md`.
+- Verification: GitHub Contents API writes completed and readback is required. No XCTest, XcodeGen, iOS build, simulator/device test, or IPA has been run in this environment. CI status must be checked for the resulting HEAD.
+- Known follow-up: add targeted tests for global registry-generation invalidation and multi-location orchestration; inspect whether current-frost preservation should remain enabled when only the frost-specific preference is toggled off. Do not merge until CI and device scenarios pass.
+- No merge. PR #1 remains open and draft.
