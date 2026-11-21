@@ -165,7 +165,7 @@ enum WeatherNotificationScheduler {
         let delivered = await center.deliveredNotifications()
         guard isCurrentBatch() else { return }
 
-        let pendingIDs = pending.map(\\.identifier)
+        let pendingIDs = pending.map(\.identifier)
         let deliveredIDs = Set(delivered.map { $0.request.identifier })
         let preserveFrost = defaults.object(forKey: "Regnvakt.notifications.frost") as? Bool ?? true
         let preservedFrostIDs = Set(pendingIDs.filter {
@@ -237,7 +237,7 @@ enum WeatherNotificationScheduler {
                 try await center.add(request)
             } catch {
                 guard isCurrentBatch() else { return }
-                defaults.set("Fel vid schemaläggning: \\(error.localizedDescription)", forKey: scheduleStatusKey)
+                defaults.set("Fel vid schemaläggning: \(error.localizedDescription)", forKey: scheduleStatusKey)
             }
             guard isCurrentBatch() else { return }
         }
@@ -249,7 +249,7 @@ enum WeatherNotificationScheduler {
         defaults.set(Date().timeIntervalSince1970, forKey: scheduleUpdatedKey)
         defaults.set(finalCount == 0
             ? "Inga framtida risker passerade aviseringsgränserna"
-            : "\\(finalCount) väderavisering(ar) schemalagda i iPhone", forKey: scheduleStatusKey)
+            : "\(finalCount) väderavisering(ar) schemalagda i iPhone", forKey: scheduleStatusKey)
     }
 
     static func removeAll() {
@@ -280,6 +280,9 @@ enum WeatherNotificationScheduler {
                 defaults.set(updated, forKey: forecastRegistryKey)
             }
         }
+        // Invalidate a global reconciliation that may still contain this place,
+        // then reconcile the remaining registry after the removal is committed.
+        defaults.set(UUID().uuidString, forKey: globalScheduleTokenKey)
         let locationPrefix = prefix + locationID + "."
         let center = UNUserNotificationCenter.current()
         center.getPendingNotificationRequests { requests in
@@ -290,6 +293,7 @@ enum WeatherNotificationScheduler {
             let ids = notifications.map { $0.request.identifier }.filter { $0.hasPrefix(locationPrefix) }
             center.removeDeliveredNotifications(withIdentifiers: ids)
         }
+        refreshFromStoredForecast()
     }
 
     static func clearLegacyWeatherNotificationsOnce() {
