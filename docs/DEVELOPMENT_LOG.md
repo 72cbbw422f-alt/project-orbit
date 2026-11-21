@@ -1255,3 +1255,12 @@ completionHandler([.banner, .sound, .list])
 - Färgskalan ska vara bunden till faktiska vindhastigheter. Visualiseringen får inte antyda högre dataupplösning än vädermodellen levererar. Behåll tydlig skillnad mellan medelvind och byvind.
 - Föreslagen arbetsordning: (1) granska datakällans upplösning och provpunkternas geografiska täckning, (2) förbättra interpolation och kantbeteende, (3) förbättra partikelanimation och färgskala, (4) profilera prestanda och testa panorering/zoom på fysisk iPhone.
 - Status: sparad som framtida backlogg. Ej implementerad, ej byggd och ej testad. Pågående prioritet kvarstår: SMHI-generationsskydd, notisdeduplicering och verifiering av CI.
+
+
+## Slutlig frikoppling av SMHI-generationsregressionstest – 2026-11-21
+
+- Efter att policyn flyttats till SMHIWarningNotificationPolicy återstod två äldre testanrop som fortfarande pekade på SMHIWarningService. CI #724 bekräftade dessa två kvarvarande referenser som kompileringsfel.
+- Båda testanropen använder nu den rena policyfunktionen. Testfilen har inga referenser kvar till SMHIWarningService.
+- Berörda filer: Tests/SMHIWarningNotificationPolicyTests.swift och docs/DEVELOPMENT_LOG.md.
+- CI #724 mot 9ab31e7 stoppade vid kompilering av VADERTests med två Cannot find SMHIWarningService in scope-fel; inga XCTest kördes och IPA-bygget hoppades över.
+- Denna korrigering är pushad separat; CI för den nya committen måste inväntas. Ingen fysisk iPhone-testning genomförd.
