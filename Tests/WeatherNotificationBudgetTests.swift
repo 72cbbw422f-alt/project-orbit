@@ -312,4 +312,65 @@ final class WeatherNotificationBudgetTests: XCTestCase {
             ]
         )
     }
+
+    func testReconciliationPlanReplacesOnlyForecastNamespace() {
+        let plan = WeatherNotificationReconciliationPlan.make(
+            selectedIdentifiers: [
+                "regnvakt.weather.north.rain.new",
+                "regnvakt.weather.south.ice.new",
+                "smhi.warning.new",
+                "other.app.new"
+            ],
+            pendingIdentifiers: [
+                "regnvakt.weather.north.rain.old",
+                "regnvakt.weather.south.frost.current.today",
+                "smhi.warning.active",
+                "calendar.reminder.active"
+            ],
+            deliveredIdentifiers: [],
+            preservedPendingIdentifiers: ["regnvakt.weather.south.frost.current.today"]
+        )
+
+        XCTAssertEqual(plan.preservedPendingIdentifiers, ["regnvakt.weather.south.frost.current.today"])
+        XCTAssertEqual(plan.pendingIdentifiersToRemove, ["regnvakt.weather.north.rain.old"])
+        XCTAssertEqual(plan.identifiersToAdd, [
+            "regnvakt.weather.north.rain.new",
+            "regnvakt.weather.south.ice.new"
+        ])
+    }
+
+    func testReconciliationPlanReaddsStableIDsButKeepsPreservedFrost() {
+        let stableRain = "regnvakt.weather.north.rain.20261121"
+        let currentFrost = "regnvakt.weather.north.frost.current.20261121"
+        let plan = WeatherNotificationReconciliationPlan.make(
+            selectedIdentifiers: [stableRain, currentFrost, stableRain],
+            pendingIdentifiers: [stableRain, currentFrost],
+            deliveredIdentifiers: [],
+            preservedPendingIdentifiers: [currentFrost]
+        )
+
+        XCTAssertEqual(plan.preservedPendingIdentifiers, [currentFrost])
+        XCTAssertEqual(plan.pendingIdentifiersToRemove, [stableRain])
+        XCTAssertEqual(plan.identifiersToAdd, [stableRain])
+    }
+
+    func testReconciliationPlanNeverReaddsDeliveredOrForeignIdentifiers() {
+        let plan = WeatherNotificationReconciliationPlan.make(
+            selectedIdentifiers: [
+                "regnvakt.weather.north.rain.delivered",
+                "regnvakt.weather.north.ice.new",
+                "smhi.warning.foreign"
+            ],
+            pendingIdentifiers: [
+                "regnvakt.weather.north.rain.pending",
+                "smhi.warning.pending"
+            ],
+            deliveredIdentifiers: ["regnvakt.weather.north.rain.delivered"],
+            preservedPendingIdentifiers: []
+        )
+
+        XCTAssertEqual(plan.pendingIdentifiersToRemove, ["regnvakt.weather.north.rain.pending"])
+        XCTAssertEqual(plan.identifiersToAdd, ["regnvakt.weather.north.ice.new"])
+    }
+
 }
