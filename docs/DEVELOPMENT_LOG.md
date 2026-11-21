@@ -970,3 +970,28 @@ completionHandler([.banner, .sound, .list])
 ### Verifiering
 - Källkod uppdaterad på utvecklingsgrenen. Återläsning av de slutliga filerna och kontroll av GitHub Actions ska göras innan ändringen betraktas som byggverifierad.
 - Inga fysiska iPhone-tester har genomförts i denna arbetsinsats.
+
+## Aktuell frost vid appstart – stoppa återspelning från cache
+
+**Ändrat:** 2026-11-21  
+**Gren:** `feature/frost-notification-audit`
+
+### Rotorsak
+- Vid appstart körs `refreshFromStoredForecast()` för att återställa schemalagda prognosnotiser.
+- Den tidigare logiken tillät en sparad aktuell temperatur så länge den sparade prognosen var högst två timmar gammal.
+- Om den sparade temperaturen visade frost kunde appstart därför skapa en ny omedelbar frostnotis, trots att ingen ny temperatur hade hämtats i den aktuella sessionen.
+
+### Ändringar
+- `VADER/WeatherNotificationScheduler.swift`: `refresh(place:...)` markerar nu den interna reconciliation-körningen som baserad på en nyhämtad prognos och får därför utvärdera aktuell frost.
+- Den publika `refreshFromStoredForecast()`, som används vid appstart och vid ändringar i bevakningslistan, återställer prognosnotiser men skickar inte en ny omedelbar aktuell-frostnotis från enbart lagrad temperatur.
+- Redan schemalagda omedelbara frostnotiser bevaras av den befintliga pending-current-frost-regeln. Framtida prognosbaserade frost- och halknotiser fortsätter att schemaläggas från färsk prognos.
+- `VADER/WeatherService.swift`: tog bort en redundant andra reconciliation direkt efter `refresh(place:...)`. Den andra körningen skapade en ny generationstoken och kunde ogiltigförklara den batch som just hade startats med den nyhämtade prognosen.
+
+### Avgränsningar
+- Regeln skiljer mellan en nyhämtad prognos och en återställd sparad prognos. Den bevisar inte att upstream-leverantörens temperatur är observationsmässigt färskare än själva API-svaret.
+- Befintliga redan schemalagda säkerhetsnotiser raderas inte av denna ändring.
+- Fortsatt fysisk testning behövs: aktuell frost vid live-refresh, appstart med gammal frost-cache, redan väntande frostnotis och flera bevakade platser.
+
+### Verifiering
+- Källkodsändringarna ska återläsas från GitHub och workflow-status kontrolleras.
+- XCTest, XcodeGen, iOS-build och fysisk iPhone-testning är inte körda i denna arbetsinsats.
