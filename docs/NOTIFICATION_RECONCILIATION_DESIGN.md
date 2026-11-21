@@ -172,3 +172,10 @@ Den gamla platsvisa schemaläggaren har fått ett begränsat skydd medan den glo
 `WeatherNotificationScheduler.makeCandidates(...)` mappar nu skapade `UNNotificationRequest` till kandidatmetadata och markerar aktuell frost som bevarad när samma identifierare redan finns i pending-snapshoten. Den befintliga platsvisa schemaläggaren läser pending och delivered före urval och använder därefter den gemensamma `WeatherNotificationBudget.select(...)` i stället för sin separata manuella sortering.
 
 **Avgränsning:** urvalet körs fortfarande en plats i taget och använder fortfarande interimistisk kapacitet per plats. Detta är en första inkoppling av kandidatmodellen, inte global reconciliation. Pending-/delivered-snapshots tas fortfarande separat för varje platsjobb, och aggregerad status skrivs fortfarande av flera jobb. Global generationsskyddad avstämning återstår.
+
+
+## Kapacitet direkt från pending-snapshot
+
+`WeatherNotificationBudget.availableForecastCapacity(pendingIdentifiers:)` samlar namespace-klassificeringen och budgetformeln i ett anrop. Den räknar bort `regnvakt.weather.*` eftersom dessa notiser ägs av prognos-reconciliationen och ersätts där, men räknar väntande `smhi.*` och alla övriga identifierare mot Regnvakts interna budget. Testerna täcker blandade namespace och full extern kö.
+
+**Status:** ren budgetfunktion och XCTest-fall är tillagda. Funktionen är ännu inte anropad av `WeatherNotificationScheduler`; den live-globala avstämningen återstår.
