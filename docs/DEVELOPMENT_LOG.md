@@ -831,3 +831,13 @@ Varje arbetsomgång ska dokumentera:
 - Verifiering: samtliga ändrade filer återlästes efter GitHub-uppdatering. Inga XCTest-, XcodeGen- eller iOS-build-resultat finns; GitHub workflow-körning för HEAD har ännu inte verifierats. Ingen fysisk enhet eller IPA.
 - Filer: VADER/WeatherNotificationBudget.swift, Tests/WeatherNotificationBudgetTests.swift, VADER/WeatherNotificationScheduler.swift, docs/NOTIFICATION_RECONCILIATION_DESIGN.md, docs/DEVELOPMENT_LOG.md.
 - Kvar: urvalet är fortfarande per plats med interimistisk kapacitet. Global pending-snapshot, globalt urval, en enda destructive replace/add-cykel, generationsskydd och en enda aggregerad statusuppdatering är inte implementerade.
+
+
+### Kapacitet från gemensam pending-snapshot – 2026-11-21
+
+- GitHub kontrollerades före arbetet: PR #1 var öppen, draft och osammanslagen; feature/frost-notification-audit låg på 305cef57c4a54b4117879c15da47f2061acbd36e och PR rapporterade mergeable true.
+- VADER/WeatherNotificationBudget.swift: lade till availableForecastCapacity(pendingIdentifiers:), som klassificerar en pending-snapshot och beräknar prognosutrymmet med appens budget 52, reserverat utrymme 8 samt avräkning för väntande SMHI- och övriga notiser. Regnvakts egna forecast-ID:n räknas inte av eftersom reconciliation ska ersätta dem.
+- Tests/WeatherNotificationBudgetTests.swift: lade till tester för blandade namespaces och för att kapaciteten aldrig blir negativ när externa notiser fyller budgeten.
+- Verifiering: ändringarna skrevs till GitHub. XCTest och iOS-build är inte körda i denna miljö; återläsning och slutlig branch-/PR-kontroll ska genomföras.
+- Filer: VADER/WeatherNotificationBudget.swift, Tests/WeatherNotificationBudgetTests.swift, docs/NOTIFICATION_RECONCILIATION_DESIGN.md, docs/DEVELOPMENT_LOG.md.
+- Kvar: helpern är ännu inte inkopplad i live-schemaläggaren. Nästa steg är den globala reconciliationen som använder en enda pending-/delivered-snapshot för samtliga platser.
