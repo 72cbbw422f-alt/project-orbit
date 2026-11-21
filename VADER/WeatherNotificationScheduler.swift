@@ -286,7 +286,7 @@ enum WeatherNotificationScheduler {
             registryCount = 1
         }
         let perPlaceLimit = WeatherNotificationBudget.interimPerPlaceLimit(registryCount: registryCount)
-        let pendingIdentifiers = Set(pending.map(\\.identifier))
+        let pendingIdentifiers = Set(pending.map(\.identifier))
         let deliveredIdentifiers = Set(delivered.map { $0.request.identifier })
         let candidates = makeCandidates(
             requests: requests,
