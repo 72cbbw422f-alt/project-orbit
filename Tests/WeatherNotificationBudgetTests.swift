@@ -18,6 +18,38 @@ final class WeatherNotificationBudgetTests: XCTestCase {
     }
 
 
+    func testCandidateMetadataPrioritizesImmediateFrostThenSafetyThenForecast() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let immediate = WeatherNotificationBudget.makeCandidate(
+            identifier: "immediate", locationID: "north", fireDate: now,
+            isImmediateFrost: true, isSafetyCritical: true,
+            isPreservedPendingCurrentFrost: false
+        )
+        let safety = WeatherNotificationBudget.makeCandidate(
+            identifier: "ice", locationID: "south", fireDate: now,
+            isImmediateFrost: false, isSafetyCritical: true,
+            isPreservedPendingCurrentFrost: false
+        )
+        let ordinary = WeatherNotificationBudget.makeCandidate(
+            identifier: "rain", locationID: "east", fireDate: now,
+            isImmediateFrost: false, isSafetyCritical: false,
+            isPreservedPendingCurrentFrost: false
+        )
+
+        XCTAssertEqual(immediate.priority, .immediateFrost)
+        XCTAssertEqual(safety.priority, .safetyCritical)
+        XCTAssertEqual(ordinary.priority, .forecast)
+    }
+
+    func testCandidateMetadataPreservesPendingCurrentFrostFlag() {
+        let candidate = WeatherNotificationBudget.makeCandidate(
+            identifier: "current-frost", locationID: "north", fireDate: Date(),
+            isImmediateFrost: true, isSafetyCritical: true,
+            isPreservedPendingCurrentFrost: true
+        )
+        XCTAssertTrue(candidate.isPreservedPendingCurrentFrost)
+    }
+
     func testPendingRequestClassificationExcludesForecastNamespace() {
         let counts = WeatherNotificationBudget.countExternalPendingRequests(identifiers: [
             "regnvakt.weather.north.rain.20261120",
