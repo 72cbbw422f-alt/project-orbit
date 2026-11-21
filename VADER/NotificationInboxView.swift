@@ -79,7 +79,11 @@ private actor SMHIWarningNotificationGate {
 
         let previous = Set(previousValues)
         defaults.set(Array(current).sorted(), forKey: baselineKey)
-        return current.subtracting(previous)
+        return SMHIWarningNotificationPolicy.newlyActiveSignatures(
+            current: current,
+            previous: previous,
+            hasBaseline: true
+        )
     }
 
     func claim(_ signature: String, epoch: String) -> UUID? {
