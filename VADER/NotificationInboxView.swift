@@ -65,6 +65,23 @@ private actor SMHIWarningNotificationGate {
         UserDefaults.standard.removeObject(forKey: persistenceKey)
     }
 
+    func newlyActiveSignatures(current: Set<String>, epoch: String) -> Set<String> {
+        let defaults = UserDefaults.standard
+        guard (defaults.string(forKey: notificationEpochKey) ?? "") == epoch else { return [] }
+
+        let baselineKey = "Regnvakt.smhi.activeWarningBaseline.v1"
+        guard let previousValues = defaults.stringArray(forKey: baselineKey) else {
+            // On first successful observation after install/upgrade, establish
+            // the current active set without replaying warnings that may be old.
+            defaults.set(Array(current).sorted(), forKey: baselineKey)
+            return []
+        }
+
+        let previous = Set(previousValues)
+        defaults.set(Array(current).sorted(), forKey: baselineKey)
+        return current.subtracting(previous)
+    }
+
     func claim(_ signature: String, epoch: String) -> UUID? {
         guard (UserDefaults.standard.string(forKey: notificationEpochKey) ?? "") == epoch,
               !scheduled.contains(signature), inFlight[signature] == nil else { return nil }
@@ -309,16 +326,27 @@ enum SMHIWarningService {
             // The actor serializes claims across overlapping refreshes. A warning
             // is claimed before awaiting UNUserNotificationCenter.add, preventing
             // two concurrent checks from scheduling the same active warning.
+            let newlyActiveSignatures = await SMHIWarningNotificationGate.shared.newlyActiveSignatures(
+                current: currentSignatures,
+                epoch: notificationEpoch
+            )
             await SMHIWarningNotificationGate.shared.prepare(
                 current: currentSignatures,
                 persisted: persistedSignatures,
                 epoch: notificationEpoch
             )
+            // Existing active warnings are retained in the feed, but only a
+            // warning newly observed since the baseline can create a new alert.
+            // This prevents app activation from replaying an old active warning.
+            let newlyActive = active.filter {
+                currentSignatures.contains($0.id + "|" + $0.level + "|" + $0.title + "|" + $0.start)
+                    && newlyActiveSignatures.contains($0.id + "|" + $0.level + "|" + $0.title + "|" + $0.start)
+            }
             // SMHI notifications are an eight-request reserve inside the app's
             // local-notification headroom. Severity is sorted red, orange, yellow;
             // lower-priority active warnings remain visible and can be notified
             // on a later refresh as higher-priority requests clear.
-            let prioritizedActive = active.sorted {
+            let prioritizedActive = newlyActive.sorted {
                 let left = rank($0.level), right = rank($1.level)
                 if left != right { return left > right }
                 let leftStart = parseSMHIDate($0.start) ?? .distantPast
