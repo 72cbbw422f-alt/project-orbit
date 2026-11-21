@@ -46,9 +46,6 @@ enum WeatherNotificationScheduler {
         guard let data = try? JSONEncoder().encode(hours) else { return }
         let defaults = UserDefaults.standard
         let locationKey = String(format: "%.4f,%.4f", latitude, longitude)
-        let token = UUID().uuidString
-        let globalToken = defaults.string(forKey: globalScheduleTokenKey) ?? "initial"
-        defaults.set(token, forKey: scheduleTokenKey + "." + locationKey.replacingOccurrences(of: ",", with: "_"))
         defaults.set(locationKey, forKey: Self.locationKey)
         defaults.set(data, forKey: forecastKey)
         defaults.set(place, forKey: placeKey)
@@ -61,33 +58,46 @@ enum WeatherNotificationScheduler {
             defaults.set(currentTemperature, forKey: currentTemperatureKey)
             defaults.set(Date().timeIntervalSince1970, forKey: currentTemperatureUpdatedKey)
         }
-        Task { await schedule(place: place, hours: hours, currentTemperature: currentTemperature, token: token, globalToken: globalToken, locationID: locationKey) }
+        // All registered forecasts are scheduled through one serialized batch.
+        // This prevents each refresh from launching a competing per-place task.
+        refreshFromStoredForecast()
     }
 
     static func refreshFromStoredForecast() {
         let defaults = UserDefaults.standard
-        let globalToken = defaults.string(forKey: globalScheduleTokenKey) ?? "initial"
+        // Every new batch invalidates any older batch before it can continue
+        // after an asynchronous notification-center operation.
+        let globalToken = UUID().uuidString
+        defaults.set(globalToken, forKey: globalScheduleTokenKey)
         let registryData = defaults.data(forKey: forecastRegistryKey)
         let registry = registryData.flatMap { try? JSONDecoder().decode([String: StoredForecast].self, from: $0) } ?? [:]
 
-        // Reconcile every cached monitored location, not only the last place
-        // whose forecast happened to be loaded in the foreground.
+        // Reconcile registered locations serially. This is an intermediate
+        // safety improvement: it removes competing per-place tasks, while the
+        // later global selector will replace the remaining per-place budgets.
         if !registry.isEmpty {
-            for stored in registry.values {
+            let scheduledForecasts = registry.values.sorted { $0.locationID < $1.locationID }.map { stored -> (StoredForecast, String) in
                 let token = UUID().uuidString
                 let tokenKey = scheduleTokenKey + "." + stored.locationID.replacingOccurrences(of: ",", with: "_")
                 defaults.set(token, forKey: tokenKey)
-                let forecastAge = Date().timeIntervalSince(stored.savedAt)
-                let forecastIsFresh = forecastAge >= 0 && forecastAge <= 2 * 60 * 60
-                let temperature = forecastIsFresh ? stored.currentTemperature : nil
-                // A cached forecast older than two hours must not arm new
-                // future alerts: its timing and risk picture may be obsolete.
-                // Passing no hours clears stale forecast alerts while the
-                // scheduler's existing safeguard preserves a pending current-frost alert.
-                let hours = forecastIsFresh ? stored.hours : []
-                Task {
-                    await schedule(place: stored.place, hours: hours, currentTemperature: temperature,
-                                   token: token, globalToken: globalToken, locationID: stored.locationID)
+                return (stored, token)
+            }
+            Task {
+                for (stored, token) in scheduledForecasts {
+                    guard (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken else { return }
+                    let forecastAge = Date().timeIntervalSince(stored.savedAt)
+                    let forecastIsFresh = forecastAge >= 0 && forecastAge <= 2 * 60 * 60
+                    let temperature = forecastIsFresh ? stored.currentTemperature : nil
+                    // Stale forecasts cannot arm new future alerts.
+                    let hours = forecastIsFresh ? stored.hours : []
+                    await schedule(
+                        place: stored.place,
+                        hours: hours,
+                        currentTemperature: temperature,
+                        token: token,
+                        globalToken: globalToken,
+                        locationID: stored.locationID
+                    )
                 }
             }
             return
@@ -98,12 +108,14 @@ enum WeatherNotificationScheduler {
         let migrationKey = "Regnvakt.notifications.explicitPlaceMonitoringMigration.v1"
         if defaults.bool(forKey: migrationKey) {
             // No registered forecasts means no monitored place currently has a
-            // schedulable forecast. Clear any orphaned weather requests and status.
+            // schedulable forecast. Clear orphaned forecast requests only if this
+            // batch is still current.
             let registrySnapshot = registryData
             Task {
                 let pending = await UNUserNotificationCenter.current().pendingNotificationRequests()
-                guard defaults.data(forKey: forecastRegistryKey) == registrySnapshot else { return }
-                let ids = pending.map(\.identifier).filter { $0.hasPrefix(prefix) }
+                guard (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken,
+                      defaults.data(forKey: forecastRegistryKey) == registrySnapshot else { return }
+                let ids = pending.map(\\.identifier).filter { $0.hasPrefix(prefix) }
                 UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
                 defaults.set(0, forKey: scheduledCountKey)
                 defaults.set(Date().timeIntervalSince1970, forKey: scheduleUpdatedKey)
@@ -113,22 +125,27 @@ enum WeatherNotificationScheduler {
         }
 
         // Migrate installations that only have the former single-place cache.
+        let storedLocationID = defaults.string(forKey: locationKey) ?? "unknown"
+        let token = UUID().uuidString
+        defaults.set(token, forKey: scheduleTokenKey + "." + storedLocationID.replacingOccurrences(of: ",", with: "_"))
         if let data = defaults.data(forKey: forecastKey),
            let hours = try? JSONDecoder().decode([HourForecast].self, from: data) {
             let place = defaults.string(forKey: placeKey) ?? "vald plats"
-            let storedLocationID = defaults.string(forKey: locationKey) ?? "unknown"
-            let token = UUID().uuidString
-            defaults.set(token, forKey: scheduleTokenKey + "." + storedLocationID.replacingOccurrences(of: ",", with: "_"))
             let temperatureAge = Date().timeIntervalSince1970 - defaults.double(forKey: currentTemperatureUpdatedKey)
             let recentTemperature = temperatureAge >= 0 && temperatureAge <= 2 * 60 * 60
                 ? defaults.object(forKey: currentTemperatureKey) as? Int
                 : nil
-            Task { await schedule(place: place, hours: hours, currentTemperature: recentTemperature, token: token, globalToken: globalToken, locationID: storedLocationID) }
+            Task {
+                guard (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken else { return }
+                await schedule(place: place, hours: hours, currentTemperature: recentTemperature,
+                               token: token, globalToken: globalToken, locationID: storedLocationID)
+            }
         } else {
-            let token = UUID().uuidString
-            let storedLocationID = defaults.string(forKey: locationKey) ?? "unknown"
-            defaults.set(token, forKey: scheduleTokenKey + "." + storedLocationID.replacingOccurrences(of: ",", with: "_"))
-            Task { await schedule(place: "vald plats", hours: [], currentTemperature: nil, token: token, globalToken: globalToken, locationID: storedLocationID) }
+            Task {
+                guard (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken else { return }
+                await schedule(place: "vald plats", hours: [], currentTemperature: nil,
+                               token: token, globalToken: globalToken, locationID: storedLocationID)
+            }
         }
     }
 
