@@ -277,33 +277,42 @@ enum WeatherNotificationScheduler {
     }
 
     static func removeNotifications(latitude: Double, longitude: Double) {
-        let locationID = String(format: "%.4f,%.4f", latitude, longitude)
-            .replacingOccurrences(of: ",", with: "_")
-        // Rotate the location token synchronously so an older async schedule
-        // cannot re-add notifications after this watch has been disabled.
+        let rawLocationID = String(format: "%.4f,%.4f", latitude, longitude)
+        let locationID = rawLocationID.replacingOccurrences(of: ",", with: "_")
         let defaults = UserDefaults.standard
+
+        // Commit the registry removal and invalidate every batch that may still
+        // contain this location before any notification-center await occurs.
         defaults.set(UUID().uuidString, forKey: scheduleTokenKey + "." + locationID)
         if let data = defaults.data(forKey: forecastRegistryKey),
            var registry = try? JSONDecoder().decode([String: StoredForecast].self, from: data) {
-            registry.removeValue(forKey: String(format: "%.4f,%.4f", latitude, longitude))
+            registry.removeValue(forKey: rawLocationID)
             if let updated = try? JSONEncoder().encode(registry) {
                 defaults.set(updated, forKey: forecastRegistryKey)
             }
         }
-        // Invalidate a global reconciliation that may still contain this place,
-        // then reconcile the remaining registry after the removal is committed.
-        defaults.set(UUID().uuidString, forKey: globalScheduleTokenKey)
+        let removalToken = UUID().uuidString
+        defaults.set(removalToken, forKey: globalScheduleTokenKey)
+
         let locationPrefix = prefix + locationID + "."
         let center = UNUserNotificationCenter.current()
-        center.getPendingNotificationRequests { requests in
-            let ids = requests.map(\.identifier).filter { $0.hasPrefix(locationPrefix) }
-            center.removePendingNotificationRequests(withIdentifiers: ids)
+        Task {
+            // Finish cleanup before starting the replacement global batch. This
+            // avoids an old callback deleting a newly scheduled request that
+            // reuses the same stable identifier after a rapid re-add.
+            let pending = await center.pendingNotificationRequests()
+            guard defaults.string(forKey: globalScheduleTokenKey) == removalToken else { return }
+            let pendingIDs = pending.map(\\.identifier).filter { $0.hasPrefix(locationPrefix) }
+            center.removePendingNotificationRequests(withIdentifiers: pendingIDs)
+
+            let delivered = await center.deliveredNotifications()
+            guard defaults.string(forKey: globalScheduleTokenKey) == removalToken else { return }
+            let deliveredIDs = delivered.map { $0.request.identifier }.filter { $0.hasPrefix(locationPrefix) }
+            center.removeDeliveredNotifications(withIdentifiers: deliveredIDs)
+
+            guard defaults.string(forKey: globalScheduleTokenKey) == removalToken else { return }
+            refreshFromStoredForecast()
         }
-        center.getDeliveredNotifications { notifications in
-            let ids = notifications.map { $0.request.identifier }.filter { $0.hasPrefix(locationPrefix) }
-            center.removeDeliveredNotifications(withIdentifiers: ids)
-        }
-        refreshFromStoredForecast()
     }
 
     static func clearLegacyWeatherNotificationsOnce() {
