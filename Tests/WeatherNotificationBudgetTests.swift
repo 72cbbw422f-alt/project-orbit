@@ -278,6 +278,48 @@ final class WeatherNotificationBudgetTests: XCTestCase {
         )
     }
 
+    func testSelectionCapacityReservesPendingFrostMissingFromFreshCandidates() {
+        let preserved = Set([
+            "regnvakt.weather.north.frost.current.today",
+            "regnvakt.weather.south.frost.current.today"
+        ])
+        let candidateIDs = Set(["regnvakt.weather.east.rain.tomorrow"])
+
+        XCTAssertEqual(
+            WeatherNotificationBudget.selectionCapacity(
+                availableCapacity: 3,
+                preservedPendingIdentifiers: preserved,
+                candidateIdentifiers: candidateIDs
+            ),
+            1
+        )
+    }
+
+    func testSelectionCapacityDoesNotDoubleCountPreservedFrostCandidates() {
+        let preserved = Set(["frost-north", "frost-south"])
+        let candidateIDs = Set(["frost-north", "frost-south", "rain"])
+
+        XCTAssertEqual(
+            WeatherNotificationBudget.selectionCapacity(
+                availableCapacity: 2,
+                preservedPendingIdentifiers: preserved,
+                candidateIdentifiers: candidateIDs
+            ),
+            2
+        )
+    }
+
+    func testSelectionCapacityClampsAtZeroWhenPreservedFrostExceedsCapacity() {
+        XCTAssertEqual(
+            WeatherNotificationBudget.selectionCapacity(
+                availableCapacity: 1,
+                preservedPendingIdentifiers: ["frost-north", "frost-south"],
+                candidateIdentifiers: []
+            ),
+            0
+        )
+    }
+
     func testGlobalSelectionPreservesPendingCurrentFrostAcrossLocations() {
         let pendingSnapshot = [
             "regnvakt.weather.north.frost.current.20261121",
