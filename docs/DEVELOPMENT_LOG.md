@@ -1099,3 +1099,12 @@ completionHandler([.banner, .sound, .list])
 - Files changed in this follow-up: `VADER/WeatherNotificationBudget.swift`, `VADER/WeatherNotificationScheduler.swift`, `Tests/WeatherNotificationBudgetTests.swift`, and this log.
 - Verification: GitHub Contents API writes and readbacks only. New XCTest cases have not yet run. No current IPA or physical-device verification.
 - Next: inspect the CI result for the current head; resolve the simulator destination/runtime mismatch if it persists; then add generation/removal race coverage. No merge.
+
+
+## Immediate frost location scoping – 2026-11-21
+
+- `VADER/WeatherNotificationScheduler.swift`: live-refresh entry point now passes the exact location identifier that produced the fresh forecast into the global batch. Immediate current-frost evaluation is limited to that location, rather than inferring the triggering location from the newest registry timestamp (which could be ambiguous for concurrent/equal-time updates).
+- Restored-forecast reconciliation and watch-removal reconciliation explicitly pass no immediate-frost location, so cached forecasts cannot generate a new immediate alert.
+- Verification update: CI run `44895521089` for commit `7a9e8e0` completed its XCTest step successfully and proceeded to the iOS device build. This validates the scheduler syntax correction, but does not include the subsequently added capacity tests or the explicit live-location scoping change.
+- Files changed: `VADER/WeatherNotificationScheduler.swift`, this log.
+- Current changes still require CI verification. No merge and no IPA from the latest code.
