@@ -149,6 +149,19 @@ enum WeatherNotificationBudget {
         })
     }
 
+    /// Selects only this location's Regnvakt forecast identifiers.
+    /// The trailing separator prevents coordinate-prefix collisions (e.g. 60_10
+    /// must not match a location whose identifier begins with 60_100).
+    static func forecastIdentifiers(
+        for locationID: String,
+        in identifiers: [String],
+        forecastPrefix: String = "regnvakt.weather."
+    ) -> [String] {
+        let normalizedID = locationID.replacingOccurrences(of: ",", with: "_")
+        let locationPrefix = forecastPrefix + normalizedID + "."
+        return identifiers.filter { $0.hasPrefix(locationPrefix) }
+    }
+
     /// Reserves shared capacity for already-pending current-frost requests
     /// that are not represented in the freshly generated candidate pool.
     /// Those requests are preserved by the reconciliation plan and must still
