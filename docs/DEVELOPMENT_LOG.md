@@ -1208,3 +1208,14 @@ completionHandler([.banner, .sound, .list])
 - Berörda filer: `VADER/WeatherNotificationScheduler.swift`, `docs/NOTIFICATION_RECONCILIATION_DESIGN.md`, `docs/DEVELOPMENT_LOG.md`.
 - Kodcommit: `0c03c3a7be360c3a85f0a171b3c9a00048d19198`. Dokumentationscommit: `27e42015d7c59560f7983e35575e042a89c27c8a`.
 - Verifiering: ändringarna är pushade till `feature/frost-notification-audit`; CI för kodcommitten inväntas. Ingen fysisk iPhone-testning genomförd.
+
+
+## Skydd mot föråldrad fullständig notisrensning – 2026-11-21
+
+- Kodgranskning hittade att `removeAll()` invaliderade den aktiva schemaläggningen, men dess två fördröjda callbacks saknade generationskontroll. Om en ny prognos hann schemaläggas innan callbacken kördes kunde den gamla rensningen ta bort även de nya Regnvakt-notiserna.
+- Både väntande och levererade notiser kontrollerar nu att rensningens token fortfarande är aktuell innan namespace-rensningen genomförs. En nyare schemaläggning gör därmed gamla callbacks verkningslösa.
+- Rensningen är fortsatt begränsad till `regnvakt.weather.*`; SMHI och andra appar påverkas inte.
+- Berörd kodfil: `VADER/WeatherNotificationScheduler.swift`.
+- Kodcommit: `7b48708b064282f8571f45f0e8f3ea360306cbb4`.
+- Verifiering: ändringen är pushad till `feature/frost-notification-audit`. CI för exakt denna kodcommit måste inväntas. Ingen fysisk iPhone-testning genomförd.
+- PR #1 lämnas öppen som draft; ingen merge eller produktionsändring.
