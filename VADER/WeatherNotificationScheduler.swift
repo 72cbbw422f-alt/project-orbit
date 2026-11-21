@@ -223,6 +223,7 @@ enum WeatherNotificationScheduler {
         let defaults = UserDefaults.standard
         let center = UNUserNotificationCenter.current()
         let tokenKey = scheduleTokenKey + "." + locationID.replacingOccurrences(of: ",", with: "_")
+        let frostDayKey = currentFrostAlertDayKey + "." + locationID.replacingOccurrences(of: ",", with: "_")
         guard defaults.string(forKey: tokenKey) == token,
               (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken else { return }
         let globallyEnabled = defaults.object(forKey: "Regnvakt.notifications.enabled") as? Bool ?? true
@@ -495,7 +496,15 @@ enum WeatherNotificationScheduler {
             let isImmediate = (userInfo["immediate"] as? Bool) ?? false
             let isFrost = (userInfo["watch"] as? String) == "frost"
             let isImmediateFrost = isImmediate && isFrost
-            let fireDate = request.trigger?.nextTriggerDate() ?? Date().addingTimeInterval(2)
+            let fireDate: Date
+            if let calendarTrigger = request.trigger as? UNCalendarNotificationTrigger,
+               let nextDate = calendarTrigger.nextTriggerDate() {
+                fireDate = nextDate
+            } else if let intervalTrigger = request.trigger as? UNTimeIntervalNotificationTrigger {
+                fireDate = Date().addingTimeInterval(intervalTrigger.timeInterval)
+            } else {
+                fireDate = Date().addingTimeInterval(2)
+            }
             let isPreserved = isImmediateFrost && pendingIdentifiers.contains(request.identifier)
             return WeatherNotificationBudget.makeCandidate(
                 identifier: request.identifier,
