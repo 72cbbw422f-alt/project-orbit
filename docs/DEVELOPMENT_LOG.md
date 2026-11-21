@@ -1139,3 +1139,5 @@ completionHandler([.banner, .sound, .list])
 - Files changed: `VADER/WeatherNotificationScheduler.swift`, `VADER/WeatherService.swift`, this log.
 - Verification: source changes committed to the feature branch; GitHub Actions must verify Swift concurrency/API compilation, XCTest, Release build and IPA packaging. No physical-device test in this step.
 - No merge. PR #1 remains open and draft.
+
+- Follow-up correction before final CI verification: normalized the Swift key-path expression in the async pending-request filter. The branch head includes this correction; the workflow run for the preceding commit is not sufficient to verify the final source.
