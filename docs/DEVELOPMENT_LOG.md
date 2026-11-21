@@ -1053,3 +1053,14 @@ completionHandler([.banner, .sound, .list])
 - Dokumentation uppdaterad i samma arbetsgren.
 - Verifiering: felorsaken bekräftad i GitHub Actions-loggen och källraden återläst efter korrigering. Ny CI-körning krävs för att verifiera XCTest och fortsätta till Release-build/IPA.
 - Ingen merge och ingen IPA.
+
+
+## Global notisbudget – utökade multi-location-kontraktstester – 2026-11-21
+
+- Utökade `Tests/WeatherNotificationBudgetTests.swift` med två scenarier som beskriver kontraktet för den kommande globala reconciliationen.
+- Test 1 använder en gemensam pending-snapshot med två SMHI-notiser, en extern kalendernotis och en äldre Regnvakt-prognos. Prognosnamespace räknas inte som extern belastning; SMHI och annan app belastar kapaciteten. Ett samlat kandidatpool över fyra olika platser prioriterar aktuell frost och säkerhetskritisk halka framför vanlig regnprognos.
+- Test 2 säkerställer att två redan väntande aktuella frostnotiser från olika platser bevaras även när ny prognoskapacitet är noll.
+- Dessa är kontraktstester av den rena budget-/urvalsmodellen. De kopplar **inte** ännu in global reconciliation i `WeatherNotificationScheduler.swift`; live-flödet använder fortfarande interimistisk per-platsbudget.
+- Filer ändrade: `Tests/WeatherNotificationBudgetTests.swift`, `docs/DEVELOPMENT_LOG.md`.
+- Verifiering: testkällan uppdaterad via GitHub Contents API. Ny GitHub Actions-körning krävs för faktisk XCTest-kompilering och körning.
+- Ingen ändring av produktionskod, ingen IPA i denna insats och ingen merge. PR #1 förblir öppen och draft.
