@@ -14,7 +14,10 @@ enum SMHIWarningNotificationPolicy {
         hasBaseline: Bool
     ) -> (newlyActive: Set<String>, retainedBaseline: Set<String>) {
         guard hasBaseline else { return ([], current) }
-        return (current.subtracting(previous), previous.intersection(current).union(current.subtracting(previous)))
+        // A newly active warning must stay outside the baseline until iOS
+        // accepts its notification (or an existing pending request is recovered).
+        // Otherwise warnings beyond the eight-request reserve are silently consumed.
+        return (current.subtracting(previous), previous.intersection(current))
     }
 
     static func newlyActiveSignatures(current: Set<String>, previous: Set<String>, hasBaseline: Bool) -> Set<String> {
