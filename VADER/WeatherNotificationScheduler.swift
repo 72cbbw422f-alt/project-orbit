@@ -241,7 +241,7 @@ enum WeatherNotificationScheduler {
         }
 
         
-        let requests = makeRequests(
+        var requests = makeRequests(
             place: place,
             hours: hours,
             currentTemperature: currentTemperature,
