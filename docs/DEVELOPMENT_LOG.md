@@ -1169,3 +1169,13 @@ completionHandler([.banner, .sound, .list])
 - Berörda filer: `VADER/WeatherNotificationScheduler.swift`, `docs/DEVELOPMENT_LOG.md`.
 - Verifiering: CI för föregående commit `d23a5b9` pågår (build #700) vid ändringstillfället. Ny CI-körning krävs för kodändringen. Ingen fysisk iPhone-testning genomförd.
 - Status: kodändring committas separat på `feature/frost-notification-audit`; PR #1 lämnas öppen som draft.
+
+
+## Testbar namespacefiltrering för full prognosrensning – 2026-11-21
+
+- Den tidigare korrigeringen av `removeAll()` använde direkt prefixfiltrering. Nu är namespace-regeln även extraherad till den rena funktionen `WeatherNotificationBudget.forecastIdentifiers(in:)`, så samma ägarskapsregel kan testas utan `UNUserNotificationCenter`.
+- `WeatherNotificationScheduler.removeAll()` använder den testade funktionen för både väntande och levererade notiser. SMHI och andra namespace ingår inte i resultatet.
+- Nytt test: `testFullForecastCleanupSelectsOnlyRegnvaktNamespace`, med blandade Regnvakt-, SMHI-, kalender- och externa identifierare.
+- Berörda filer: `VADER/WeatherNotificationBudget.swift`, `VADER/WeatherNotificationScheduler.swift`, `Tests/WeatherNotificationBudgetTests.swift`, `docs/DEVELOPMENT_LOG.md`.
+- Build #702 verifierade föregående commit `eeab707`: tester, iOS device Release build, osignerad IPA och artifact upload lyckades. Denna nya test-/kodändring kräver en separat CI-körning.
+- Ingen fysisk iPhone-testning genomförd; PR #1 förblir öppen som draft.
