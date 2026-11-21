@@ -278,6 +278,24 @@ final class WeatherNotificationBudgetTests: XCTestCase {
         )
     }
 
+    func testFullForecastCleanupSelectsOnlyRegnvaktNamespace() {
+        let identifiers = [
+            "regnvakt.weather.north.rain.today",
+            "regnvakt.weather.south.frost.tomorrow",
+            "smhi.warning.active",
+            "calendar.reminder.active",
+            "other.app.notification"
+        ]
+
+        XCTAssertEqual(
+            WeatherNotificationBudget.forecastIdentifiers(in: identifiers),
+            [
+                "regnvakt.weather.north.rain.today",
+                "regnvakt.weather.south.frost.tomorrow"
+            ]
+        )
+    }
+
     func testLocationCleanupMatchesOnlyExactRegnvaktForecastNamespace() {
         let identifiers = [
             "regnvakt.weather.60.0000_10.0000.frost.current.today",
