@@ -40,6 +40,12 @@ final class SMHIWarningNotificationPolicyTests: XCTestCase {
         XCTAssertNil(SMHIWarningNotificationPolicy.parseDate("not-a-date"))
     }
 
+    func testSMHICheckGenerationRejectsSupersededResponses() {
+        XCTAssertFalse(SMHIWarningService.isCurrentCheck("older", storedGeneration: "newer"))
+        XCTAssertTrue(SMHIWarningService.isCurrentCheck("current", storedGeneration: "current"))
+        XCTAssertFalse(SMHIWarningService.isCurrentCheck("current", storedGeneration: nil))
+    }
+
     func testForegroundPolicyAcceptsFreshActiveSwedishLocalWarning() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         XCTAssertTrue(SMHIWarningNotificationPolicy.shouldPresentInForeground(
