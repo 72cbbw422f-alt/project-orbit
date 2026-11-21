@@ -201,3 +201,25 @@ SMHI-koden filtrerar ut passerade sluttider, men en varning som fortfarande är 
 Viktigt: källkodsspårningen visar att SMHI-kontroll sker vid appaktivering och väderladdning. Den visar inte någon verifierad kontinuerlig SMHI-kontroll när appen är stängd. En lokal tvåsekundersnotis kan inte upptäcka en ny SMHI-varning som publiceras efter att appen slutat köra; sådan täckning kräver en fungerande bakgrundskontroll eller extern push-infrastruktur.
 
 Åtgärd ska inte vara att blint rensa notiser vid appstart. Nästa implementation ska separera datakontroll från notifieringsbeslut, bara skapa omedelbar SMHI-notis vid en genuint ny/ändrad aktiv varning, kontrollera giltighet och deduplicering, samt granska foreground-delegate och aktuell-frostens appstartsbeteende. Verifiering på fysisk iPhone krävs för förgrund, bakgrund och avslutad app.
+
+
+## SMHI-varningars giltighet och notifieringspolicy – 2026-11-21
+
+Den fördjupade granskningen av `SMHIWarningService.checkAndNotify(at:)` visar följande:
+
+- Aktiv status kräver att SMHI:s starttid kan parsas och är passerad. Om sluttid finns måste den också kunna parsas och inte ha passerat.
+- SMHI-signaturen består av varningsområdets ID, nivå, rubrik och starttid. Accepterade signaturer lagras och återanvänds bara när signaturen fortfarande finns bland aktuella aktiva varningar.
+- Befintliga pending `smhi.*`-requests jämförs med identifierare för den aktuella aktiva mängden. Requests som inte längre matchar tas bort vid nästa lyckade kontroll.
+- En ny lokal request innehåller `watch`, `warningID` och `area`, men inte start-/sluttid eller en egen expiration-policy. Den utlöses efter två sekunder.
+
+### Konsekvens
+En oförändrad aktiv varning ska normalt dedupliceras. En varning som fortfarande är aktiv enligt SMHI kan däremot notifieras om dess signatur inte tidigare accepterats på den här installationen, exempelvis efter återaktiverad notisbehörighet/epoch eller saknad historik. Detta kan upplevas som en gammal varning vid appstart, men källkoden ensam avgör inte om varningen är felaktig.
+
+### Policykrav före implementation
+1. Appaktivering får uppdatera varningsdata men ska inte i sig utgöra en notifieringshändelse.
+2. Notifieringsbeslut ska baseras på en genuint ny eller ändrad aktiv varning och aktuell giltighet.
+3. Varningsdata och notifieringshistorik ska hållas separata; ett nätverksfel får inte nollställa senast kända giltiga varningar eller signaturer.
+4. Förgrundspresentation ska hanteras separat från schemaläggning. Säkerhetskritiska nya varningar får inte tystas av en generell regel utan ett uttryckligt produktbeslut.
+5. Diagnostik på enheten ska kunna visa identifierare, signaturstatus, varningens start/slut, pending/delivered-status och kontrolltid utan att exponera onödiga personuppgifter.
+
+Ingen produktionskod ändrad i denna granskning. Enhetstest och iOS-build återstår.
