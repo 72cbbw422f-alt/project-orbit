@@ -1179,3 +1179,14 @@ completionHandler([.banner, .sound, .list])
 - Berörda filer: `VADER/WeatherNotificationBudget.swift`, `VADER/WeatherNotificationScheduler.swift`, `Tests/WeatherNotificationBudgetTests.swift`, `docs/DEVELOPMENT_LOG.md`.
 - Build #702 verifierade föregående commit `eeab707`: tester, iOS device Release build, osignerad IPA och artifact upload lyckades. Denna nya test-/kodändring kräver en separat CI-körning.
 - Ingen fysisk iPhone-testning genomförd; PR #1 förblir öppen som draft.
+
+## Skydd mot föråldrade bevakningshämtningar – 2026-11-21
+
+- Granskning av `WeatherViewModel.setMonitoring` visade att en Open-Meteo-hämtning kunde fortsätta efter att användaren stängt av eller tagit bort platsen. När svaret kom kunde den gamla uppgiften anropa `WeatherNotificationScheduler.refresh(...)` och återregistrera prognosen.
+- Varje ändring av bevakningsläget får nu ett eget request-ID. Endast den senaste hämtningen får uppdatera schemaläggaren.
+- Innan prognosen skrivs kontrolleras att platsen fortfarande är bevakad, fortfarande finns bland sparade platser och har samma koordinater som hämtningen startades med. Felstatus från en gammal hämtning ignoreras också.
+- `removePlace` invaliderar uttryckligen pågående hämtningar för platsens UUID.
+- Berörd fil: `VADER/WeatherService.swift`.
+- Commit: `3b8291693a802d696503c6d0b0f5e5ddece6cccb`.
+- Verifiering: ändringen är pushad till `feature/frost-notification-audit`. CI för denna commit måste inväntas; ingen lokal Xcode/iOS-build eller fysisk iPhone-test har genomförts i denna arbetsmiljö.
+- Kvarstår: täckning med testbar ren request-generation-helper eller integrerat test, samt verifiering av snabb av/på-växling och borttagning på riktig enhet.
