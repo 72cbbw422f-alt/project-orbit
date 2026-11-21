@@ -1245,3 +1245,13 @@ completionHandler([.banner, .sound, .list])
 - CI-felorsak verifierad i loggar: #717 rapporterade saknad beginCheck vid den tidigare mellanliggande committen; #718–#720 rapporterade att SMHIWarningService inte var tillgänglig från testmålet. Detta är Swift-mål-/källkonfiguration, inte simulatorbrist.
 - Ny CI-körning krävs för att verifiera korrigeringen. Tidigare verifierade 54/54 tester på commit 1ae4f70 gäller inte den här ändringen.
 - Ingen fysisk iPhone-testning genomförd. PR #1 förblir draft och ingen merge görs.
+
+
+## Framtida utvecklingsetapp: vindradar med strömlinjer – 2026-11-21
+
+- Användaren vill att idén om en vindvisualisering inspirerad av Earth Nullschool sparas, men att pågående arbete med vädervakter och SMHI-notiser fortsätter först. Ingen vindradarändring ska påbörjas i denna etapp.
+- Befintlig grund i `VADER/RadarMapView.swift`: vindfält hämtas från Open-Meteo med 81 geografiska provpunkter; skärmpositioner interpoleras till ett 12 × 10-fält; `WindFieldOverlay` ritar 64 animerade partiklar via SwiftUI Canvas och TimelineView med 8 uppdateringar/s. Vindstyrka och byvind är separerbara lager.
+- Framtida mål: när etappen prioriteras, förbättra den geografiska tätheten och vektorfältsinterpoleringen, skapa mjukare och mer varierade partikelströmmar, skala animationen efter enhetens prestanda och säkerställa att fältet följer kartans panorering/zoom utan att förlora geografisk korrekthet.
+- Färgskalan ska vara bunden till faktiska vindhastigheter. Visualiseringen får inte antyda högre dataupplösning än vädermodellen levererar. Behåll tydlig skillnad mellan medelvind och byvind.
+- Föreslagen arbetsordning: (1) granska datakällans upplösning och provpunkternas geografiska täckning, (2) förbättra interpolation och kantbeteende, (3) förbättra partikelanimation och färgskala, (4) profilera prestanda och testa panorering/zoom på fysisk iPhone.
+- Status: sparad som framtida backlogg. Ej implementerad, ej byggd och ej testad. Pågående prioritet kvarstår: SMHI-generationsskydd, notisdeduplicering och verifiering av CI.
