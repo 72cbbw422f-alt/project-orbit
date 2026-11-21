@@ -1141,3 +1141,14 @@ completionHandler([.banner, .sound, .list])
 - No merge. PR #1 remains open and draft.
 
 - Follow-up correction before final CI verification: normalized the Swift key-path expression in the async pending-request filter. The branch head includes this correction; the workflow run for the preceding commit is not sufficient to verify the final source.
+
+
+## Delivered-alert cleanup when a removed place races a newer batch – 2026-11-21
+
+- Tightened removal cleanup so a superseded cleanup never removes pending requests after a newer global scheduling generation has started.
+- Delivered alerts for the removed location are now cleared even when another location's refresh supersedes the cleanup while the delivered-notification snapshot is being fetched. Such delivered alerts are stale by definition once that monitored location is removed.
+- Extracted exact location-namespace filtering into `WeatherNotificationBudget.forecastIdentifiers`; the trailing separator prevents coordinate-prefix collisions and excludes SMHI/other notification owners.
+- Added an XCTest covering exact location matching, coordinate-prefix collision, and namespace isolation.
+- Files changed: `VADER/WeatherNotificationBudget.swift`, `VADER/WeatherNotificationScheduler.swift`, `Tests/WeatherNotificationBudgetTests.swift`, this log.
+- Verification: awaiting GitHub Actions for the latest branch head. Previous commit `508f2e5` passed 52 tests and IPA packaging; this change is not yet verified.
+- No merge; PR #1 remains open and draft.
