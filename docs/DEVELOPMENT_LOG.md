@@ -1152,3 +1152,11 @@ completionHandler([.banner, .sound, .list])
 - Files changed: `VADER/WeatherNotificationBudget.swift`, `VADER/WeatherNotificationScheduler.swift`, `Tests/WeatherNotificationBudgetTests.swift`, this log.
 - Verification: awaiting GitHub Actions for the latest branch head. Previous commit `508f2e5` passed 52 tests and IPA packaging; this change is not yet verified.
 - No merge; PR #1 remains open and draft.
+
+
+## CI follow-up – exact location identifier test correction – 2026-11-21
+
+- Inspected failed workflow logs rather than relying on the red status alone.
+- The failed run tested an earlier test revision using shorthand coordinates (for example `60,10`), while production location identifiers are normalized to four decimal places (for example `60.0000_10.0000`).
+- Updated regression test on the current branch head to use the production identifier format. The current branch head is `07cebfc006c3665442533e3a42b55e896939a7fa`; a CI run against this exact head is still required.
+- The failure was in the new test fixture's coordinate format, not evidence of a production-code failure. Do not mark the change verified until the current-head run passes.
