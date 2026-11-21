@@ -312,8 +312,9 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
             SMHIWarningService.clearPendingNotifications()
             return
         }
+        let checkGeneration = SMHIWarningService.beginCheck()
         Task {
-            await SMHIWarningService.checkAndNotify(at: coordinates)
+            await SMHIWarningService.checkAndNotify(at: coordinates, generation: checkGeneration)
         }
     }
 
