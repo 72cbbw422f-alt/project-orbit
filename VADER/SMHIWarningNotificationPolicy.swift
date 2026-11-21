@@ -1,6 +1,11 @@
 import Foundation
 
 enum SMHIWarningNotificationPolicy {
+    /// Returns true only for the newest SMHI location-snapshot check.
+    static func isCurrentCheck(_ generation: String, storedGeneration: String?) -> Bool {
+        storedGeneration == generation
+    }
+
     static func newlyActiveSignatures(current: Set<String>, previous: Set<String>, hasBaseline: Bool) -> Set<String> {
         guard hasBaseline else { return [] }
         return current.subtracting(previous)
