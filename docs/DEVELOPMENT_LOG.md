@@ -1264,3 +1264,13 @@ completionHandler([.banner, .sound, .list])
 - Berörda filer: Tests/SMHIWarningNotificationPolicyTests.swift och docs/DEVELOPMENT_LOG.md.
 - CI #724 mot 9ab31e7 stoppade vid kompilering av VADERTests med två Cannot find SMHIWarningService in scope-fel; inga XCTest kördes och IPA-bygget hoppades över.
 - Denna korrigering är pushad separat; CI för den nya committen måste inväntas. Ingen fysisk iPhone-testning genomförd.
+
+
+## Förstärkt generationsskydd runt SMHI-deduplicering och notisschemaläggning – 2026-11-21
+
+- Granskning efter grön CI #727 (55/55 tester) hittade ett kvarvarande asynkront race: en äldre kontroll kunde bli inaktuell medan den väntade på actor-anrop för att uppdatera dedupliceringsbaseline eller förbereda schemalagda signaturer. Ett gammalt `UNUserNotificationCenter.add` kunde också slutföras efter att en nyare platskontroll startat.
+- SMHI-gate:ns `newlyActiveSignatures` och `prepare` kräver nu både rätt notis-epoch och aktuell generationsnyckel innan de får ändra dedupliceringstillståndet.
+- Runtime kontrollerar generationen igen mellan actor-anropen. Efter ett lyckat `center.add` kontrolleras generationen på nytt; om svaret hunnit bli inaktuellt tas den just tillagda väntande notisen bort och claimen släpps.
+- Berörd fil: `VADER/NotificationInboxView.swift`.
+- Baslinje före denna ändring: CI #727 på commit `2ff3228f0f0c21e542f63d737422ed3a2914025f` passerade 55/55 XCTest, iOS Release-build, osignerad IPA-paketering och artifact-upload. Artifact ID `14722002531`, SHA-256 `3d9dcaa2a89812eea05f2c23323b6a6ad92a7a043d06a8a0abe1ee2be0230a19`.
+- Den nya race-fixen kräver en ny CI-körning. Ingen fysisk iPhone-testning eller faktisk push-/lokalnotisleverans verifierad.
