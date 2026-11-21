@@ -850,3 +850,15 @@ Varje arbetsomgång ska dokumentera:
 - Verifiering: aritmetiken kontrollerad manuellt och ändringen sparad i GitHub. XCTest är inte körda.
 - Filer: Tests/WeatherNotificationBudgetTests.swift, docs/DEVELOPMENT_LOG.md.
 - Kvar: global reconciliation är fortfarande inte inkopplad i live-schemaläggaren.
+
+
+### Serialiserad prognosuppdatering med global generationsspärr – 2026-11-21
+
+- GitHub kontrollerades före arbetet: PR #1 var öppen, draft och osammanslagen; feature/frost-notification-audit låg på a1e0079cd42db79aeca288efeb807189f02fec28 och PR rapporterade mergeable true.
+- VADER/WeatherNotificationScheduler.swift: refresh(place:...) uppdaterar nu registret och startar en gemensam refreshFromStoredForecast()-batch i stället för ett separat schedule-task för den enskilda platsen.
+- refreshFromStoredForecast() roterar nu globalScheduleTokenKey vid varje ny batch, skapar platsvisa token för ett sorterat register-snapshot och schemalägger platserna sekventiellt i en enda Task. Äldre batcher stoppas när deras globala token inte längre gäller. Stale forecasts äldre än två timmar hanteras fortsatt utan att armera nya prognosnotiser.
+- Samma metods legacy-grenar kontrollerar nu global token efter asynkron pending-läsning eller före schemaläggning. Detta skyddar även migreringsvägen mot att en gammal batch skriver status eller startar ett föråldrat jobb.
+- Kodgranskning hittade även en felaktigt dubblerad backslash i ett Swift key path-uttryck för pending identifiers; den är korrigerad till `\.identifier`.
+- Verifiering: ändrad fil återlästes och kontrollerades för sekventiell loop, global generationskontroll, frånvaro av direkt schedule-task i refresh(place:) samt korrekta key paths. XCTest, Swift/iOS-build och fysisk enhetstestning är inte körda.
+- Filer: VADER/WeatherNotificationScheduler.swift, docs/DEVELOPMENT_LOG.md, docs/NOTIFICATION_RECONCILIATION_DESIGN.md.
+- Viktig begränsning: detta är en serialiserad övergångslösning, inte den färdiga globala urvalsalgoritmen. Varje plats använder fortfarande interimistisk kapacitet och läser notification-center snapshots separat. Ett enda globalt kandidatval och en enda replace/add/status-cykel återstår.
