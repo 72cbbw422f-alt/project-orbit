@@ -61,7 +61,7 @@ final class SMHIWarningNotificationPolicyTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let fresh = now.timeIntervalSince1970 - 30
         XCTAssertFalse(SMHIWarningNotificationPolicy.shouldPresentInForeground(level: "Orange", scheduledAt: fresh - 700, start: "2026-01-01T10:00:00", end: "", now: now))
-        XCTAssertFalse(SMHIWarningNotificationPolicy.shouldPresentInForeground(level: "Röd", scheduledAt: fresh, start: "2027-01-01T10:00:00", end: "", now: now))
+        XCTAssertFalse(SMHIWarningNotificationPolicy.shouldPresentInForeground(level: "Röd", scheduledAt: fresh, start: "2027-02-01T10:00:00", end: "", now: now))
         XCTAssertFalse(SMHIWarningNotificationPolicy.shouldPresentInForeground(level: "Gul", scheduledAt: fresh, start: "2026-01-01T10:00:00", end: "2026-01-01T11:00:00", now: now))
     }
 
