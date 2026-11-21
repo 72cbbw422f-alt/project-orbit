@@ -91,9 +91,13 @@ private actor SMHIWarningNotificationGate {
         return transition.newlyActive
     }
 
-    func recordBaselineSignature(_ signature: String, epoch: String) {
+    func recordBaselineSignature(_ signature: String, epoch: String, generation: String) {
         let defaults = UserDefaults.standard
-        guard (defaults.string(forKey: notificationEpochKey) ?? "") == epoch else { return }
+        guard (defaults.string(forKey: notificationEpochKey) ?? "") == epoch,
+              SMHIWarningNotificationPolicy.isCurrentCheck(
+                generation,
+                storedGeneration: defaults.string(forKey: "Regnvakt.smhi.checkGeneration.v1")
+              ) else { return }
         let baselineKey = "Regnvakt.smhi.activeWarningBaseline.v1"
         var baseline = Set(defaults.stringArray(forKey: baselineKey) ?? [])
         baseline.insert(signature)
@@ -429,7 +433,7 @@ enum SMHIWarningService {
 
                 // Recover a request accepted by iOS just before an app interruption.
                 if pendingSMHIIDs.contains(identifier) {
-                    await SMHIWarningNotificationGate.shared.recordBaselineSignature(signature, epoch: notificationEpoch)
+                    await SMHIWarningNotificationGate.shared.recordBaselineSignature(signature, epoch: notificationEpoch, generation: generation)
                     if let claimToken = await SMHIWarningNotificationGate.shared.claim(signature, epoch: notificationEpoch) {
                         _ = await SMHIWarningNotificationGate.shared.finish(signature, token: claimToken, epoch: notificationEpoch, accepted: true)
                     }
@@ -464,7 +468,7 @@ enum SMHIWarningService {
                         continue
                     }
                     _ = await SMHIWarningNotificationGate.shared.finish(signature, token: claimToken, epoch: notificationEpoch, accepted: true)
-                    await SMHIWarningNotificationGate.shared.recordBaselineSignature(signature, epoch: notificationEpoch)
+                    await SMHIWarningNotificationGate.shared.recordBaselineSignature(signature, epoch: notificationEpoch, generation: generation)
                     queuedSMHIWarnings += 1
                     defaults.set(true, forKey: "Regnvakt.notifications.hasUnread")
                 } catch {
