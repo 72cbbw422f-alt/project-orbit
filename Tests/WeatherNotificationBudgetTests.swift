@@ -278,6 +278,39 @@ final class WeatherNotificationBudgetTests: XCTestCase {
         )
     }
 
+    func testPreservedCurrentFrostRequiresAnEnabledWatchAndRegisteredLocation() {
+        let pending = [
+            "regnvakt.weather.north.frost.current.today",
+            "regnvakt.weather.south.frost.current.today",
+            "regnvakt.weather.removed.frost.current.today",
+            "smhi.warning.frost.current.today",
+            "regnvakt.weather.north.rain.today"
+        ]
+        let registered = Set(["north", "south"])
+
+        XCTAssertEqual(
+            WeatherNotificationBudget.preservedPendingCurrentFrostIdentifiers(
+                pendingIdentifiers: pending,
+                registeredLocationIDs: registered,
+                isEnabled: true
+            ),
+            Set([
+                "regnvakt.weather.north.frost.current.today",
+                "regnvakt.weather.south.frost.current.today"
+            ])
+        )
+    }
+
+    func testDisabledFrostWatchPreservesNoPendingCurrentFrostRequests() {
+        XCTAssertTrue(
+            WeatherNotificationBudget.preservedPendingCurrentFrostIdentifiers(
+                pendingIdentifiers: ["regnvakt.weather.north.frost.current.today"],
+                registeredLocationIDs: ["north"],
+                isEnabled: false
+            ).isEmpty
+        )
+    }
+
     func testSelectionCapacityReservesPendingFrostMissingFromFreshCandidates() {
         let preserved = Set([
             "regnvakt.weather.north.frost.current.today",
