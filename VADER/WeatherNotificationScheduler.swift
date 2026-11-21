@@ -214,10 +214,13 @@ enum WeatherNotificationScheduler {
 
         // Existing pending current-frost alerts are preserved even if the
         // refreshed forecast no longer emits a current-frost event.
-        let capacity = WeatherNotificationBudget.availableForecastCapacity(pendingIdentifiers: pendingIDs)
+        let availableCapacity = WeatherNotificationBudget.availableForecastCapacity(pendingIdentifiers: pendingIDs)
+        let representedPreservedFrostCount = candidates.filter(\\.isPreservedPendingCurrentFrost).count
+        let unrepresentedPreservedFrostCount = max(0, preservedFrostIDs.count - representedPreservedFrostCount)
+        let selectionCapacity = max(0, availableCapacity - unrepresentedPreservedFrostCount)
         let selectedIDs = WeatherNotificationBudget.select(
             candidates: candidates,
-            capacity: capacity,
+            capacity: selectionCapacity,
             deliveredIdentifiers: deliveredIDs
         )
         let plan = WeatherNotificationReconciliationPlan.make(
