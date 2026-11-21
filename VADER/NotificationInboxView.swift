@@ -79,23 +79,16 @@ private actor SMHIWarningNotificationGate {
               ) else { return [] }
 
         let baselineKey = "Regnvakt.smhi.activeWarningBaseline.v1"
-        guard let previousValues = defaults.stringArray(forKey: baselineKey) else {
-            // On first successful observation after install/upgrade, establish
-            // the current active set without replaying warnings that may be old.
-            defaults.set(Array(current).sorted(), forKey: baselineKey)
-            return []
-        }
-
-        let previous = Set(previousValues)
-        // Drop signatures that are no longer active, but do not mark newly
-        // observed warnings as handled until they are pending or accepted.
-        let retained = previous.intersection(current)
-        defaults.set(Array(retained).sorted(), forKey: baselineKey)
-        return SMHIWarningNotificationPolicy.newlyActiveSignatures(
+        let previousValues = defaults.stringArray(forKey: baselineKey)
+        let transition = SMHIWarningNotificationPolicy.activeWarningTransition(
             current: current,
-            previous: previous,
-            hasBaseline: true
+            previous: Set(previousValues ?? []),
+            hasBaseline: previousValues != nil
         )
+        // Persist only currently active signatures. Newly active signatures
+        // remain eligible until a pending request or accepted add records them.
+        defaults.set(Array(transition.retainedBaseline).sorted(), forKey: baselineKey)
+        return transition.newlyActive
     }
 
     func recordBaselineSignature(_ signature: String, epoch: String) {
