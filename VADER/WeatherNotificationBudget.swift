@@ -174,3 +174,39 @@ enum WeatherNotificationBudget {
         return lhs.identifier < rhs.identifier
     }
 }
+
+/// Pure reconciliation plan for a single global notification-center snapshot.
+/// Non-preserved forecast requests are replaced so refreshed wording and
+/// trigger dates take effect; preserved current-frost requests remain untouched.
+struct WeatherNotificationReconciliationPlan: Equatable {
+    let preservedPendingIdentifiers: [String]
+    let pendingIdentifiersToRemove: [String]
+    let identifiersToAdd: [String]
+
+    static func make(
+        selectedIdentifiers: [String],
+        pendingIdentifiers: [String],
+        deliveredIdentifiers: Set<String>,
+        preservedPendingIdentifiers: Set<String>,
+        forecastPrefix: String = "regnvakt.weather."
+    ) -> WeatherNotificationReconciliationPlan {
+        let pendingForecast = Set(pendingIdentifiers.filter { $0.hasPrefix(forecastPrefix) })
+        let preserved = pendingForecast.intersection(preservedPendingIdentifiers).sorted()
+        let preservedSet = Set(preserved)
+        let toRemove = pendingForecast.subtracting(preservedSet).sorted()
+
+        var seen = Set<String>()
+        let toAdd = selectedIdentifiers.filter { identifier in
+            identifier.hasPrefix(forecastPrefix) &&
+                !preservedSet.contains(identifier) &&
+                !deliveredIdentifiers.contains(identifier) &&
+                seen.insert(identifier).inserted
+        }
+
+        return WeatherNotificationReconciliationPlan(
+            preservedPendingIdentifiers: preserved,
+            pendingIdentifiersToRemove: toRemove,
+            identifiersToAdd: toAdd
+        )
+    }
+}
