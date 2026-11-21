@@ -1108,3 +1108,12 @@ completionHandler([.banner, .sound, .list])
 - Verification update: CI run `44895521089` for commit `7a9e8e0` completed its XCTest step successfully and proceeded to the iOS device build. This validates the scheduler syntax correction, but does not include the subsequently added capacity tests or the explicit live-location scoping change.
 - Files changed: `VADER/WeatherNotificationScheduler.swift`, this log.
 - Current changes still require CI verification. No merge and no IPA from the latest code.
+
+
+## Reconciliation edge-case tests – 2026-11-21
+
+- `Tests/WeatherNotificationBudgetTests.swift`: added coverage proving that only identifiers which are both pending and explicitly marked for preservation remain preserved; stale/non-pending frost identifiers cannot enter the preserved list.
+- Added a delivered-current-frost case to ensure a delivered identifier is not accidentally represented as a pending preserved request.
+- These are pure model tests; they do not replace end-to-end tests of `UNUserNotificationCenter` orchestration.
+- Verification: source write and GitHub readback; XCTest for this exact commit is pending CI.
+- No production source changed in this step. No IPA, physical-device test, or merge.
