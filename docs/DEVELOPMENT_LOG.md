@@ -1217,5 +1217,8 @@ completionHandler([.banner, .sound, .list])
 - Rensningen är fortsatt begränsad till `regnvakt.weather.*`; SMHI och andra appar påverkas inte.
 - Berörd kodfil: `VADER/WeatherNotificationScheduler.swift`.
 - Kodcommit: `7b48708b064282f8571f45f0e8f3ea360306cbb4`.
-- Verifiering: ändringen är pushad till `feature/frost-notification-audit`. CI för exakt denna kodcommit måste inväntas. Ingen fysisk iPhone-testning genomförd.
+- Verifiering: Build #715 kördes mot exakt kodcommit `7b48708b064282f8571f45f0e8f3ea360306cbb4` och slutfördes med `success`. Samtliga 54 XCTest passerade (0 fel): FrostRiskRules 4, SMHIWarningNotificationPolicy 12, WeatherNotificationBudget 33 och WeatherWatchRules 5. iOS device Release build, osignerad IPA-paketering och artifact-upload lyckades.
+- CI-artifact: `Regnvakt-unsigned-IPA`, artifact ID `14718376969`, SHA-256 `3a941878618ebc6b58b06d26d5c59aad3d75509712a7d009d2dbcd0c5856010d`. Artifact är osignerad och kan inte installeras utan signering/provisioning.
+- Två icke-blockerande AppIntents-metadata-varningar förekom eftersom appen inte länkar AppIntents.framework.
+- Ingen fysisk iPhone-testning eller verifiering av faktisk notisleverans genomförd.
 - PR #1 lämnas öppen som draft; ingen merge eller produktionsändring.
