@@ -892,3 +892,27 @@ Varje arbetsomgång ska dokumentera:
 3. Lägg till diagnostik/testbar ren logik för att inte schemalägga en ny omedelbar SMHI-notis enbart för att appen aktiveras; notifiering ska styras av ny/ändrad varning och korrekt giltighet, inte av att vyn öppnas.
 4. Granska aktuell-frostens appstartsbeteende så att en gammal sparad temperatur inte orsakar en oönskad omedelbar banner.
 5. Verifiera på iPhone med appen i förgrund, bakgrund och helt avslutad innan felet markeras löst.
+
+
+### Förgrundspresentation – ytterligare rotorsak identifierad – 2026-11-21
+
+Fortsatt granskning hittade appens notisdelegat i `VADER/VADERApp.swift`:
+
+```swift
+completionHandler([.banner, .sound, .list])
+```
+
+`RegnvaktNotificationDelegate.userNotificationCenter(_:willPresent:withCompletionHandler:)` begär alltså banner, ljud och notiscenterlista för **varje** notis som levereras medan appen är i förgrunden. Detta förklarar varför en redan köad eller nyss utlöst notis kan visas ovanpå appen när användaren öppnar den. Det är en separat mekanism från att scheduler/SMHI skapar själva notisbegäran.
+
+**Verifierad kedja:**
+- `VADER/VADERApp.swift`: alla förgrundsnotiser presenteras med banner och ljud.
+- `VADER/ContentView.swift`: appaktivering startar SMHI-kontroll.
+- `VADER/NotificationInboxView.swift`: nya aktiva SMHI-varningar kan schemaläggas med två sekunders fördröjning.
+- `VADER/WeatherService.swift`: appstart startar även återställning av prognosnotiser.
+- `VADER/WeatherNotificationScheduler.swift`: aktuell frost kan schemaläggas om sparad prognos/temperatur fortfarande är färsk.
+
+**Designbeslut som krävs före ändring:** Ska appen visa banner/ljud när en notis levereras medan Regnvakt redan är öppen, eller ska den bara uppdatera notisinkorgen/olästmarkeringen och låta iOS visa notisen när appen ligger i bakgrunden? Nuvarande kod väljer alltid banner + ljud + lista. Att tysta alla förgrundsnotiser kan även dölja en genuint ny säkerhetsvarning medan användaren tittar på appen. Ingen ändring görs utan att definiera detta beteende.
+
+**Bakgrundsbegränsning:** `VADERApp.swift` importerar `BackgroundTasks`, men den granskade app-entry-filen registrerar ingen BGTask. Källkodsspårningen har ännu inte visat någon verifierad återkommande bakgrundsuppgift som hämtar SMHI-data när appen är avslutad. Lokala notiser kan levereras när de redan är schemalagda, men kan inte på egen hand upptäcka en senare publicerad varning utan att appen körs eller extern push används.
+
+**Status:** Rotorsak för att förgrundsnotiser visas som banners är verifierad i källkoden. Orsaken till upprepade/gamla SMHI-notiser är delvis spårad men behöver pending/delivered-diagnostik på enheten. Ingen produktionskod ändrad.
