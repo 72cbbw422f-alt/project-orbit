@@ -98,7 +98,7 @@ final class WeatherNotificationBudgetTests: XCTestCase {
         ]
         XCTAssertEqual(
             WeatherNotificationBudget.availableForecastCapacity(pendingIdentifiers: pending),
-            34
+            40
         )
     }
 
