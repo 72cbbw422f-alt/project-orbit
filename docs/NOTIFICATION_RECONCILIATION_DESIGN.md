@@ -179,3 +179,10 @@ Den gamla platsvisa schemaläggaren har fått ett begränsat skydd medan den glo
 `WeatherNotificationBudget.availableForecastCapacity(pendingIdentifiers:)` samlar namespace-klassificeringen och budgetformeln i ett anrop. Den räknar bort `regnvakt.weather.*` eftersom dessa notiser ägs av prognos-reconciliationen och ersätts där, men räknar väntande `smhi.*` och alla övriga identifierare mot Regnvakts interna budget. Testerna täcker blandade namespace och full extern kö.
 
 **Status:** ren budgetfunktion och XCTest-fall är tillagda. Funktionen är ännu inte anropad av `WeatherNotificationScheduler`; den live-globala avstämningen återstår.
+
+
+## Serialiserad övergångsfas
+
+`refresh(place:...)` skriver först den nya prognosen i registret och begär därefter en full registerbatch via `refreshFromStoredForecast()`. Varje batch får en ny global generations-token. Registerplatserna sorteras efter `locationID` och behandlas sekventiellt i samma `Task` i stället för att starta en fristående parallell `Task` per plats. En ny batch ogiltigförklarar den föregående; token kontrolleras mellan platser och i den befintliga `schedule(...)`-metoden efter dess asynkrona notification-center-anrop.
+
+Detta minskar konkurrerande schemaläggning och mellanliggande status-skrivningar. Det är dock **inte** global reconciliation: varje plats tar fortfarande egna pending-/delivered-snapshots, använder interimistisk per-platskapacitet och utför egen replace/add/status. Nästa steg är att samla alla requests i en enda kandidatlista och genomföra en enda global avstämning.
