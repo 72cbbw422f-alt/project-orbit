@@ -949,3 +949,24 @@ completionHandler([.banner, .sound, .list])
 - Korrigerat i VADER/NotificationInboxView.swift: tidigare baseline-signaturer behålls endast så länge de fortfarande är aktiva. Nya signaturer markeras som hanterade först när motsvarande request redan finns pending eller när iOS har accepterat en ny request. Varningar som inte får plats eller vars schemaläggning misslyckas förblir nya och kan försökas igen.
 - Ingen ändring av prioriteringsordning eller befintliga aktiva varningar i flödet.
 - Verifiering: källkoden återlästes efter ändringen. XCTest och iOS-build är ännu inte körda.
+
+## Förgrundspresentation – skydd mot gamla köade notiser
+
+**Ändrat:** 2026-11-21  
+**Gren:** `feature/frost-notification-audit`
+
+### Ändringar
+- `VADER/VADERApp.swift`: förgrundsdelegaten visar inte längre alla notiser automatiskt. Vanliga prognosnotiser tystas när appen är aktiv, men ligger kvar i iOS notiscenter.
+- Säkerhetskritiska prognosnotiser (exempelvis aktuell frost och halkrisk) får fortfarande banner, ljud och notiscenterpresentation.
+- SMHI-notiser kräver nu en igenkänd gul/orange/röd nivå, att varningen har startat, att den inte har passerat sluttiden samt att notisen schemalagts under de senaste tio minuterna. Detta ska hindra gamla SMHI-notiser som legat kvar i kön från att visas som nya vid appstart.
+- `VADER/NotificationInboxView.swift`: SMHI-notisernas metadata innehåller nu nivå, start, slut och tidpunkt för schemaläggning.
+
+### Avgränsningar och risker
+- Tio minuters färskhetsgräns är en lokal presentationsregel, inte en garanti för att iOS levererar inom tio minuter.
+- SMHI:s tidsstämplar måste kunna läsas av ISO-8601-parsern. Om starttid saknas eller inte kan tolkas tystas notisen i förgrunden; varningen ska fortfarande finnas i varningsflödet.
+- Redan schemalagda SMHI-notiser från äldre appversioner saknar metadata och kommer därför inte att visas som banner i förgrunden. De kan fortfarande finnas i notiscenter.
+- Detta löser inte att appen saknar garanterad bakgrundshämtning när den är helt avslutad. Nya SMHI-varningar kan inte upptäckas i realtid utan att appen får köra eller att en extern pushlösning införs.
+
+### Verifiering
+- Källkod uppdaterad på utvecklingsgrenen. Återläsning av de slutliga filerna och kontroll av GitHub Actions ska göras innan ändringen betraktas som byggverifierad.
+- Inga fysiska iPhone-tester har genomförts i denna arbetsinsats.
