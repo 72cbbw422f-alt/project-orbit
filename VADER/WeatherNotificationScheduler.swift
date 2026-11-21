@@ -277,13 +277,19 @@ enum WeatherNotificationScheduler {
     static func removeAll() {
         // This scheduler owns only Regnvakt forecast notifications. SMHI cleanup
         // must remain explicit in SMHIWarningService / the notification settings.
-        UserDefaults.standard.set(UUID().uuidString, forKey: globalScheduleTokenKey)
+        // Capture a generation so delayed callbacks cannot erase requests created
+        // by a newer refresh after this full cleanup was superseded.
+        let defaults = UserDefaults.standard
+        let cleanupToken = UUID().uuidString
+        defaults.set(cleanupToken, forKey: globalScheduleTokenKey)
         let center = UNUserNotificationCenter.current()
         center.getPendingNotificationRequests { requests in
+            guard defaults.string(forKey: globalScheduleTokenKey) == cleanupToken else { return }
             let ids = WeatherNotificationBudget.forecastIdentifiers(in: requests.map(\.identifier), forecastPrefix: prefix)
             center.removePendingNotificationRequests(withIdentifiers: ids)
         }
         center.getDeliveredNotifications { notifications in
+            guard defaults.string(forKey: globalScheduleTokenKey) == cleanupToken else { return }
             let ids = WeatherNotificationBudget.forecastIdentifiers(in: notifications.map { $0.request.identifier }, forecastPrefix: prefix)
             center.removeDeliveredNotifications(withIdentifiers: ids)
         }
