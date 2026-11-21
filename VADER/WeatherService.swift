@@ -306,6 +306,10 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
             if !isDuplicate { coordinates.append(coordinate) }
         }
         guard !coordinates.isEmpty else {
+            // Invalidate an older network response before clearing its notifications.
+            // Otherwise a request for the previous location snapshot could still
+            // finish later and overwrite the empty-location status.
+            _ = SMHIWarningService.beginCheck()
             UserDefaults.standard.set(false, forKey: "Regnvakt.smhi.active")
             UserDefaults.standard.set("Välj en plats för att visa lokala SMHI-varningar", forKey: "Regnvakt.smhi.summary")
             UserDefaults.standard.set("", forKey: "Regnvakt.smhi.level")
