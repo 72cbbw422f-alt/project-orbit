@@ -117,6 +117,19 @@ enum WeatherNotificationBudget {
         )
     }
 
+    /// Derives the global forecast allocation from one pending-request snapshot.
+    /// Forecast-owned identifiers are excluded because reconciliation replaces them;
+    /// SMHI and unrelated pending requests reduce the available capacity.
+    static func availableForecastCapacity(pendingIdentifiers: [String]) -> Int {
+        let external = countExternalPendingRequests(identifiers: pendingIdentifiers)
+        return availableForecastCapacity(
+            totalBudget: totalPendingBudget,
+            reservedHeadroom: reservedHeadroom,
+            pendingSMHI: external.smhi,
+            pendingUnrelated: external.unrelated
+        )
+    }
+
     /// Returns stable identifiers in delivery priority order.
     ///
     /// Existing pending current-frost requests are retained even if they
