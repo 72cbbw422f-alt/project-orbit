@@ -1064,3 +1064,12 @@ completionHandler([.banner, .sound, .list])
 - Filer ändrade: `Tests/WeatherNotificationBudgetTests.swift`, `docs/DEVELOPMENT_LOG.md`.
 - Verifiering: testkällan uppdaterad via GitHub Contents API. Ny GitHub Actions-körning krävs för faktisk XCTest-kompilering och körning.
 - Ingen ändring av produktionskod, ingen IPA i denna insats och ingen merge. PR #1 förblir öppen och draft.
+
+## Global notisreconciliation – ren planmodell och namespace-skydd – 2026-11-21
+
+- `VADER/WeatherNotificationBudget.swift`: lade till `WeatherNotificationReconciliationPlan`, en ren modell som omvandlar ett globalt urval plus en pending-/delivered-snapshot till tre uttryckliga åtgärdslistor: bevara befintlig aktuell frost, ta bort övriga gamla Regnvakt-prognosnotiser och lägga till valda nya prognosnotiser.
+- Planen filtrerar strikt på `regnvakt.weather.*`. SMHI- och andra appars identifierare kan varken tas bort eller läggas till av modellen. Valda stabila identifierare schemaläggs om för att uppdatera trigger och innehåll; redan levererade och bevarade frostnotiser läggs inte till igen.
+- `Tests/WeatherNotificationBudgetTests.swift`: tre XCTest-fall täcker namespace-isolering, uppdatering av stabila identifierare, bevarande av aktuell frost, deduplicering och skydd mot återläggning av levererade/externa identifierare.
+- Viktig avgränsning: planmodellen är ännu inte inkopplad i `VADER/WeatherNotificationScheduler.swift`. Den aktiva schemaläggaren använder fortfarande interimistisk per-platsbudget. Detta är ett isolerat och testbart steg inför scheduler-integrationen, inte en färdig global notifieringslösning.
+- Verifiering: GitHub-readback och CI/XCTest krävs. Ingen iOS-build, IPA eller fysisk iPhone-testning genomförd i denna insats.
+- Ingen merge. PR #1 förblir öppen och draft.
