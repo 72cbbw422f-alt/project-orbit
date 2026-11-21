@@ -810,3 +810,13 @@ Varje arbetsomgång ska dokumentera:
 - Verifiering: ändringen är avgränsad till felgrenen och bygger på befintliga tokenkontroller i samma metod. Filen ska återläsas och diffen granskas efter commit. XCTest/iOS-build kan inte köras i denna Linux-miljö.
 - Filer: VADER/WeatherNotificationScheduler.swift, docs/DEVELOPMENT_LOG.md.
 - Kvar: detta löser endast en sen status-skrivning; flera platsjobb och separata statusuppdateringar finns fortfarande. Nästa större steg är requestgenerering som gemensam kandidatlista och en enda global reconciliation.
+
+### Extraherad prognosbaserad notisgenerering – 2026-11-21
+
+- GitHub kontrollerades före arbetet: PR #1 var öppen, draft och osammanslagen; grenen feature/frost-notification-audit låg på fe9ca77fb32945743e46060971193e891580a051 och PR rapporterade mergeable true.
+- VADER/WeatherNotificationScheduler.swift: flyttade omvandlingen från prognoshändelser till UNNotificationRequest till den separata funktionen makeRequests(place:hours:currentTemperature:defaults:locationID:). Den befintliga schemaläggaren anropar nu funktionen och behåller därefter sin nuvarande sortering, urvalsgräns och platsvisa ersättning.
+- Syfte: separera renare prognos-/notisgenerering från själva schemaläggningscykeln, så att nästa steg kan samla requests från flera platser i en gemensam kandidatlista utan att duplicera innehålls- och identifierarlogiken.
+- Bevarade befintliga regler för svensk tidszon, tystnadstider, frost/halkprioritet, stabila identifierare och innehåll. Ingen ändring av budget- eller urvalspolicy i denna del.
+- Verifiering: filen återlästes efter ändringen; kontroll visade att makeRequests returnerar request-listan och att anropsstället använder var eftersom den befintliga sorteringen muterar listan. XCTest, Xcode/iOS-build och fysisk enhetstestning är inte körda.
+- Filer: VADER/WeatherNotificationScheduler.swift, docs/DEVELOPMENT_LOG.md.
+- Kvar: schedule(...) är fortfarande platsvis, använder interimistisk per-platsgräns och skriver delad status per jobb. Nästa steg är att extrahera en kandidatmetadatafunktion och därefter införa en enda generationsskyddad global reconciliation.
