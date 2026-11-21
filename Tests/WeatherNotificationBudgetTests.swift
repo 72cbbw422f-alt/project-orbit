@@ -396,6 +396,36 @@ final class WeatherNotificationBudgetTests: XCTestCase {
         XCTAssertEqual(plan.identifiersToAdd, [stableRain])
     }
 
+    func testReconciliationPlanPreservesOnlyPendingCurrentFrostIdentifiers() {
+        let pendingFrost = "regnvakt.weather.north.frost.current.today"
+        let staleFrost = "regnvakt.weather.south.frost.current.today"
+        let ordinary = "regnvakt.weather.north.rain.old"
+        let plan = WeatherNotificationReconciliationPlan.make(
+            selectedIdentifiers: [],
+            pendingIdentifiers: [pendingFrost, ordinary],
+            deliveredIdentifiers: [],
+            preservedPendingIdentifiers: [pendingFrost, staleFrost]
+        )
+
+        XCTAssertEqual(plan.preservedPendingIdentifiers, [pendingFrost])
+        XCTAssertEqual(plan.pendingIdentifiersToRemove, [ordinary])
+        XCTAssertTrue(plan.identifiersToAdd.isEmpty)
+    }
+
+    func testReconciliationPlanDoesNotPreserveDeliveredFrostIdentifier() {
+        let frost = "regnvakt.weather.north.frost.current.today"
+        let plan = WeatherNotificationReconciliationPlan.make(
+            selectedIdentifiers: [],
+            pendingIdentifiers: [],
+            deliveredIdentifiers: [frost],
+            preservedPendingIdentifiers: [frost]
+        )
+
+        XCTAssertTrue(plan.preservedPendingIdentifiers.isEmpty)
+        XCTAssertTrue(plan.pendingIdentifiersToRemove.isEmpty)
+        XCTAssertTrue(plan.identifiersToAdd.isEmpty)
+    }
+
     func testReconciliationPlanNeverReaddsDeliveredOrForeignIdentifiers() {
         let plan = WeatherNotificationReconciliationPlan.make(
             selectedIdentifiers: [
