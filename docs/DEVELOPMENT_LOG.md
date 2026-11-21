@@ -928,3 +928,16 @@ completionHandler([.banner, .sound, .list])
 - Ingen kodändring genomförd i denna omgång. Vi ska inte ändra deduplicering eller rensa pending-notiser utan att först fånga faktisk köstatus; det riskerar att förlora giltiga säkerhetsvarningar.
 - Nästa tekniska steg: skapa en ren, testbar notifieringspolicy som skiljer (1) kontroll/uppdatering av varningsdata, (2) ny eller ändrad aktiv varning, (3) tillägg av lokal notis och (4) förgrundspresentation. Appaktivering ska inte ensam vara skäl att återavisera en oförändrad aktiv varning.
 - Verifiering: GitHub-källkod återläst på utvecklingsgrenen. Inga XCTest-, Xcode-/iOS-build- eller fysiska enhetstester har körts. Ingen IPA byggd.
+
+
+### Första-baseline för SMHI-varningar – 2026-11-21
+
+- VADER/NotificationInboxView.swift: infört en separat baseline för aktiva SMHI-signaturer. Vid första lyckade kontrollen efter installation/uppgradering sparas de varningar som redan är aktiva utan att skapa nya lokala notiser. De visas fortfarande i varningsflödet.
+- Vid senare lyckade kontroller jämförs aktuell signaturmängd med föregående snapshot. Endast nytillkomna eller ändrade aktiva signaturer går vidare till notisschemaläggningen. Att appen aktiveras är därmed inte ensamt skäl att spela upp en tidigare aktiv varning.
+- Baseline uppdateras bara efter att SMHI-data hämtats och notisbehörigheten är tillgänglig. Om schemaläggningen misslyckas eller notiser stängs av under den asynkrona operationen släpps signaturen ur baselinen, så nästa kontroll kan försöka igen.
+- VADER/SMHIWarningNotificationPolicy.swift: tillagd Foundation-baserad, ren urvalsregel för nytillkomna signaturer.
+- Tests/SMHIWarningNotificationPolicyTests.swift: fyra XCTest-fall för första baseline, ny/ändrad varning, återkomst efter att en varning försvunnit samt oförändrad varning.
+- project.yml: den rena policyfilen inkluderad i VADERTests-källorna.
+- Säkerhetsavgränsning: befintliga pending-notiser rensas inte blint. En redan köad giltig SMHI-varning kan därför fortfarande levereras; stale pending-requests tas bort enligt befintlig kontroll mot aktuell aktiv mängd. Förgrundspresentationen är ännu inte ändrad.
+- Verifiering: GitHub-ändringar sparade. Källkod och testfall ska återläsas; XCTest, XcodeGen, iOS-build och fysisk iPhone-testning är inte körda i denna miljö. Ingen IPA byggd.
+- Kvar: verifiera att testmålet kompilerar, kontrollera race mellan överlappande SMHI-kontroller samt besluta/implementera separat foreground-policy utan att tysta genuint nya säkerhetsvarningar.
