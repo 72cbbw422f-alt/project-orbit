@@ -168,8 +168,13 @@ enum WeatherNotificationScheduler {
         let pendingIDs = pending.map(\.identifier)
         let deliveredIDs = Set(delivered.map { $0.request.identifier })
         let preserveFrost = defaults.object(forKey: "Regnvakt.notifications.frost") as? Bool ?? true
-        let preservedFrostIDs = Set(pendingIDs.filter {
-            preserveFrost && $0.hasPrefix(prefix) && $0.contains(".frost.current.")
+        let registeredLocationPrefixes = registry.values.map {
+            prefix + $0.locationID.replacingOccurrences(of: ",", with: "_") + "."
+        }
+        let preservedFrostIDs = Set(pendingIDs.filter { identifier in
+            preserveFrost &&
+                identifier.contains(".frost.current.") &&
+                registeredLocationPrefixes.contains(where: { identifier.hasPrefix($0) })
         })
 
         guard globallyEnabled, allowed else {
