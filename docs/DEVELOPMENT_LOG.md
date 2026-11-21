@@ -1284,3 +1284,13 @@ completionHandler([.banner, .sound, .list])
 - Tre XCTest tillagda: första observation utan notis, avslutad varning tas bort ur baseline och återkommande varning blir ny.
 - Berörda filer: `VADER/SMHIWarningNotificationPolicy.swift`, `VADER/NotificationInboxView.swift`, `Tests/SMHIWarningNotificationPolicyTests.swift`, `docs/DEVELOPMENT_LOG.md`.
 - Föregående CI #728/#729 passerade samtliga steg; ny CI krävs för denna livscykeländring. Ingen fysisk enhetstestning genomförd.
+
+
+## Invalidering när ingen SMHI-plats återstår – 2026-11-21
+
+- Granskning av platsväxlingsflödet hittade ett sista race i grenen där inga koordinater återstår: notiserna rensades och statusen sattes till tom plats, men en äldre nätverkskontroll behöll sin aktuella generationsnyckel och kunde senare skriva över statusen med data från den tidigare platsuppsättningen.
+- Den tomma platsgrenen invaliderar nu först alla äldre SMHI-kontroller via en ny generation och rensar därefter SMHI-notiserna. Den separata notis-epochen fortsätter skydda schemaläggningen.
+- Berörd fil: VADER/WeatherService.swift.
+- Kodcommit: 6a5ade3901bfa9aa0347f0e33d5793c59adf4454.
+- Verifiering: ny CI krävs för denna ändring. CI #730–#733 för tidigare commits var fortfarande pågående/köade vid granskningen; inga resultat för denna commit finns ännu. Ingen fysisk iPhone-testning genomförd.
+- PR #1 förblir öppen som draft. Ingen merge eller produktionsändring.
