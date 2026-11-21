@@ -263,15 +263,16 @@ enum WeatherNotificationScheduler {
     }
 
     static func removeAll() {
-        // Invalidate every in-flight schedule before touching the notification center.
+        // This scheduler owns only Regnvakt forecast notifications. SMHI cleanup
+        // must remain explicit in SMHIWarningService / the notification settings.
         UserDefaults.standard.set(UUID().uuidString, forKey: globalScheduleTokenKey)
         let center = UNUserNotificationCenter.current()
         center.getPendingNotificationRequests { requests in
-            let ids = requests.map(\.identifier).filter { $0.hasPrefix(prefix) || $0.hasPrefix("smhi.") }
+            let ids = requests.map(\.identifier).filter { $0.hasPrefix(prefix) }
             center.removePendingNotificationRequests(withIdentifiers: ids)
         }
         center.getDeliveredNotifications { notifications in
-            let ids = notifications.map { $0.request.identifier }.filter { $0.hasPrefix(prefix) || $0.hasPrefix("smhi.") }
+            let ids = notifications.map { $0.request.identifier }.filter { $0.hasPrefix(prefix) }
             center.removeDeliveredNotifications(withIdentifiers: ids)
         }
     }
