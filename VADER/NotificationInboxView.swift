@@ -78,7 +78,10 @@ private actor SMHIWarningNotificationGate {
         }
 
         let previous = Set(previousValues)
-        defaults.set(Array(current).sorted(), forKey: baselineKey)
+        // Drop signatures that are no longer active, but do not mark newly
+        // observed warnings as handled until they are pending or accepted.
+        let retained = previous.intersection(current)
+        defaults.set(Array(retained).sorted(), forKey: baselineKey)
         return SMHIWarningNotificationPolicy.newlyActiveSignatures(
             current: current,
             previous: previous,
@@ -86,12 +89,12 @@ private actor SMHIWarningNotificationGate {
         )
     }
 
-    func releaseBaselineSignature(_ signature: String, epoch: String) {
+    func recordBaselineSignature(_ signature: String, epoch: String) {
         let defaults = UserDefaults.standard
         guard (defaults.string(forKey: notificationEpochKey) ?? "") == epoch else { return }
         let baselineKey = "Regnvakt.smhi.activeWarningBaseline.v1"
         var baseline = Set(defaults.stringArray(forKey: baselineKey) ?? [])
-        baseline.remove(signature)
+        baseline.insert(signature)
         defaults.set(Array(baseline).sorted(), forKey: baselineKey)
     }
 
@@ -393,6 +396,7 @@ enum SMHIWarningService {
 
                 // Recover a request accepted by iOS just before an app interruption.
                 if pendingSMHIIDs.contains(identifier) {
+                    await SMHIWarningNotificationGate.shared.recordBaselineSignature(signature, epoch: notificationEpoch)
                     if let claimToken = await SMHIWarningNotificationGate.shared.claim(signature, epoch: notificationEpoch) {
                         _ = await SMHIWarningNotificationGate.shared.finish(signature, token: claimToken, epoch: notificationEpoch, accepted: true)
                     }
@@ -419,15 +423,14 @@ enum SMHIWarningService {
                     guard stillEnabled else {
                         center.removePendingNotificationRequests(withIdentifiers: [request.identifier])
                         _ = await SMHIWarningNotificationGate.shared.finish(signature, token: claimToken, epoch: notificationEpoch, accepted: false)
-                        await SMHIWarningNotificationGate.shared.releaseBaselineSignature(signature, epoch: notificationEpoch)
                         continue
                     }
                     _ = await SMHIWarningNotificationGate.shared.finish(signature, token: claimToken, epoch: notificationEpoch, accepted: true)
+                    await SMHIWarningNotificationGate.shared.recordBaselineSignature(signature, epoch: notificationEpoch)
                     queuedSMHIWarnings += 1
                     defaults.set(true, forKey: "Regnvakt.notifications.hasUnread")
                 } catch {
                     _ = await SMHIWarningNotificationGate.shared.finish(signature, token: claimToken, epoch: notificationEpoch, accepted: false)
-                    await SMHIWarningNotificationGate.shared.releaseBaselineSignature(signature, epoch: notificationEpoch)
                     // Leave the signature uncommitted so the next check retries.
                 }
             }
