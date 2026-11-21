@@ -941,3 +941,11 @@ completionHandler([.banner, .sound, .list])
 - Säkerhetsavgränsning: befintliga pending-notiser rensas inte blint. En redan köad giltig SMHI-varning kan därför fortfarande levereras; stale pending-requests tas bort enligt befintlig kontroll mot aktuell aktiv mängd. Förgrundspresentationen är ännu inte ändrad.
 - Verifiering: GitHub-ändringar sparade. Källkod och testfall ska återläsas; XCTest, XcodeGen, iOS-build och fysisk iPhone-testning är inte körda i denna miljö. Ingen IPA byggd.
 - Kvar: verifiera att testmålet kompilerar, kontrollera race mellan överlappande SMHI-kontroller samt besluta/implementera separat foreground-policy utan att tysta genuint nya säkerhetsvarningar.
+
+
+#### Eftergranskning: baseline får inte konsumera oschemalagda varningar
+
+- Kodgranskning av den första baseline-implementationen hittade en viktig kant: om hela aktuella mängden markerades som hanterad före kökapacitetskontrollen kunde varningar som inte fick plats i SMHI:s åttaplatser aldrig notifieras vid senare kontroll.
+- Korrigerat i VADER/NotificationInboxView.swift: tidigare baseline-signaturer behålls endast så länge de fortfarande är aktiva. Nya signaturer markeras som hanterade först när motsvarande request redan finns pending eller när iOS har accepterat en ny request. Varningar som inte får plats eller vars schemaläggning misslyckas förblir nya och kan försökas igen.
+- Ingen ändring av prioriteringsordning eller befintliga aktiva varningar i flödet.
+- Verifiering: källkoden återlästes efter ändringen. XCTest och iOS-build är ännu inte körda.
