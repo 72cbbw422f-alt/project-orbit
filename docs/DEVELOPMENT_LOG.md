@@ -1030,3 +1030,15 @@ completionHandler([.banner, .sound, .list])
 - Filer ändrade: `VADER/WeatherNotificationScheduler.swift`, `docs/DEVELOPMENT_LOG.md`.
 - Verifiering före ändringen: GitHub Actions körning 44890811018 kompilerade appens källor men föll i `Run frost risk unit tests` på ovanstående tre compile errors. Därför kördes inga XCTest-fall. Ändringen är incheckad men ny CI-körning krävs.
 - Ingen IPA byggd. Ingen merge.
+
+
+## XCTest-målets modulimport – CI-fel åtgärdat i källkod – 2026-11-21
+
+- GitHub Actions-run `44891250709` för HEAD `5a2a01cac8c98527227e3d0fe93b349531858ebe` kom igenom XcodeGen och appens källkodskompilering men föll i testmålets modulgenerering.
+- Konkret fel: `Tests/SMHIWarningNotificationPolicyTests.swift:2:18: error: no such module 'VADER'`.
+- Orsak i projektkonfigurationen: `VADER/SMHIWarningNotificationPolicy.swift` läggs uttryckligen in som källkod i testmålet via `project.yml`. Testfilen ska därför använda samma testmålsmodul som policyn, inte importera appmodulen `VADER`.
+- Ändring: tog bort den överflödiga raden `@testable import VADER` från `Tests/SMHIWarningNotificationPolicyTests.swift`. Ingen produktionskod eller apparkitektur ändrad.
+- Filer ändrade: `Tests/SMHIWarningNotificationPolicyTests.swift`, `docs/DEVELOPMENT_LOG.md`.
+- Commit med testfix: `974aea4283f3aab51bea0fe4153299895fe1a46f`.
+- Verifiering: testfilen uppdaterad via GitHub Contents API. Ny CI-körning krävs fortfarande; inga XCTest-resultat, iOS-build eller IPA är ännu verifierade.
+- Ingen merge. PR #1 förblir öppen och draft.
