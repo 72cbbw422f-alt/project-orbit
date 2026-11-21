@@ -1274,3 +1274,13 @@ completionHandler([.banner, .sound, .list])
 - Berörd fil: `VADER/NotificationInboxView.swift`.
 - Baslinje före denna ändring: CI #727 på commit `2ff3228f0f0c21e542f63d737422ed3a2914025f` passerade 55/55 XCTest, iOS Release-build, osignerad IPA-paketering och artifact-upload. Artifact ID `14722002531`, SHA-256 `3d9dcaa2a89812eea05f2c23323b6a6ad92a7a043d06a8a0abe1ee2be0230a19`.
 - Den nya race-fixen kräver en ny CI-körning. Ingen fysisk iPhone-testning eller faktisk push-/lokalnotisleverans verifierad.
+
+
+## Testbar SMHI-varningslivscykel – 2026-11-21
+
+- Efter grön CI #728 och #729 (inklusive generationsskydd efter actor-await och efter UNUserNotificationCenter.add) har SMHI-baslinjens livscykel gjorts explicit och testbar i `SMHIWarningNotificationPolicy`.
+- Ny ren funktion `activeWarningTransition` returnerar både nyligen aktiva signaturer och den baseline som ska sparas. Avslutade signaturer tas bort; en varning som senare återkommer blir därmed ny igen. Första observationen etablerar baseline utan att återspela redan aktiva varningar.
+- SMHI-gate:ns runtime använder samma policyfunktion för att uppdatera baseline.
+- Tre XCTest tillagda: första observation utan notis, avslutad varning tas bort ur baseline och återkommande varning blir ny.
+- Berörda filer: `VADER/SMHIWarningNotificationPolicy.swift`, `VADER/NotificationInboxView.swift`, `Tests/SMHIWarningNotificationPolicyTests.swift`, `docs/DEVELOPMENT_LOG.md`.
+- Föregående CI #728/#729 passerade samtliga steg; ny CI krävs för denna livscykeländring. Ingen fysisk enhetstestning genomförd.
