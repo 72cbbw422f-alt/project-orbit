@@ -223,3 +223,14 @@ En oförändrad aktiv varning ska normalt dedupliceras. En varning som fortfaran
 5. Diagnostik på enheten ska kunna visa identifierare, signaturstatus, varningens start/slut, pending/delivered-status och kontrolltid utan att exponera onödiga personuppgifter.
 
 Ingen produktionskod ändrad i denna granskning. Enhetstest och iOS-build återstår.
+
+
+## Första baseline för aktiva SMHI-varningar – implementerad 2026-11-21
+
+- En ren policyfunktion väljer signaturer som finns i aktuell mängd men inte i föregående snapshot.
+- Första lyckade observationen efter installation/uppgradering etablerar baseline och notifierar inte varningar som redan är aktiva. De fortsätter att visas i varningsflödet.
+- Senare kontroller kan notifiera nya eller ändrade aktiva signaturer. Oförändrade signaturer spelas inte upp på nytt bara för att appen aktiveras.
+- Om en notis inte kan läggas till eller notisinställningen stängs av under operationen tas signaturen bort ur baseline så att nästa kontroll kan försöka igen.
+- Testfall har lagts till för första observation, ny/ändrad signatur, återkomst och oförändrad signatur.
+
+**Avgränsning:** Befintliga pending-notiser rensas inte generellt. Denna ändring förhindrar nya replay-schemaläggningar från baselinen men garanterar inte att en redan köad notis aldrig levereras vid appöppning. Förgrundspresentationen är oförändrad tills en separat policy kan skilja nya säkerhetsvarningar från äldre/vanliga aviseringar.
