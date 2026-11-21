@@ -302,7 +302,7 @@ enum WeatherNotificationScheduler {
             // reuses the same stable identifier after a rapid re-add.
             let pending = await center.pendingNotificationRequests()
             guard defaults.string(forKey: globalScheduleTokenKey) == removalToken else { return }
-            let pendingIDs = pending.map(\\.identifier).filter { $0.hasPrefix(locationPrefix) }
+            let pendingIDs = pending.map(\.identifier).filter { $0.hasPrefix(locationPrefix) }
             center.removePendingNotificationRequests(withIdentifiers: pendingIDs)
 
             let delivered = await center.deliveredNotifications()
