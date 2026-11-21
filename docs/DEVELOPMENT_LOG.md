@@ -1199,3 +1199,12 @@ completionHandler([.banner, .sound, .list])
 - Berörd fil: `VADER/WeatherService.swift`.
 - Commit: `f7982002d98e0031e6474ea5f9df413535c1cb0f`.
 - Verifiering: kodändringen är pushad; CI för den nya committen inväntas. Ingen fysisk iPhone-testning genomförd.
+
+## Global notisstatus behåller schemaläggningsfel – 2026-11-21
+
+- Granskning av den inkopplade `reconcileGlobally` visade att ett misslyckat `UNUserNotificationCenter.add` skrev ett felmeddelande, men att slutstatusen därefter ovillkorligen skrev en generell framgångstext. Det kunde dölja att en eller flera notiser inte accepterats av iOS.
+- Den globala avstämningen räknar nu misslyckade tillägg och behåller ett tydligt felstatusmeddelande efter den slutliga pending-avläsningen. Den visar samtidigt det faktiska antalet väntande prognosnotiser separat via den befintliga räknaren.
+- Uppdaterad `docs/NOTIFICATION_RECONCILIATION_DESIGN.md`: dokumentets toppstatus beskriver nu den faktiska globala integrationsvägen. Ett nytt avsnitt skiljer aktuell implementation från historiska anteckningar och redovisar kvarstående fysisk enhetsverifiering.
+- Berörda filer: `VADER/WeatherNotificationScheduler.swift`, `docs/NOTIFICATION_RECONCILIATION_DESIGN.md`, `docs/DEVELOPMENT_LOG.md`.
+- Kodcommit: `0c03c3a7be360c3a85f0a171b3c9a00048d19198`. Dokumentationscommit: `27e42015d7c59560f7983e35575e042a89c27c8a`.
+- Verifiering: ändringarna är pushade till `feature/frost-notification-audit`; CI för kodcommitten inväntas. Ingen fysisk iPhone-testning genomförd.
