@@ -78,34 +78,14 @@ enum WeatherNotificationScheduler {
         let registryData = defaults.data(forKey: forecastRegistryKey)
         let registry = registryData.flatMap { try? JSONDecoder().decode([String: StoredForecast].self, from: $0) } ?? [:]
 
-        // Reconcile registered locations serially. This is an intermediate
-        // safety improvement: it removes competing per-place tasks, while the
-        // later global selector will replace the remaining per-place budgets.
         if !registry.isEmpty {
-            let scheduledForecasts = registry.values.sorted { $0.locationID < $1.locationID }.map { stored -> (StoredForecast, String) in
-                let token = UUID().uuidString
-                let tokenKey = scheduleTokenKey + "." + stored.locationID.replacingOccurrences(of: ",", with: "_")
-                defaults.set(token, forKey: tokenKey)
-                return (stored, token)
-            }
             Task {
-                for (stored, token) in scheduledForecasts {
-                    guard (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken else { return }
-                    let forecastAge = Date().timeIntervalSince(stored.savedAt)
-                    let forecastIsFresh = forecastAge >= 0 && forecastAge <= 2 * 60 * 60
-                    let temperature = forecastIsFresh && allowImmediateCurrentFrost
-                        ? stored.currentTemperature : nil
-                    // Stale forecasts cannot arm new future alerts.
-                    let hours = forecastIsFresh ? stored.hours : []
-                    await schedule(
-                        place: stored.place,
-                        hours: hours,
-                        currentTemperature: temperature,
-                        token: token,
-                        globalToken: globalToken,
-                        locationID: stored.locationID
-                    )
-                }
+                await reconcileGlobally(
+                    registry: registry,
+                    registrySnapshot: registryData,
+                    globalToken: globalToken,
+                    allowImmediateCurrentFrost: allowImmediateCurrentFrost
+                )
             }
             return
         }
@@ -154,6 +134,122 @@ enum WeatherNotificationScheduler {
                                token: token, globalToken: globalToken, locationID: storedLocationID)
             }
         }
+    }
+
+    /// Reconciles every monitored location against one notification-center snapshot.
+    /// Only Regnvakt forecast requests are replaced; SMHI and other owners are untouched.
+    private static func reconcileGlobally(
+        registry: [String: StoredForecast],
+        registrySnapshot: Data?,
+        globalToken: String,
+        allowImmediateCurrentFrost: Bool
+    ) async {
+        let defaults = UserDefaults.standard
+        let center = UNUserNotificationCenter.current()
+        func isCurrentBatch() -> Bool {
+            (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken &&
+                defaults.data(forKey: forecastRegistryKey) == registrySnapshot
+        }
+        guard isCurrentBatch() else { return }
+
+        let globallyEnabled = defaults.object(forKey: "Regnvakt.notifications.enabled") as? Bool ?? true
+        let authorization = await center.notificationSettings()
+        guard isCurrentBatch() else { return }
+        let allowed = authorization.authorizationStatus == .authorized ||
+            authorization.authorizationStatus == .provisional ||
+            authorization.authorizationStatus == .ephemeral
+
+        // A single pending and delivered snapshot is shared by all locations.
+        let pending = await center.pendingNotificationRequests()
+        guard isCurrentBatch() else { return }
+        let delivered = await center.deliveredNotifications()
+        guard isCurrentBatch() else { return }
+
+        let pendingIDs = pending.map(\\.identifier)
+        let deliveredIDs = Set(delivered.map { $0.request.identifier })
+        let preserveFrost = defaults.object(forKey: "Regnvakt.notifications.frost") as? Bool ?? true
+        let preservedFrostIDs = Set(pendingIDs.filter {
+            preserveFrost && $0.hasPrefix(prefix) && $0.contains(".frost.current.")
+        })
+
+        guard globallyEnabled, allowed else {
+            let staleIDs = pendingIDs.filter { $0.hasPrefix(prefix) }
+            center.removePendingNotificationRequests(withIdentifiers: staleIDs)
+            guard isCurrentBatch() else { return }
+            defaults.set(0, forKey: scheduledCountKey)
+            defaults.set(Date().timeIntervalSince1970, forKey: scheduleUpdatedKey)
+            defaults.set(globallyEnabled
+                ? (authorization.authorizationStatus == .denied
+                    ? "iPhone blockerar notiser – inga väderaviseringar är schemalagda"
+                    : "Notisbehörighet saknas – inga väderaviseringar är schemalagda")
+                : "Aviseringar avstängda i Regnvakt", forKey: scheduleStatusKey)
+            return
+        }
+
+        let newestLocationID = registry.values.max(by: { $0.savedAt < $1.savedAt })?.locationID
+        var requestsByID: [String: UNNotificationRequest] = [:]
+        var candidates: [WeatherNotificationCandidate] = []
+        for stored in registry.values.sorted(by: { $0.locationID < $1.locationID }) {
+            guard isCurrentBatch() else { return }
+            let age = Date().timeIntervalSince(stored.savedAt)
+            let fresh = age >= 0 && age <= 2 * 60 * 60
+            let liveTemperature = allowImmediateCurrentFrost &&
+                stored.locationID == newestLocationID && fresh ? stored.currentTemperature : nil
+            let requests = makeRequests(
+                place: stored.place,
+                hours: fresh ? stored.hours : [],
+                currentTemperature: liveTemperature,
+                defaults: defaults,
+                locationID: stored.locationID
+            )
+            for request in requests {
+                requestsByID[request.identifier] = request
+            }
+            candidates.append(contentsOf: makeCandidates(
+                requests: requests,
+                locationID: stored.locationID,
+                pendingIdentifiers: Set(pendingIDs)
+            ))
+        }
+
+        // Existing pending current-frost alerts are preserved even if the
+        // refreshed forecast no longer emits a current-frost event.
+        let capacity = WeatherNotificationBudget.availableForecastCapacity(pendingIdentifiers: pendingIDs)
+        let selectedIDs = WeatherNotificationBudget.select(
+            candidates: candidates,
+            capacity: capacity,
+            deliveredIdentifiers: deliveredIDs
+        )
+        let plan = WeatherNotificationReconciliationPlan.make(
+            selectedIdentifiers: selectedIDs,
+            pendingIdentifiers: pendingIDs,
+            deliveredIdentifiers: deliveredIDs,
+            preservedPendingIdentifiers: preservedFrostIDs,
+            forecastPrefix: prefix
+        )
+
+        guard isCurrentBatch() else { return }
+        center.removePendingNotificationRequests(withIdentifiers: plan.pendingIdentifiersToRemove)
+
+        for identifier in plan.identifiersToAdd {
+            guard isCurrentBatch(), let request = requestsByID[identifier] else { return }
+            do {
+                try await center.add(request)
+            } catch {
+                guard isCurrentBatch() else { return }
+                defaults.set("Fel vid schemaläggning: \\(error.localizedDescription)", forKey: scheduleStatusKey)
+            }
+            guard isCurrentBatch() else { return }
+        }
+
+        let finalPending = await center.pendingNotificationRequests()
+        guard isCurrentBatch() else { return }
+        let finalCount = finalPending.filter { $0.identifier.hasPrefix(prefix) }.count
+        defaults.set(finalCount, forKey: scheduledCountKey)
+        defaults.set(Date().timeIntervalSince1970, forKey: scheduleUpdatedKey)
+        defaults.set(finalCount == 0
+            ? "Inga framtida risker passerade aviseringsgränserna"
+            : "\\(finalCount) väderavisering(ar) schemalagda i iPhone", forKey: scheduleStatusKey)
     }
 
     static func removeAll() {
