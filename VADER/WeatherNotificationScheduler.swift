@@ -456,6 +456,32 @@ enum WeatherNotificationScheduler {
         return requests
     }
 
+    /// Converts generated requests into pure metadata for global selection.
+    /// Pending current-frost requests are marked so the selector can preserve
+    /// their original near-immediate trigger rather than recreating them.
+    private static func makeCandidates(
+        requests: [UNNotificationRequest],
+        locationID: String,
+        pendingIdentifiers: Set<String>
+    ) -> [WeatherNotificationCandidate] {
+        requests.map { request in
+            let userInfo = request.content.userInfo
+            let isImmediate = (userInfo["immediate"] as? Bool) ?? false
+            let isFrost = (userInfo["watch"] as? String) == "frost"
+            let isImmediateFrost = isImmediate && isFrost
+            let fireDate = request.trigger?.nextTriggerDate() ?? Date().addingTimeInterval(2)
+            let isPreserved = isImmediateFrost && pendingIdentifiers.contains(request.identifier)
+            return WeatherNotificationBudget.makeCandidate(
+                identifier: request.identifier,
+                locationID: locationID,
+                fireDate: fireDate,
+                isImmediateFrost: isImmediateFrost,
+                isSafetyCritical: (userInfo["safetyCritical"] as? Bool) ?? false,
+                isPreservedPendingCurrentFrost: isPreserved
+            )
+        }
+    }
+
     private static func makeEvents(hours: [HourForecast], currentTemperature: Int?, defaults: UserDefaults, frostDayKey: String) -> [Event] {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
