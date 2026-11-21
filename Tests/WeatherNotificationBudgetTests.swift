@@ -88,6 +88,28 @@ final class WeatherNotificationBudgetTests: XCTestCase {
         )
     }
 
+    func testPendingSnapshotCapacityExcludesForecastAndCountsExternalNamespaces() {
+        let pending = [
+            "regnvakt.weather.north.rain.20261121",
+            "smhi.warning.one",
+            "smhi.warning.two",
+            "unrelated.calendar.alert",
+            "another.app.alert"
+        ]
+        XCTAssertEqual(
+            WeatherNotificationBudget.availableForecastCapacity(pendingIdentifiers: pending),
+            34
+        )
+    }
+
+    func testPendingSnapshotCapacityClampsAtZeroWhenExternalQueueIsFull() {
+        let pending = (0..<60).map { "external.\\($0)" }
+        XCTAssertEqual(
+            WeatherNotificationBudget.availableForecastCapacity(pendingIdentifiers: pending),
+            0
+        )
+    }
+
     func testDocumentedAppPolicyProvidesExpectedInitialCapacity() {
         XCTAssertEqual(WeatherNotificationBudget.totalPendingBudget, 52)
         XCTAssertEqual(WeatherNotificationBudget.reservedHeadroom, 8)
