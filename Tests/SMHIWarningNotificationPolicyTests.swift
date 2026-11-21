@@ -17,6 +17,43 @@ final class SMHIWarningNotificationPolicyTests: XCTestCase {
         XCTAssertTrue(SMHIWarningNotificationPolicy.newlyActiveSignatures(current: ["a"], previous: ["a"], hasBaseline: true).isEmpty)
     }
 
+    func testActiveWarningTransitionDropsEndedWarningsFromBaseline() {
+        let transition = SMHIWarningNotificationPolicy.activeWarningTransition(
+            current: ["still-active"],
+            previous: ["still-active", "ended"],
+            hasBaseline: true
+        )
+        XCTAssertTrue(transition.newlyActive.isEmpty)
+        XCTAssertEqual(transition.retainedBaseline, ["still-active"])
+    }
+
+    func testReappearingWarningIsNewAfterItWasRemovedFromBaseline() {
+        let ended = SMHIWarningNotificationPolicy.activeWarningTransition(
+            current: [],
+            previous: ["warning-a"],
+            hasBaseline: true
+        )
+        XCTAssertTrue(ended.retainedBaseline.isEmpty)
+
+        let reappeared = SMHIWarningNotificationPolicy.activeWarningTransition(
+            current: ["warning-a"],
+            previous: ended.retainedBaseline,
+            hasBaseline: true
+        )
+        XCTAssertEqual(reappeared.newlyActive, ["warning-a"])
+        XCTAssertEqual(reappeared.retainedBaseline, ["warning-a"])
+    }
+
+    func testFirstActiveWarningObservationCreatesBaselineWithoutNotification() {
+        let transition = SMHIWarningNotificationPolicy.activeWarningTransition(
+            current: ["warning-a", "warning-b"],
+            previous: [],
+            hasBaseline: false
+        )
+        XCTAssertTrue(transition.newlyActive.isEmpty)
+        XCTAssertEqual(transition.retainedBaseline, ["warning-a", "warning-b"])
+    }
+
     func testParsesISO8601WithFractionalSeconds() {
         XCTAssertNotNil(SMHIWarningNotificationPolicy.parseDate("2026-11-21T10:15:30.123Z"))
     }
