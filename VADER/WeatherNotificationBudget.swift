@@ -149,6 +149,15 @@ enum WeatherNotificationBudget {
         })
     }
 
+    /// Selects every identifier owned by the Regnvakt forecast scheduler.
+    /// SMHI and unrelated notification namespaces are intentionally excluded.
+    static func forecastIdentifiers(
+        in identifiers: [String],
+        forecastPrefix: String = "regnvakt.weather."
+    ) -> [String] {
+        identifiers.filter { $0.hasPrefix(forecastPrefix) }
+    }
+
     /// Selects only this location's Regnvakt forecast identifiers.
     /// The trailing separator prevents coordinate-prefix collisions (e.g. 60_10
     /// must not match a location whose identifier begins with 60_100).
