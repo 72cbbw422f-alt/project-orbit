@@ -1479,3 +1479,12 @@ completionHandler([.banner, .sound, .list])
 - Push-triggern är begränsad till `main` för att undvika dubbla byggen för samma commit när utvecklingsgrenen redan ingår i en pull request.
 - Berörd fil: `.github/workflows/build.yml`.
 - **Verifiering:** Workflow-konfigurationen är committad och återläses i nästa kontroll. Själva GitHub Actions-körningen är ännu inte verifierad.
+
+## 2026-11-22 – Teknisk målbild för serverbaserade SMHI-pushnotiser
+
+- Skapade `docs/SERVER_PUSH_DESIGN.md` med föreslagen arkitektur för schemalagd SMHI-pollning, geografisk matchning, deduplicering, APNs, datamodell, integritet, säkerhet och felhantering.
+- Supabase Edge Functions + Postgres beskrivs som ett förslag, inte som ett valt eller driftsatt backend-system. Inget nytt konto eller någon extern tjänst har skapats.
+- Dokumentet skiljer på förberedelser före Apple Developer Program och implementation efter att APNs capability, nyckel och provisioning kan konfigureras.
+- Serverpush ska komplettera befintliga lokala notiser. Klienten ska inte innehålla APNs-hemligheter eller backendens service-role-nyckel.
+- **Berörda filer:** `docs/SERVER_PUSH_DESIGN.md`, `docs/DEVELOPMENT_LOG.md`.
+- **Verifiering:** Dokumenten är committade och ska läsas tillbaka från grenen. Ingen backendkod, APNs-konfiguration eller pushleverans är implementerad eller testad.
