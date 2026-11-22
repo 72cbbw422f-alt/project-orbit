@@ -302,17 +302,17 @@ enum SMHIWarningService {
         await checkAndNotify(at: [coordinate], generation: generation)
     }
 
-    static func checkAndNotify(at coordinates: [CLLocationCoordinate2D], generation: String) async {
+    static func checkAndNotify(at coordinates: [CLLocationCoordinate2D], generation: String) async -> Bool {
         let defaults = UserDefaults.standard
         let notificationEpoch = defaults.string(forKey: notificationEpochKey) ?? ""
-        guard isCurrentCheck(generation) else { return }
+        guard isCurrentCheck(generation) else { return false }
 
         // One SMHI payload is evaluated against every active monitored place.
         // This avoids repeated requests and prevents one place's empty result
         // from overwriting a warning found for another place.
         do {
             let current = try await warnings(at: coordinates)
-            guard isCurrentCheck(generation) else { return }
+            guard isCurrentCheck(generation) else { return false }
             let now = Date()
             // SMHI may publish a warning several hours before it starts.
             // Keep upcoming items visible in the warning feed, but never mark
@@ -367,7 +367,7 @@ enum SMHIWarningService {
             guard isCurrentCheck(generation) else { return }
             guard authorization.authorizationStatus == .authorized ||
                   authorization.authorizationStatus == .provisional ||
-                  authorization.authorizationStatus == .ephemeral else { return }
+                  authorization.authorizationStatus == .ephemeral else { return true }
 
             let key = "Regnvakt.smhi.warningSignatures.v1"
             let currentSignatures = Set(active.map { $0.id + "|" + $0.level + "|" + $0.title + "|" + $0.start })
@@ -412,7 +412,7 @@ enum SMHIWarningService {
             })
             let allPendingRequests = await center.pendingNotificationRequests()
             guard isCurrentCheck(generation),
-                  (defaults.string(forKey: notificationEpochKey) ?? "") == notificationEpoch else { return }
+                  (defaults.string(forKey: notificationEpochKey) ?? "") == notificationEpoch else { return false }
             let pendingSMHIRequests = allPendingRequests.filter { $0.identifier.hasPrefix("smhi.") }
             // Remove queued alerts that no longer affect any currently monitored
             // coordinate, including warnings that ended or belonged to a removed place.
@@ -430,7 +430,7 @@ enum SMHIWarningService {
             var queuedSMHIWarnings = 0
             for warning in prioritizedActive {
                 guard isCurrentCheck(generation),
-                      (defaults.string(forKey: notificationEpochKey) ?? "") == notificationEpoch else { return }
+                      (defaults.string(forKey: notificationEpochKey) ?? "") == notificationEpoch else { return false }
                 let signature = SMHIWarningNotificationPolicy.smhiEventFingerprint(warningID: warning.id, start: warning.start) ?? (warning.id + "|" + warning.start)
                 let identifier = notificationIdentifier(for: warning, epoch: notificationEpoch)
 
@@ -480,10 +480,12 @@ enum SMHIWarningService {
                 }
             }
 
+            return true
         } catch {
             defaults.set("Kunde inte uppdatera SMHI – senast kända status visas",
                          forKey: "Regnvakt.smhi.summary")
             // Preserve previous active state and signatures on fetch failure.
+            return false
         }
     }
     // Include the full warning signature in a deterministic, compact ID.
