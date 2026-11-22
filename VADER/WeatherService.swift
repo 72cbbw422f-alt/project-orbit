@@ -95,6 +95,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                 .compactMap(UUID.init(uuidString:))
         )
         let currentlyMonitoredPlaces = monitoredPlaces.filter { currentIDs.contains($0.id) }
+        var smhiRefreshSucceeded = false
         let monitoredCoordinates = currentlyMonitoredPlaces.map {
             CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
         }
@@ -107,7 +108,6 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
         }
 
         var refreshedCount = 0
-        var smhiRefreshSucceeded = false
         for place in currentlyMonitoredPlaces {
             guard !Task.isCancelled else { break }
             do {
