@@ -74,6 +74,48 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
         requestLocation()
     }
 
+    /// Opportunistic background refresh for explicitly monitored places.
+    /// iOS controls when this runs; it is not guaranteed after a user force-quits the app.
+    static func refreshMonitoredForecastsInBackground() async -> Bool {
+        let defaults = UserDefaults.standard
+        guard let placesData = defaults.data(forKey: "Regnvakt.savedPlaces.v1"),
+              let places = try? JSONDecoder().decode([SavedWeatherPlace].self, from: placesData),
+              let storedIDs = defaults.array(forKey: "Regnvakt.monitoredPlaces.v1") as? [String] else {
+            return false
+        }
+        let monitoredIDs = Set(storedIDs.compactMap(UUID.init(uuidString:)))
+        let monitoredPlaces = places.filter { monitoredIDs.contains($0.id) }
+        guard !monitoredPlaces.isEmpty else { return false }
+
+        var refreshedCount = 0
+        for place in monitoredPlaces {
+            do {
+                let forecast = try await OpenMeteoService.fetch(
+                    latitude: place.latitude,
+                    longitude: place.longitude
+                )
+                // The user may have disabled or removed this place while the
+                // background request was suspended. Re-read persisted selection.
+                let currentIDs = Set(
+                    (defaults.array(forKey: "Regnvakt.monitoredPlaces.v1") as? [String] ?? [])
+                        .compactMap(UUID.init(uuidString:))
+                )
+                guard currentIDs.contains(place.id) else { continue }
+                WeatherNotificationScheduler.refresh(
+                    place: place.name,
+                    latitude: place.latitude,
+                    longitude: place.longitude,
+                    hours: forecast.hours,
+                    currentTemperature: forecast.current.temperature
+                )
+                refreshedCount += 1
+            } catch {
+                // Preserve the last valid forecast and its already-scheduled requests.
+            }
+        }
+        return refreshedCount > 0
+    }
+
     func requestLocation() {
         switch manager.authorizationStatus {
         case .notDetermined:
