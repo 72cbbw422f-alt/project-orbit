@@ -833,11 +833,13 @@ enum WeatherNotificationScheduler {
                 ? 30 : max(0, defaults.integer(forKey: "Regnvakt.notifications.leadMinutes"))
             let quietSetting = defaults.string(forKey: "Regnvakt.notifications.quietHours") ?? "22–07"
             for event in active where !emittedTypes.contains(event.type) {
-                let plannedFireDate = event.date.addingTimeInterval(-Double(leadMinutes) * 60)
-                let immediateSafetyAlert = event.safetyCritical && plannedFireDate <= now.addingTimeInterval(30)
-                let fireDate = immediateSafetyAlert ? now.addingTimeInterval(2) : plannedFireDate
-                guard immediateSafetyAlert || fireDate > now.addingTimeInterval(30) else { continue }
-                guard event.safetyCritical || !WeatherWatchRules.isQuietTime(fireDate, setting: quietSetting) else { continue }
+                guard WeatherWatchRules.canScheduleForecastEvent(
+                    eventDate: event.date,
+                    safetyCritical: event.safetyCritical,
+                    leadMinutes: leadMinutes,
+                    now: now,
+                    quietHours: quietSetting
+                ) else { continue }
                 emittedTypes.insert(event.type)
                 result.append(event)
             }
