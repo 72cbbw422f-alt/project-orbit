@@ -25,7 +25,7 @@ enum SMHIWarningNotificationPolicy {
     static func smhiEventFingerprint(warningID: String?, start: String?) -> String? {
         guard let warningID, !warningID.isEmpty,
               let start, !start.isEmpty else { return nil }
-        return "smhi|\\(warningID)|\\(start)"
+        return "smhi|\(warningID)|\(start)"
     }
 
     /// Retains in-memory notification claims only while their warning remains active.
