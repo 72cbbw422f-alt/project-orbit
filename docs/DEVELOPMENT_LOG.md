@@ -1339,3 +1339,12 @@ completionHandler([.banner, .sound, .list])
 - Kodcommits: `aff843c4fdf2cad96ca340fb8f25931b1841bbbc`, `b6b91ead0e9d4fa651a41a83cc28f5d9a3029e10`, `77e2af68c53eee4f3b718fb151a893228af4400d`.
 - Verifiering: CI-körningar #745–#747 har startats för kodcommitsen och står i kö vid dokumentationstillfället. Senaste tidigare verifierade kodcommit `5da0f062` passerade 60 XCTest samt iOS Release-bygge och skapade unsigned IPA. Ingen fysisk iPhone-testning genomförd.
 - PR #1 förblir öppen som draft; ingen merge, ingen signerad IPA.
+
+
+## Rättning efter CI-kompileringsfel i SMHI-fingeravtryck – 2026-11-22
+
+- CI för commits `aff843c4`, `b6b91ead` och `77e2af68` visade ett kompileringsfel: XCTest och inkorgskoden anropade `smhiEventFingerprint`, men hjälpfunktionen hade inte kommit med i policyfilen. Detta var ett faktiskt kodfel, inte ett simulator- eller runnerfel.
+- Funktionen har nu lagts till i `VADER/SMHIWarningNotificationPolicy.swift`. Den returnerar en stabil identitet av SMHI-varnings-ID och starttid, och `nil` när obligatoriska identitetsfält saknas så att anroparen kan använda generell fallback.
+- Rättningscommit: `f9dbdae872c74aff72ee259b131ca4cf8c74d9ab`.
+- Verifiering: CI #749 har startats för rättningen och står i kö. #746–#748 misslyckades vid kompilering av testerna. Ingen IPA från den nya ändringen är verifierad. Senaste fullständigt godkända kod/IPA är fortfarande commit `5da0f062` (60 XCTest och unsigned IPA).
+- PR #1 förblir öppen som draft; ingen merge eller fysisk iPhone-testning.
