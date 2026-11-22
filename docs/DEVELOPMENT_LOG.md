@@ -1317,3 +1317,14 @@ completionHandler([.banner, .sound, .list])
 - Kodcommit: `b79e6387578cd48a3ab9fbc5265929d14d115046`.
 - Verifiering: CI för denna commit inväntas. Befintligt policytest för generationsjämförelse täcker den rena regeln, men actor-/notisflödet behöver fortfarande verifieras via CI och senare fysisk iPhone-testning.
 - PR #1 förblir öppen som draft. Ingen merge eller signerad IPA.
+
+
+## Frigör SMHI-notiskrav när varning upphör – 2026-11-22
+
+- Granskning av notis-gate:ns livscykel hittade att den persistenta signaturmängden begränsades till aktuella varningar, men den in-memory-mängd som blockerar dubbla schemaläggningar bara åldersrensades. En varning som upphörde kunde därför ligga kvar som redan schemalagd i minnet och blockera ett nytt försök om samma varningssignatur senare återkom.
+- Gate:ns aktiva schemaläggningsanspråk filtreras nu mot den aktuella mängden aktiva signaturer vid varje förberedelse. Inaktiva anspråk frigörs samtidigt som nyligen accepterade, fortfarande aktiva varningar fortsätter skyddas mot dubbletter.
+- Ren policyfunktion tillagd för filtreringen samt XCTest som verifierar att en avslutad signatur släpps ur anspråksmängden.
+- Berörda filer: `VADER/SMHIWarningNotificationPolicy.swift`, `VADER/NotificationInboxView.swift`, `Tests/SMHIWarningNotificationPolicyTests.swift`, `docs/DEVELOPMENT_LOG.md`.
+- Kodcommits: b079914997de84db49b14a6be585605523733a31, e55d1b1fb1ac4f6bd719833886e1a39e0f74e212 och 5da0f062a584f4b62537bac48dc56c2e5ed7fb1a. Dokumentationscommit tillkommer.
+- Verifiering: CI startas av de nya kodcommitsen. Senast tidigare verifierade kodcommit b79e6387 hade 59/59 XCTest och fullständig Release/IPA-kedja. Ingen fysisk iPhone-testning genomförd.
+- PR #1 förblir öppen som draft; ingen merge eller signerad IPA.
