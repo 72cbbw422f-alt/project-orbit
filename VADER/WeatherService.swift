@@ -87,8 +87,28 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
         let monitoredPlaces = places.filter { monitoredIDs.contains($0.id) }
         guard !monitoredPlaces.isEmpty else { return false }
 
+        // Check official warnings first: BGAppRefresh has a limited execution
+        // window, and SMHI alerts must not wait behind multiple forecast requests.
+        guard !Task.isCancelled else { return false }
+        let currentIDs = Set(
+            (defaults.array(forKey: "Regnvakt.monitoredPlaces.v1") as? [String] ?? [])
+                .compactMap(UUID.init(uuidString:))
+        )
+        let currentlyMonitoredPlaces = monitoredPlaces.filter { currentIDs.contains($0.id) }
+        let monitoredCoordinates = currentlyMonitoredPlaces.map {
+            CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
+        }
+        if !monitoredCoordinates.isEmpty {
+            let generation = SMHIWarningService.beginCheck()
+            await SMHIWarningService.checkAndNotify(
+                at: monitoredCoordinates,
+                generation: generation
+            )
+        }
+
         var refreshedCount = 0
-        for place in monitoredPlaces {
+        for place in currentlyMonitoredPlaces {
+            guard !Task.isCancelled else { break }
             do {
                 let forecast = try await OpenMeteoService.fetch(
                     latitude: place.latitude,
@@ -96,11 +116,11 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                 )
                 // The user may have disabled or removed this place while the
                 // background request was suspended. Re-read persisted selection.
-                let currentIDs = Set(
+                let latestIDs = Set(
                     (defaults.array(forKey: "Regnvakt.monitoredPlaces.v1") as? [String] ?? [])
                         .compactMap(UUID.init(uuidString:))
                 )
-                guard currentIDs.contains(place.id) else { continue }
+                guard latestIDs.contains(place.id) else { continue }
                 WeatherNotificationScheduler.refresh(
                     place: place.name,
                     latitude: place.latitude,
@@ -113,22 +133,6 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                 // Preserve the last valid forecast and its already-scheduled requests.
             }
         }
-
-        // Background refresh must check official warnings as well as forecast risks.
-        // One SMHI request is evaluated against every explicitly monitored place,
-        // using the same generation gate as foreground checks.
-        guard !Task.isCancelled else { return refreshedCount > 0 }
-        let monitoredCoordinates = monitoredPlaces.map {
-            CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
-        }
-        if !monitoredCoordinates.isEmpty {
-            let generation = SMHIWarningService.beginCheck()
-            await SMHIWarningService.checkAndNotify(
-                at: monitoredCoordinates,
-                generation: generation
-            )
-        }
-
         return refreshedCount > 0
     }
 
