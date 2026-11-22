@@ -20,6 +20,23 @@ final class SMHIWarningNotificationPolicyTests: XCTestCase {
         XCTAssertNotEqual(first, separateEpisode)
     }
 
+    func testSeverityOrWordingChangeDoesNotCreateNewWarningEpisode() {
+        // The mutable presentation fields are deliberately excluded from the
+        // event fingerprint, so a severity/title update remains the same episode.
+        let beforeUpdate = SMHIWarningNotificationPolicy.smhiEventFingerprint(
+            warningID: "warning-42-area-7", start: "2026-11-22T08:00:00Z"
+        )!
+        let afterUpdate = SMHIWarningNotificationPolicy.smhiEventFingerprint(
+            warningID: "warning-42-area-7", start: "2026-11-22T08:00:00Z"
+        )!
+        let transition = SMHIWarningNotificationPolicy.activeWarningTransition(
+            current: [afterUpdate], previous: [beforeUpdate], hasBaseline: true
+        )
+
+        XCTAssertTrue(transition.newlyActive.isEmpty)
+        XCTAssertEqual(transition.retainedBaseline, [beforeUpdate])
+    }
+
     func testSMHIInboxFingerprintRejectsMissingIdentity() {
         XCTAssertNil(SMHIWarningNotificationPolicy.smhiEventFingerprint(warningID: nil, start: "2026-11-22T08:00:00Z"))
         XCTAssertNil(SMHIWarningNotificationPolicy.smhiEventFingerprint(warningID: "warning-42", start: nil))
