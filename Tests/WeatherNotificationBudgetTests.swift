@@ -18,6 +18,52 @@ final class WeatherNotificationBudgetTests: XCTestCase {
     }
 
 
+    func testSafetyCriticalEventIsDeliveredImmediatelyWhenLeadTimeHasPassed() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let event = now.addingTimeInterval(10 * 60)
+        XCTAssertTrue(WeatherNotificationBudget.shouldDeliverImmediately(
+            alreadyImmediate: false,
+            safetyCritical: true,
+            eventDate: event,
+            leadMinutes: 30,
+            now: now
+        ))
+    }
+
+    func testSafetyCriticalEventRemainsScheduledWhenLeadTimeIsInFuture() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let event = now.addingTimeInterval(90 * 60)
+        XCTAssertFalse(WeatherNotificationBudget.shouldDeliverImmediately(
+            alreadyImmediate: false,
+            safetyCritical: true,
+            eventDate: event,
+            leadMinutes: 30,
+            now: now
+        ))
+    }
+
+    func testRoutineForecastEventIsNotPromotedToImmediate() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        XCTAssertFalse(WeatherNotificationBudget.shouldDeliverImmediately(
+            alreadyImmediate: false,
+            safetyCritical: false,
+            eventDate: now.addingTimeInterval(10 * 60),
+            leadMinutes: 30,
+            now: now
+        ))
+    }
+
+    func testExplicitImmediateEventStaysImmediate() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        XCTAssertTrue(WeatherNotificationBudget.shouldDeliverImmediately(
+            alreadyImmediate: true,
+            safetyCritical: true,
+            eventDate: now,
+            leadMinutes: 30,
+            now: now
+        ))
+    }
+
     func testCandidateMetadataPrioritizesImmediateFrostThenSafetyThenForecast() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let immediate = WeatherNotificationBudget.makeCandidate(
