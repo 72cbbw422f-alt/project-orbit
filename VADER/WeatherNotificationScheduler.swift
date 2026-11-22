@@ -824,10 +824,21 @@ enum WeatherNotificationScheduler {
                 }
             }
 
-            // Emit at most one alert per risk type during this eight-hour
-            // forecast window. Short gaps in hourly model data must not create
-            // a second near-identical warning for the same ongoing episode.
-            for event in active where emittedTypes.insert(event.type).inserted {
+            // Emit the first *schedulable* alert per risk type. Previously the
+            // first matching hour claimed the type before lead-time and quiet-hour
+            // filtering in makeRequests. If that first trigger was already in the
+            // past, every later hour of the same rain/wind/snow episode was lost.
+            // Evaluate the same scheduling gates here before consuming the type.
+            let leadMinutes = defaults.object(forKey: "Regnvakt.notifications.leadMinutes") == nil
+                ? 30 : max(0, defaults.integer(forKey: "Regnvakt.notifications.leadMinutes"))
+            let quietSetting = defaults.string(forKey: "Regnvakt.notifications.quietHours") ?? "22–07"
+            for event in active where !emittedTypes.contains(event.type) {
+                let plannedFireDate = event.date.addingTimeInterval(-Double(leadMinutes) * 60)
+                let immediateSafetyAlert = event.safetyCritical && plannedFireDate <= now.addingTimeInterval(30)
+                let fireDate = immediateSafetyAlert ? now.addingTimeInterval(2) : plannedFireDate
+                guard immediateSafetyAlert || fireDate > now.addingTimeInterval(30) else { continue }
+                guard event.safetyCritical || !WeatherWatchRules.isQuietTime(fireDate, setting: quietSetting) else { continue }
+                emittedTypes.insert(event.type)
                 result.append(event)
             }
 
