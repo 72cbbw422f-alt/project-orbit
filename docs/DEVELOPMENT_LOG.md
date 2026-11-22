@@ -1496,3 +1496,13 @@ completionHandler([.banner, .sound, .list])
 - Därför kan PR-grenens ändring inte ensam aktivera den avsedda PR-körningen. Att lägga till triggern kräver en separat ändring i målgrenen eller en annan godkänd CI-väg.
 - **Åtgärd:** Ingen ändring gjordes i `feature/wind-radar`; grenen lämnas orörd tills ändringen är godkänd/integrerad där.
 - **Verifiering:** Läste båda versionerna av workflow-filen från GitHub. Ingen körning eller byggstatus kunde bekräftas via tillgängliga GitHub-resultat.
+
+
+## 2026-11-22 – Korrekt resultat från SMHI-bakgrundskontroll
+
+- `SMHIWarningService.checkAndNotify(at:generation:)` returnerar nu `Bool`: `true` när SMHI:s platsbaserade varningspayload har hämtats och behandlats, även om notiser är avstängda eller saknar behörighet. Den returnerar `false` vid avbruten/inaktuell kontroll eller fel i den primära SMHI-hämtningen.
+- `WeatherViewModel.refreshMonitoredForecastsInBackground()` räknar nu en lyckad SMHI-kontroll som ett lyckat bakgrundsjobb även om Open-Meteo-prognosen för samtliga bevakade platser misslyckas. En misslyckad SMHI-kontroll räknas däremot inte som lyckad bara för att platslistan finns.
+- Ändringen påverkar iOS:s rapportering via `BGTask.setTaskCompleted(success:)`; den gör inte iOS:s schemaläggning garanterad och ersätter inte serverbaserad APNs-push. Tvångsavslut av appen kan fortfarande stoppa bakgrundsuppdateringar.
+- **Berörda filer:** `VADER/NotificationInboxView.swift`, `VADER/WeatherService.swift`, `docs/DEVELOPMENT_LOG.md`.
+- **Tester:** Kodvägarna har lästs tillbaka från GitHub och kontrollerats för Bool-returer samt variabelordning. XCTest, Xcode-build och fysisk iPhone-test är ännu inte körda/verifierade i denna arbetsomgång.
+- **Kvarstående:** Kör CI/build när PR-triggern kan aktiveras från målgrenen eller via godkänd alternativ väg. Verifiera sedan bakgrundskörning med SMHI lyckad/Open-Meteo misslyckad, båda lyckade, samt SMHI-fel. Kontrollera också att användarens inställningar för SMHI-notiser inte påverkar rapporteringen av en lyckad datahämtning.
