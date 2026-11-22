@@ -1,6 +1,27 @@
 import XCTest
 
 final class SMHIWarningNotificationPolicyTests: XCTestCase {
+    func testEndedWarningReleasesItsInMemoryNotificationClaim() {
+        let scheduled: Set<String> = ["still-active", "ended"]
+        let current: Set<String> = ["still-active"]
+
+        let retained = SMHIWarningNotificationPolicy.retainedScheduledSignatures(
+            scheduled: scheduled,
+            current: current
+        )
+
+        XCTAssertEqual(retained, ["still-active"])
+        XCTAssertFalse(retained.contains("ended"))
+
+        // If the same warning later reappears, it is no longer blocked by
+        // an in-memory claim from its previous active episode.
+        let reappeared = SMHIWarningNotificationPolicy.retainedScheduledSignatures(
+            scheduled: retained,
+            current: ["still-active", "ended"]
+        )
+        XCTAssertFalse(reappeared.contains("ended"))
+    }
+
     func testFirstObservationEstablishesBaselineWithoutNotifyingExistingWarnings() {
         XCTAssertTrue(SMHIWarningNotificationPolicy.newlyActiveSignatures(current: ["a", "b"], previous: [], hasBaseline: false).isEmpty)
     }
