@@ -671,6 +671,11 @@ struct NotificationInboxView: View {
                     ForEach(warnings) { warning in
                         VStack(alignment: .leading, spacing: 9) {
                             HStack { Text(warning.level.uppercased()).font(.system(size: 15, weight: .black)).tracking(0.8).foregroundStyle(warning.color); Spacer(); Text("SMHI").font(.system(size: 15, weight: .bold)).foregroundStyle(.white.opacity(0.6)) }
+                            if let startDate = SMHIWarningNotificationPolicy.parseDate(warning.start) {
+                                Text(startDate > Date() ? "KOMMANDE VARNING" : "AKTIV VARNING")
+                                    .font(.system(size: 12, weight: .heavy)).tracking(0.7)
+                                    .foregroundStyle(startDate > Date() ? .cyan : .green)
+                            }
                             Text(warning.title).font(.system(size: 19, weight: .bold)).foregroundStyle(.white)
                             Label(warning.area, systemImage: "mappin.and.ellipse").font(.system(size: 15, weight: .semibold)).foregroundStyle(cyan)
                             if !warning.description.isEmpty { Text(warning.description).font(.system(size: 15)).foregroundStyle(.white.opacity(0.85)) }
@@ -720,13 +725,16 @@ struct NotificationInboxView: View {
                         }.padding(11).frame(maxWidth: .infinity, alignment: .leading).background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 12))
                     }
                     HStack {
-                        Text("SENASTE AVISERINGAR").font(.system(size: 16, weight: .heavy)).tracking(1).foregroundStyle(cyan)
+                        Text("HISTORIK – LEVERERADE AVISERINGAR").font(.system(size: 16, weight: .heavy)).tracking(1).foregroundStyle(cyan)
                         Spacer()
                         if !delivered.isEmpty {
                             Button("Rensa alla") { clearDelivered() }
                                 .font(.system(size: 16, weight: .bold)).foregroundStyle(.orange)
                         }
                     }.padding(.top, 4)
+                    Text("Det här är aviseringar som redan har levererats av iPhone. De visar tidigare händelser och betyder inte att SMHI-varningen fortfarande är aktiv.")
+                        .font(.system(size: 14)).foregroundStyle(.white.opacity(0.58))
+                        .fixedSize(horizontal: false, vertical: true)
                     if delivered.isEmpty { emptyCard("Inga levererade aviseringar ännu.", icon: "bell") }
                     ForEach(delivered, id: \.request.identifier) { item in
                         HStack(spacing: 8) {
