@@ -1527,3 +1527,14 @@ completionHandler([.banner, .sound, .list])
 - **Test:** Ett XCTest har lagts till för att verifiera att samma varningsområdesidentitet och starttid inte blir en ny händelse vid ändrad presentation. Testet är tillagt men ännu inte kört i Xcode/CI.
 - **Migreringsnotering:** Äldre sparade baslinjer med formatet nivå/rubrik/start matchar inte det nya fingeravtrycket. En redan aktiv varning kan därför i vissa installationer ge en engångsnotis efter uppdateringen; därefter används stabil identitet.
 - **Status:** Kod och test är committade på `feature/frost-notification-audit`. Ingen merge, IPA eller fysisk iPhone-verifiering.
+
+
+## 2026-11-22 – Stabiliserad upptäckt av nya nationella SMHI-varningar
+
+- Uppföljande granskning hittade samma identitetsproblem i den nationella varningsöversikten: nya varningar jämfördes med en signatur som innehöll nivå och rubrik.
+- När SMHI uppdaterade nivå eller formulering kunde en redan känd nationell varning därför markeras som ny igen och aktivera indikatorn för nya nationella varningar.
+- Nationell jämförelse använder nu samma stabila fingeravtryck (varningsområdets ID + starttid) som lokal SMHI-notisschemaläggning.
+- Uppdaterade även en missvisande kodkommentar om hur notis-ID hanterar rubrikändringar.
+- **Berörd fil:** `VADER/NotificationInboxView.swift`.
+- **Verifiering:** Ändringen har lästs tillbaka och strukturellt kontrollerats. Befintliga XCTest täcker stabilt fingeravtryck, men XCTest/CI/build är ännu inte körda efter denna commit.
+- **Status:** Committad på `feature/frost-notification-audit`; ingen merge, IPA eller fysisk iPhone-verifiering.
