@@ -1439,3 +1439,9 @@ completionHandler([.banner, .sound, .list])
 - Ändrade inte risktrösklar, horisont, budget eller notisbehörigheter.
 - **Verifiering:** Kod och testfall är committade. XCTest/Release-build och IPA efter dessa ändringar är ännu inte verifierade. Ingen fysisk iPhone-testning.
 
+## 2026-11-22 – Utökad gränstestning av notispolicy
+
+- Lade till XCTest för exakt minsta framförhållningsgräns samt för rutinavisering utanför ett tystnadsfönster som passerar midnatt.
+- Byggworkflowen i `.github/workflows/build.yml` triggas av push till `feature/frost-notification-audit`. Ny testcommit skickad för att starta den workflowen.
+- **Verifiering:** Commit finns på utvecklingsgrenen. Workflow-resultat och XCTest är ännu inte bekräftade.
+
