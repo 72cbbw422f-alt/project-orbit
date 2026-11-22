@@ -1445,3 +1445,10 @@ completionHandler([.banner, .sound, .list])
 - Byggworkflowen i `.github/workflows/build.yml` triggas av push till `feature/frost-notification-audit`. Ny testcommit skickad för att starta den workflowen.
 - **Verifiering:** Commit finns på utvecklingsgrenen. Workflow-resultat och XCTest är ännu inte bekräftade.
 
+## 2026-11-22 – Robust simulatorval i CI
+
+- Föregående dokumentation visar att CI #769 stoppade före XCTest eftersom den hårdkodade simulatorn `iPhone 16` saknades på GitHub-runnern.
+- Byggworkflowen väljer nu en tillgänglig iPhone-simulator dynamiskt via `simctl list devices available --json` och skickar simulatorns UDID till `xcodebuild`.
+- Ändringen är begränsad till testdestinationen; Release-bygget och IPA-paketeringen är oförändrade.
+- Berörd fil i denna ändring: `.github/workflows/build.yml`.
+- Verifiering: workflow-filen har lästs tillbaka från utvecklingsgrenen och den dynamiska destinationen finns på plats. Ingen ny CI-körning eller XCTest-resultat har kunnat bekräftas ännu; IPA är inte verifierad.
