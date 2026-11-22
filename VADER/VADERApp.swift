@@ -1,6 +1,57 @@
 import SwiftUI
 import BackgroundTasks
 import UserNotifications
+import UIKit
+
+@MainActor
+final class RegnvaktAppDelegate: NSObject, UIApplicationDelegate {
+    private static let weatherRefreshIdentifier = "app.walnut8211.vadra.weather-refresh"
+
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        UNUserNotificationCenter.current().delegate = RegnvaktNotificationDelegate.shared
+        BGTaskScheduler.shared.register(
+            forTaskWithIdentifier: Self.weatherRefreshIdentifier,
+            using: nil
+        ) { task in
+            guard let refreshTask = task as? BGAppRefreshTask else {
+                task.setTaskCompleted(success: false)
+                return
+            }
+            self.handle(refreshTask)
+        }
+        scheduleNextWeatherRefresh()
+        return true
+    }
+
+    func applicationDidEnterBackground(_ application: UIApplication) {
+        scheduleNextWeatherRefresh()
+    }
+
+    private func scheduleNextWeatherRefresh() {
+        let request = BGAppRefreshTaskRequest(identifier: Self.weatherRefreshIdentifier)
+        request.earliestBeginDate = Date(timeIntervalSinceNow: 30 * 60)
+        do {
+            try BGTaskScheduler.shared.submit(request)
+        } catch {
+            // iOS may reject or defer refresh requests. Existing local alerts
+            // remain scheduled independently of this opportunistic refresh.
+        }
+    }
+
+    private func handle(_ task: BGAppRefreshTask) {
+        scheduleNextWeatherRefresh()
+        let refresh = Task { @MainActor in
+            let succeeded = await WeatherViewModel.refreshMonitoredForecastsInBackground()
+            task.setTaskCompleted(success: succeeded)
+        }
+        task.expirationHandler = {
+            refresh.cancel()
+        }
+    }
+}
 
 @MainActor
 final class RegnvaktNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
@@ -34,9 +85,7 @@ final class RegnvaktNotificationDelegate: NSObject, UNUserNotificationCenterDele
 
 @main
 struct VADERApp: App {
-    init() {
-        UNUserNotificationCenter.current().delegate = RegnvaktNotificationDelegate.shared
-    }
+    @UIApplicationDelegateAdaptor(RegnvaktAppDelegate.self) private var appDelegate
 
     var body: some Scene {
         WindowGroup {
