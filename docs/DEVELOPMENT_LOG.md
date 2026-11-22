@@ -1463,7 +1463,7 @@ completionHandler([.banner, .sound, .list])
 
 ## 2026-11-22 – SMHI-kontroll i bakgrundsuppdatering
 
-- `WeatherViewModel.refreshMonitoredForecastsInBackground()` hämtar nu officiella SMHI-varningar efter prognosuppdateringen.
+- `WeatherViewModel.refreshMonitoredForecastsInBackground()` kontrollerar nu officiella SMHI-varningar före Open-Meteo-hämtningarna, så att varningarna prioriteras inom bakgrundsuppgiftens begränsade körtid.
 - SMHI kontrolleras i en gemensam begäran mot samtliga uttryckligen bevakade koordinater; befintlig `beginCheck()`/generationskontroll används för att ogiltigförklara äldre svar.
 - Kontroll av SMHI körs även om en eller flera Open-Meteo-hämtningar misslyckas, så länge bakgrundsuppgiften inte har avbrutits och det finns bevakade platser.
 - Befintlig deduplicering, aktiv-varning-baseline, behörighetskontroll och åttaplatsereserv i `SMHIWarningService` återanvänds; ingen separat notifieringsväg har införts.
