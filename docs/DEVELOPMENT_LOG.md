@@ -1395,3 +1395,12 @@ completionHandler([.banner, .sound, .list])
 - Berörda filer: `VADER/VADERApp.swift`, `VADER/WeatherService.swift`, `project.yml`.
 - Viktig plattformsbegränsning: iOS bestämmer själv när en BGAppRefreshTask körs. Det är opportunistiskt, inte en realtids- eller leveransgaranti. iOS kör normalt inte appens bakgrundsuppgifter efter att användaren tvångsavslutat appen. Redan schemalagda lokala notiser ska däremot kunna levereras oberoende av appens körstatus.
 - Verifiering: CI för ändringarna inväntas. Kräver fysisk iPhone-testning med appen i bakgrunden och efter tvångsavslut för att bekräfta plattformsbeteendet.
+
+
+## Rättning av XcodeGen-konfiguration för bakgrundsuppdatering – 2026-11-22
+
+- CI #766 och #767 stoppade vid `xcodegen generate` med `Decoding failed at "path": Nothing found`. Felet kom av att XcodeGen kräver en Info.plist-sökväg i targetens `info`-objekt; enbart `properties` är inte giltig struktur i den använda versionen.
+- Targeten pekar nu på den befintliga `VADER/Info.plist`, som innehåller `BGTaskSchedulerPermittedIdentifiers` och `UIBackgroundModes: fetch`.
+- Berörda filer: `project.yml`. `VADER/Info.plist` fanns redan med rätt deklarationer och återanvänds.
+- CI #765 (app delegate) och #764 (bakgrundsuppdatering) passerade på sina respektive commits. #760 stoppades av att testet kördes mot en mellanliggande commit före tillägget av `shouldDeliverImmediately`; den senare committen med hjälpfunktionen och testerna passerade separata körningar #761 och #762.
+- Rättning av XcodeGen-strukturen kräver ny fullständig CI-körning. Ingen ny IPA verifierad och ingen fysisk iPhone-testning genomförd.
