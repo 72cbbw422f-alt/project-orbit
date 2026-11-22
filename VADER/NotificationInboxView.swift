@@ -765,6 +765,15 @@ struct NotificationInboxView: View {
         let info = content.userInfo
         let watch = (info["watch"] as? String) ?? content.title
         let place = (info["place"] as? String) ?? ""
+        if watch == "smhi",
+           let fingerprint = SMHIWarningNotificationPolicy.smhiEventFingerprint(
+                warningID: info["warningID"] as? String,
+                start: info["start"] as? String
+           ) {
+            // SMHI title/body and severity can change during an active warning.
+            // Deduplicate by official warning-area identity and start instead.
+            return fingerprint
+        }
         if watch == "frost" || watch == "ice" {
             // Frost and ice alerts repeated across forecast refreshes describe
             // one safety episode per place and Swedish calendar day.
