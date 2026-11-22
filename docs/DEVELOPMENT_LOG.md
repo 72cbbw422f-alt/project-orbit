@@ -1375,3 +1375,13 @@ completionHandler([.banner, .sound, .list])
 - Berörd kodfil: `VADER/NotificationInboxView.swift`. Befintlig policyfunktion i `VADER/SMHIWarningNotificationPolicy.swift` återanvänds. Befintliga XCTest för stabil identitet täcker att olika områden och olika starttider hålls åtskilda.
 - Notering vid uppgradering: tidigare sparade signaturer med den äldre nivån/rubrik-baserade formen matchar inte den nya formen. En aktiv varning kan därför i vissa fall kvalificera sig för en engångsnotis efter uppdateringen. Därefter används den stabila identiteten.
 - Verifiering: kodändringen är incheckad; CI och IPA för den nya committen inväntas. Ingen fysisk iPhone-testning.
+
+## Halkrisk som redan nått förvarningstid – 2026-11-22
+
+- Användarens symptom: ingen halknotis när appen är stängd, men en färsk halknotis dyker upp när appen öppnas.
+- Källgranskning visade att prognosbaserade frost-/isnotiser beräknade aviseringsögonblicket som händelsetid minus vald förvarning. Om den tidpunkten redan hade passerat (eller låg inom 30 sekunder) kastades händelsen bort, även när det var en säkerhetskritisk frost-/halkrisk.
+- Ny policy gör att säkerhetskritiska händelser vars förvarningstid redan passerat schemaläggs omedelbart som lokal iOS-notis. Vanliga prognosnotiser påverkas inte. Omedelbar identitet använder händelsens svenska kalenderdag så uppdaterade prognoser inte skapar en ny dubblett samma dag.
+- Tillagd ren policyfunktion och fyra XCTest för passerad förvarningstid, framtida förvarningstid, vanliga prognoser och redan omedelbara händelser.
+- Berörda filer: `VADER/WeatherNotificationScheduler.swift`, `VADER/WeatherNotificationBudget.swift`, `Tests/WeatherNotificationBudgetTests.swift`, `docs/DEVELOPMENT_LOG.md`.
+- Begränsning: appen saknar fortfarande en registrerad opportunistisk bakgrundsuppdatering. iOS kan leverera redan schemalagda lokala notiser när appen är stängd, men appen kan inte upptäcka helt nya prognosändringar efter att den slutat köras utan bakgrundskörning. iOS garanterar inte heller bakgrundskörning efter att användaren tvångsavslutat appen.
+- Verifiering: ändringen är incheckad; CI och ny IPA inväntas. Fysisk iPhone-testning krävs för att bekräfta leverans i låst/stängd app.
