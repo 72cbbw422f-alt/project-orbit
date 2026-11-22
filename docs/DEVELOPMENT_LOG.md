@@ -1328,3 +1328,14 @@ completionHandler([.banner, .sound, .list])
 - Kodcommits: b079914997de84db49b14a6be585605523733a31, e55d1b1fb1ac4f6bd719833886e1a39e0f74e212 och 5da0f062a584f4b62537bac48dc56c2e5ed7fb1a. Dokumentationscommit tillkommer.
 - Verifiering: CI startas av de nya kodcommitsen. Senast tidigare verifierade kodcommit b79e6387 hade 59/59 XCTest och fullständig Release/IPA-kedja. Ingen fysisk iPhone-testning genomförd.
 - PR #1 förblir öppen som draft; ingen merge eller signerad IPA.
+
+
+## Stabil SMHI-identitet i notishistoriken – 2026-11-22
+
+- Granskning av `eventFingerprint` visade att SMHI-notiser föll tillbaka på rubrik och brödtext. Eftersom text och varningsnivå kan ändras under samma varningsförlopp kunde en och samma SMHI-varning visas flera gånger, samtidigt som två olika varningar med identisk text riskerade att slås ihop.
+- SMHI-poster dedupliceras nu med den officiella varningsområdesidentiteten (`warningID`) och starttid (`start`). Severity och notifieringstext påverkar inte längre identiteten. Saknas identitetsfält används befintlig generell fallback.
+- Ren policyfunktion tillagd med tester för samma varning efter text-/nivåändring, separat område, separat varningsepisod och saknad identitet.
+- Berörda filer: `VADER/SMHIWarningNotificationPolicy.swift`, `VADER/NotificationInboxView.swift`, `Tests/SMHIWarningNotificationPolicyTests.swift`, `docs/DEVELOPMENT_LOG.md`.
+- Kodcommits: `aff843c4fdf2cad96ca340fb8f25931b1841bbbc`, `b6b91ead0e9d4fa651a41a83cc28f5d9a3029e10`, `77e2af68c53eee4f3b718fb151a893228af4400d`.
+- Verifiering: CI-körningar #745–#747 har startats för kodcommitsen och står i kö vid dokumentationstillfället. Senaste tidigare verifierade kodcommit `5da0f062` passerade 60 XCTest samt iOS Release-bygge och skapade unsigned IPA. Ingen fysisk iPhone-testning genomförd.
+- PR #1 förblir öppen som draft; ingen merge, ingen signerad IPA.
