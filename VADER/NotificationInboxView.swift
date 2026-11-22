@@ -379,7 +379,12 @@ enum SMHIWarningService {
                   authorization.authorizationStatus == .ephemeral else { return true }
 
             let key = "Regnvakt.smhi.warningSignatures.v1"
-            let currentSignatures = Set(active.map { $0.id + "|" + $0.level + "|" + $0.title + "|" + $0.start })
+            // Baseline identity must match the stable event fingerprint used by
+            // notification IDs. Severity and wording can change during one SMHI
+            // episode and must not turn that same warning into a second alert.
+            let currentSignatures = Set(active.compactMap {
+                SMHIWarningNotificationPolicy.smhiEventFingerprint(warningID: $0.id, start: $0.start)
+            })
             let persistedSignatures = Set(defaults.stringArray(forKey: key) ?? [])
             // The actor serializes claims across overlapping refreshes. A warning
             // is claimed before awaiting UNUserNotificationCenter.add, preventing
@@ -400,9 +405,11 @@ enum SMHIWarningService {
             // Existing active warnings are retained in the feed, but only a
             // warning newly observed since the baseline can create a new alert.
             // This prevents app activation from replaying an old active warning.
-            let newlyActive = active.filter {
-                currentSignatures.contains($0.id + "|" + $0.level + "|" + $0.title + "|" + $0.start)
-                    && newlyActiveSignatures.contains($0.id + "|" + $0.level + "|" + $0.title + "|" + $0.start)
+            let newlyActive = active.filter { warning in
+                guard let signature = SMHIWarningNotificationPolicy.smhiEventFingerprint(
+                    warningID: warning.id, start: warning.start
+                ) else { return false }
+                return newlyActiveSignatures.contains(signature)
             }
             // SMHI notifications are an eight-request reserve inside the app's
             // local-notification headroom. Severity is sorted red, orange, yellow;
