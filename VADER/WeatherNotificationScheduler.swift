@@ -193,10 +193,13 @@ enum WeatherNotificationScheduler {
 
         var requestsByID: [String: UNNotificationRequest] = [:]
         var candidates: [WeatherNotificationCandidate] = []
+        var freshForecastCount = 0
+        var staleForecastCount = 0
         for stored in registry.values.sorted(by: { $0.locationID < $1.locationID }) {
             guard isCurrentBatch() else { return }
             let age = Date().timeIntervalSince(stored.savedAt)
             let fresh = age >= 0 && age <= 2 * 60 * 60
+            if fresh { freshForecastCount += 1 } else { staleForecastCount += 1 }
             let liveTemperature = allowImmediateCurrentFrost &&
                 stored.locationID == immediateFrostLocationID && fresh ? stored.currentTemperature : nil
             let requests = makeRequests(
@@ -262,16 +265,17 @@ enum WeatherNotificationScheduler {
         let finalCount = finalPending.filter { $0.identifier.hasPrefix(prefix) }.count
         defaults.set(finalCount, forKey: scheduledCountKey)
         defaults.set(Date().timeIntervalSince1970, forKey: scheduleUpdatedKey)
-        let finalStatus: String
+        let outcome: String
         if schedulingFailureCount > 0 {
-            let detail = firstSchedulingError.map { ": \($0)" } ?? ""
-            finalStatus = "\(schedulingFailureCount) väderavisering(ar) kunde inte schemaläggas\(detail)"
+            let detail = firstSchedulingError.map { ": \\($0)" } ?? ""
+            outcome = "\\(schedulingFailureCount) väderavisering(ar) kunde inte schemaläggas\\(detail)"
         } else if finalCount == 0 {
-            finalStatus = "Inga framtida risker passerade aviseringsgränserna"
+            outcome = "Inga kommande vädernotiser schemalagda"
         } else {
-            finalStatus = "\(finalCount) väderavisering(ar) schemalagda i iPhone"
+            outcome = "\\(finalCount) väderavisering(ar) schemalagda i iPhone"
         }
-        defaults.set(finalStatus, forKey: scheduleStatusKey)
+        let diagnostics = "\\(registry.count) bevakade platser • \\(freshForecastCount) färska prognoser • \\(staleForecastCount) för gamla prognoser • \\(candidates.count) riskhändelser • \\(selectedIDs.count) valda"
+        defaults.set("\\(outcome) • \\(diagnostics)", forKey: scheduleStatusKey)
     }
 
     static func removeAll() {
