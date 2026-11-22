@@ -629,6 +629,7 @@ struct NotificationInboxView: View {
     @State private var pending: [UNNotificationRequest] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var loadGeneration = UUID()
     private let cyan = Color(red: 0.04, green: 0.78, blue: 0.98)
 
     var body: some View {
@@ -799,17 +800,30 @@ struct NotificationInboxView: View {
     }
 
     @MainActor private func load() async {
+        let generation = UUID()
+        loadGeneration = generation
         isLoading = true
         errorMessage = nil
+
         if let coordinate {
-            do { warnings = try await SMHIWarningService.warnings(at: coordinate) }
-            catch { errorMessage = "Kunde inte hämta SMHI-varningar. Kontrollera anslutningen och försök igen." }
+            do {
+                let refreshedWarnings = try await SMHIWarningService.warnings(at: coordinate)
+                guard loadGeneration == generation else { return }
+                warnings = refreshedWarnings
+            } catch {
+                guard loadGeneration == generation else { return }
+                warnings = []
+                errorMessage = "Kunde inte hämta SMHI-varningar. Kontrollera anslutningen och försök igen."
+            }
         } else {
+            warnings = []
             errorMessage = "Väntar på en giltig position från vädertjänsten."
         }
 
+        guard loadGeneration == generation else { return }
         let center = UNUserNotificationCenter.current()
         let allDelivered = await center.deliveredNotifications().sorted { $0.date > $1.date }
+        guard loadGeneration == generation else { return }
         let allPending = await center.pendingNotificationRequests()
             .filter { $0.identifier.hasPrefix("regnvakt.weather.") || $0.identifier.hasPrefix("smhi.") }
             .sorted {
@@ -821,6 +835,7 @@ struct NotificationInboxView: View {
                     ?? .distantFuture
                 return a < b
             }
+        guard loadGeneration == generation else { return }
 
         // A single semantic event can survive under different notification IDs
         // after a forecast refresh. Share one key set across delivered and
