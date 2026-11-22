@@ -353,7 +353,11 @@ enum SMHIWarningService {
                 do {
                     let national = try await nationwideWarnings()
                     guard isCurrentCheck(generation) else { return false }
-                    let nationalSignatures = Set(national.map { $0.id + "|" + $0.level + "|" + $0.title })
+                    // Track national warning episodes by stable identity too.
+                    // A severity/title revision is not a newly published warning.
+                    let nationalSignatures = Set(national.compactMap {
+                        SMHIWarningNotificationPolicy.smhiEventFingerprint(warningID: $0.id, start: $0.start)
+                    })
                     let nationalKey = "Regnvakt.smhi.nationalSignatures.v1"
                     let previousNational = Set(defaults.stringArray(forKey: nationalKey) ?? [])
                     if nationalSignatures.contains(where: { !previousNational.contains($0) }) {
@@ -504,8 +508,8 @@ enum SMHIWarningService {
             return false
         }
     }
-    // Include the full warning signature in a deterministic, compact ID.
-    // A title change must not be mistaken for an already-pending old notification.
+    // Use the stable warning-area identity and start time so presentation
+    // changes do not create a second notification for the same episode.
     private static func notificationIdentifier(for warning: SMHIWarning, epoch: String) -> String {
         let signature = SMHIWarningNotificationPolicy.smhiEventFingerprint(warningID: warning.id, start: warning.start) ?? (warning.id + "|" + warning.start)
         let hash = signature.utf8.reduce(UInt64(14_695_981_039_346_656_037)) {
