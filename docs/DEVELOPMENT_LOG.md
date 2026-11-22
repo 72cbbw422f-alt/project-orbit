@@ -1431,3 +1431,11 @@ completionHandler([.banner, .sound, .list])
 - **Testning:** Kodgranskning genomförd mot makeEvents och makeRequests; automatisk CI/build efter commit inväntas. Ingen fysisk iPhone-verifiering.
 - **Återstår:** Verifiera att senare händelser nu skapar väntande notiser och att diagnostikraden visar riskhändelser/valda/schemalagda antal i nästa IPA.
 
+## 2026-11-22 – Testbar policy för vädernotiser
+
+- Flyttade kontrollen för om en prognoshändelse får ta risktypens första-notisplats till den rena funktionen `WeatherWatchRules.canScheduleForecastEvent`.
+- Schemaläggaren använder nu samma funktion innan den markerar risktypen som hanterad.
+- Lade till fyra XCTest-fall: för kort framförhållning för rutinlarm, senare schemaläggbar händelse, tysta timmar för rutinlarm samt säkerhetskritisk omedelbar avisering under tysta timmar.
+- Ändrade inte risktrösklar, horisont, budget eller notisbehörigheter.
+- **Verifiering:** Kod och testfall är committade. XCTest/Release-build och IPA efter dessa ändringar är ännu inte verifierade. Ingen fysisk iPhone-testning.
+
