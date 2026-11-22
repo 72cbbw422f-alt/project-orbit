@@ -85,6 +85,29 @@ jobs:
             APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/VADER.app"
           fi
           test -d "$APP_PATH"
+          python3 - "$APP_PATH/Info.plist" <<'PY'
+          import plistlib
+          import sys
+          from pathlib import Path
+
+          plist_path = Path(sys.argv[1])
+          if not plist_path.is_file():
+              raise SystemExit(f"Built app Info.plist is missing: {plist_path}")
+          with plist_path.open("rb") as plist_file:
+              info = plistlib.load(plist_file)
+
+          expected_identifier = "app.walnut8211.vadra.weather-refresh"
+          identifiers = info.get("BGTaskSchedulerPermittedIdentifiers", [])
+          background_modes = info.get("UIBackgroundModes", [])
+          if expected_identifier not in identifiers:
+              raise SystemExit(f"Missing BGTaskScheduler identifier: {expected_identifier}")
+          if "fetch" not in background_modes:
+              raise SystemExit("Built app is missing UIBackgroundModes: fetch")
+          if info.get("CFBundleIdentifier") != "app.walnut8211.vadra":
+              raise SystemExit(f"Unexpected bundle identifier: {info.get('CFBundleIdentifier')}")
+
+          print("Validated built Info.plist: bundle ID, BGTaskScheduler identifier and fetch background mode")
+          PY
           mkdir -p build/ipa/Payload
           cp -R "$APP_PATH" build/ipa/Payload/
           cd build/ipa
