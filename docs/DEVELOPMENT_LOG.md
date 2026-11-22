@@ -1423,3 +1423,11 @@ completionHandler([.banner, .sound, .list])
 - **Testning:** Kodändringen är committad på `feature/frost-notification-audit`. CI/build efter denna commit inväntas. Ingen fysisk iPhone-verifiering utförd.
 - **Återstår:** Läs den nya statusraden i nästa IPA och använd räknarna för att identifiera varför notiskön är tom.
 
+## 2026-11-22 – Korrigering av urvalet av första väderhändelse
+
+- **Identifierad kodorsak:** Händelsebyggaren markerade den första timmen med en viss risktyp som använd, innan schemaläggaren kontrollerade om förvarningstidpunkten redan hade passerat eller låg inom tysta timmar. Om första regn-/snö-/vindhändelsen inte kunde schemaläggas förbrukades risktypen ändå, vilket gjorde att senare timmar med samma risktyp också försvann.
+- **Ändring:** Händelsebyggaren kontrollerar nu schemaläggningsbar tidpunkt och tysta timmar innan den låser risktypen till dagens första händelse. Därmed kan en senare händelse av samma typ väljas om den första inte går att schemalägga. Säkerhetskritiska frost-/halkhändelser behåller omedelbar hantering och går förbi tysta timmar.
+- **Avgränsning:** Inga risktrösklar, prognoshorisonter eller prioriteringsbudgetar ändrade.
+- **Testning:** Kodgranskning genomförd mot makeEvents och makeRequests; automatisk CI/build efter commit inväntas. Ingen fysisk iPhone-verifiering.
+- **Återstår:** Verifiera att senare händelser nu skapar väntande notiser och att diagnostikraden visar riskhändelser/valda/schemalagda antal i nästa IPA.
+
