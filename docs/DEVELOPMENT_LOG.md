@@ -1472,3 +1472,10 @@ completionHandler([.banner, .sound, .list])
 
 - Uppföljande prioritering: SMHI-kontrollen körs före de sekventiella Open-Meteo-hämtningarna eftersom iOS kan avbryta en bakgrundsuppgift när körtiden tar slut. Bevaknings-ID:n läses om innan SMHI-koordinaterna byggs och före varje prognos skrivs till schemaläggaren.
 - Bakgrundsuppgiften avbryter återstående prognosarbete om `Task` har avbrutits. Detta minskar risken att en borttagen plats återinförs i prognosregistret.
+
+## 2026-11-22 – Kör CI vid pull request
+
+- Byggworkflowen körs nu även för pull requests riktade mot `feature/wind-radar`, vilket gör test- och Release-resultat synliga i PR-kontrollen och tillgängliga via PR-baserad CI-uppföljning.
+- Push-triggern är begränsad till `main` för att undvika dubbla byggen för samma commit när utvecklingsgrenen redan ingår i en pull request.
+- Berörd fil: `.github/workflows/build.yml`.
+- **Verifiering:** Workflow-konfigurationen är committad och återläses i nästa kontroll. Själva GitHub Actions-körningen är ännu inte verifierad.
