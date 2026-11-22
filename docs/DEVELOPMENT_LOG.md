@@ -1469,3 +1469,6 @@ completionHandler([.banner, .sound, .list])
 - Befintlig deduplicering, aktiv-varning-baseline, behörighetskontroll och åttaplatsereserv i `SMHIWarningService` återanvänds; ingen separat notifieringsväg har införts.
 - Berörd fil: `VADER/WeatherService.swift`.
 - **Verifiering:** Ändringen är committad och källkoden har lästs tillbaka. XCTest, CI, faktisk BGAppRefresh-körning och leverans på fysisk iPhone är ännu inte verifierade.
+
+- Uppföljande prioritering: SMHI-kontrollen körs före de sekventiella Open-Meteo-hämtningarna eftersom iOS kan avbryta en bakgrundsuppgift när körtiden tar slut. Bevaknings-ID:n läses om innan SMHI-koordinaterna byggs och före varje prognos skrivs till schemaläggaren.
+- Bakgrundsuppgiften avbryter återstående prognosarbete om `Task` har avbrutits. Detta minskar risken att en borttagen plats återinförs i prognosregistret.
