@@ -1385,3 +1385,13 @@ completionHandler([.banner, .sound, .list])
 - Berörda filer: `VADER/WeatherNotificationScheduler.swift`, `VADER/WeatherNotificationBudget.swift`, `Tests/WeatherNotificationBudgetTests.swift`, `docs/DEVELOPMENT_LOG.md`.
 - Begränsning: appen saknar fortfarande en registrerad opportunistisk bakgrundsuppdatering. iOS kan leverera redan schemalagda lokala notiser när appen är stängd, men appen kan inte upptäcka helt nya prognosändringar efter att den slutat köras utan bakgrundskörning. iOS garanterar inte heller bakgrundskörning efter att användaren tvångsavslutat appen.
 - Verifiering: ändringen är incheckad; CI och ny IPA inväntas. Fysisk iPhone-testning krävs för att bekräfta leverans i låst/stängd app.
+
+## Bakgrundsuppdatering för väderbevakningar – 2026-11-22
+
+- Appen saknade registrerad `BGAppRefreshTask`, trots att bakgrundsramverket importerades. Nya prognosändringar kunde därför i praktiken upptäckas först när appen öppnades eller användaren uppdaterade manuellt.
+- Registrerat opportunistisk bakgrundsuppdatering med identifieraren `app.walnut8211.vadra.weather-refresh`, schemalagd med tidigast start efter 30 minuter. Vid körning hämtas nya prognoser för samtliga uttryckligen bevakade platser och schemaläggaren uppdaterar lokala aviseringar.
+- Bakgrundsarbetet kontrollerar på nytt att platsen fortfarande är bevakad efter nätverksanropet. Misslyckad hämtning behåller tidigare giltiga prognoser och schemalagda aviseringar.
+- XcodeGen-konfigurationen deklarerar `BGTaskSchedulerPermittedIdentifiers` och `UIBackgroundModes: fetch`.
+- Berörda filer: `VADER/VADERApp.swift`, `VADER/WeatherService.swift`, `project.yml`.
+- Viktig plattformsbegränsning: iOS bestämmer själv när en BGAppRefreshTask körs. Det är opportunistiskt, inte en realtids- eller leveransgaranti. iOS kör normalt inte appens bakgrundsuppgifter efter att användaren tvångsavslutat appen. Redan schemalagda lokala notiser ska däremot kunna levereras oberoende av appens körstatus.
+- Verifiering: CI för ändringarna inväntas. Kräver fysisk iPhone-testning med appen i bakgrunden och efter tvångsavslut för att bekräfta plattformsbeteendet.
