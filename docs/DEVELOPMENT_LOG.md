@@ -1460,3 +1460,12 @@ completionHandler([.banner, .sound, .list])
 - Om någon deklaration saknas avbryts paketeringssteget; en IPA med felaktig bakgrundskonfiguration kan därmed inte laddas upp som byggartefakt.
 - Berörd fil: `.github/workflows/build.yml`.
 - Verifiering: workflow-ändringen är committad. Python-valideringen körs först på GitHub-runnern mot den genererade appen; inget körresultat eller IPA är ännu verifierat.
+
+## 2026-11-22 – SMHI-kontroll i bakgrundsuppdatering
+
+- `WeatherViewModel.refreshMonitoredForecastsInBackground()` hämtar nu officiella SMHI-varningar efter prognosuppdateringen.
+- SMHI kontrolleras i en gemensam begäran mot samtliga uttryckligen bevakade koordinater; befintlig `beginCheck()`/generationskontroll används för att ogiltigförklara äldre svar.
+- Kontroll av SMHI körs även om en eller flera Open-Meteo-hämtningar misslyckas, så länge bakgrundsuppgiften inte har avbrutits och det finns bevakade platser.
+- Befintlig deduplicering, aktiv-varning-baseline, behörighetskontroll och åttaplatsereserv i `SMHIWarningService` återanvänds; ingen separat notifieringsväg har införts.
+- Berörd fil: `VADER/WeatherService.swift`.
+- **Verifiering:** Ändringen är committad och källkoden har lästs tillbaka. XCTest, CI, faktisk BGAppRefresh-körning och leverans på fysisk iPhone är ännu inte verifierade.
