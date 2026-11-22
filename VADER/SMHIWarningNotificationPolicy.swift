@@ -6,6 +6,11 @@ enum SMHIWarningNotificationPolicy {
         storedGeneration == generation
     }
 
+    /// Rejects stale asynchronous inbox refreshes after a newer load has started.
+    static func isCurrentInboxLoad(_ generation: UUID, currentGeneration: UUID) -> Bool {
+        generation == currentGeneration
+    }
+
     /// Computes the notification transition and the baseline to persist.
     /// Ended warnings are removed; a later reappearance is treated as new.
     static func activeWarningTransition(
