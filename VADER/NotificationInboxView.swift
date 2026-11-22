@@ -302,7 +302,11 @@ enum SMHIWarningService {
         await checkAndNotify(at: [coordinate], generation: generation)
     }
 
-    static func checkAndNotify(at coordinates: [CLLocationCoordinate2D], generation: String) async -> Bool {
+    static func checkAndNotify(
+        at coordinates: [CLLocationCoordinate2D],
+        generation: String,
+        refreshNationwideOverview: Bool = true
+    ) async -> Bool {
         let defaults = UserDefaults.standard
         let notificationEpoch = defaults.string(forKey: notificationEpochKey) ?? ""
         guard isCurrentCheck(generation) else { return false }
@@ -340,20 +344,25 @@ enum SMHIWarningService {
             updateFormatter.dateFormat = "HH:mm"
             defaults.set(updateFormatter.string(from: Date()), forKey: "Regnvakt.smhi.updated")
 
-            // Refresh the national overview independently of notification permissions.
-            // A user who disables push alerts must still see current nationwide warnings.
-            do {
-                let national = try await nationwideWarnings()
-                guard isCurrentCheck(generation) else { return false }
-                let nationalSignatures = Set(national.map { $0.id + "|" + $0.level + "|" + $0.title })
-                let nationalKey = "Regnvakt.smhi.nationalSignatures.v1"
-                let previousNational = Set(defaults.stringArray(forKey: nationalKey) ?? [])
-                if nationalSignatures.contains(where: { !previousNational.contains($0) }) {
-                    defaults.set(true, forKey: "Regnvakt.smhi.hasNewNationalWarnings")
+            // The background refresh skips the second request to the same SMHI
+            // endpoint so the limited BGAppRefresh window prioritizes monitored places.
+            // Foreground/inbox checks continue to refresh the nationwide overview.
+            if refreshNationwideOverview {
+                // Refresh the national overview independently of notification permissions.
+                // A user who disables push alerts must still see current nationwide warnings.
+                do {
+                    let national = try await nationwideWarnings()
+                    guard isCurrentCheck(generation) else { return false }
+                    let nationalSignatures = Set(national.map { $0.id + "|" + $0.level + "|" + $0.title })
+                    let nationalKey = "Regnvakt.smhi.nationalSignatures.v1"
+                    let previousNational = Set(defaults.stringArray(forKey: nationalKey) ?? [])
+                    if nationalSignatures.contains(where: { !previousNational.contains($0) }) {
+                        defaults.set(true, forKey: "Regnvakt.smhi.hasNewNationalWarnings")
+                    }
+                    defaults.set(Array(nationalSignatures), forKey: nationalKey)
+                } catch {
+                    // Preserve the last successful nationwide snapshot/signatures.
                 }
-                defaults.set(Array(nationalSignatures), forKey: nationalKey)
-            } catch {
-                // Preserve the last successful nationwide snapshot/signatures.
             }
 
             // Notification delivery is a separate concern. Never mark a warning
