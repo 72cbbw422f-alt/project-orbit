@@ -267,15 +267,15 @@ enum WeatherNotificationScheduler {
         defaults.set(Date().timeIntervalSince1970, forKey: scheduleUpdatedKey)
         let outcome: String
         if schedulingFailureCount > 0 {
-            let detail = firstSchedulingError.map { ": \\($0)" } ?? ""
-            outcome = "\\(schedulingFailureCount) väderavisering(ar) kunde inte schemaläggas\\(detail)"
+            let detail = firstSchedulingError.map { ": \($0)" } ?? ""
+            outcome = "\(schedulingFailureCount) väderavisering(ar) kunde inte schemaläggas\(detail)"
         } else if finalCount == 0 {
             outcome = "Inga kommande vädernotiser schemalagda"
         } else {
-            outcome = "\\(finalCount) väderavisering(ar) schemalagda i iPhone"
+            outcome = "\(finalCount) väderavisering(ar) schemalagda i iPhone"
         }
-        let diagnostics = "\\(registry.count) bevakade platser • \\(freshForecastCount) färska prognoser • \\(staleForecastCount) för gamla prognoser • \\(candidates.count) riskhändelser • \\(selectedIDs.count) valda"
-        defaults.set("\\(outcome) • \\(diagnostics)", forKey: scheduleStatusKey)
+        let diagnostics = "\(registry.count) bevakade platser • \(freshForecastCount) färska prognoser • \(staleForecastCount) för gamla prognoser • \(candidates.count) riskhändelser • \(selectedIDs.count) valda"
+        defaults.set("\(outcome) • \(diagnostics)", forKey: scheduleStatusKey)
     }
 
     static func removeAll() {
