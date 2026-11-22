@@ -1366,3 +1366,12 @@ completionHandler([.banner, .sound, .list])
 - Berörda filer: `VADER/NotificationInboxView.swift`, `VADER/SMHIWarningNotificationPolicy.swift`, `Tests/SMHIWarningNotificationPolicyTests.swift`, `docs/DEVELOPMENT_LOG.md`.
 - Kodcommits: `fc963d3d62c8496998c263517b3421e41df742b1`, `524583faaefff10fc1fabe07c794b86b4f51aa98`, `884123ea144d899503a5ff3d2858118a48fa6591`, `daddaa3338079f040ee541aeef87fd574f60c5c1`.
 - Verifiering: CI för de senaste ändringarna inväntas. Tidigare fel i SMHI-fingeravtryckets kompilering har korrigerats i commit `19c07fc2`; körningarna för efterföljande commits behöver visa grön status innan detta betraktas som verifierat. Ingen ny IPA eller fysisk iPhone-testning.
+
+## Samma stabila händelseidentitet i SMHI-schemaläggning och inkorg – 2026-11-22
+
+- Källgranskningen visade att inkorgen deduplicerade SMHI-notiser med varningsområdets ID och starttid, medan schemaläggarens signatur även innehöll varningsnivå och rubrik.
+- En ändrad nivå eller rubrik kunde därför ge samma varningshändelse en ny schemaläggningsidentitet och orsaka en upprepad pushnotis.
+- Schemaläggarens claim-signatur och deterministiska notis-ID använder nu samma policyfingeravtryck som inkorgen: SMHI-varningsområdets identitet plus starttid.
+- Berörd kodfil: `VADER/NotificationInboxView.swift`. Befintlig policyfunktion i `VADER/SMHIWarningNotificationPolicy.swift` återanvänds. Befintliga XCTest för stabil identitet täcker att olika områden och olika starttider hålls åtskilda.
+- Notering vid uppgradering: tidigare sparade signaturer med den äldre nivån/rubrik-baserade formen matchar inte den nya formen. En aktiv varning kan därför i vissa fall kvalificera sig för en engångsnotis efter uppdateringen. Därefter används den stabila identiteten.
+- Verifiering: kodändringen är incheckad; CI och IPA för den nya committen inväntas. Ingen fysisk iPhone-testning.
