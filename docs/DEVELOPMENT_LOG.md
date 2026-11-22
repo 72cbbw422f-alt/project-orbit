@@ -1516,3 +1516,14 @@ completionHandler([.banner, .sound, .list])
 - **Berörda filer:** `VADER/NotificationInboxView.swift`, `VADER/WeatherService.swift`, `docs/DEVELOPMENT_LOG.md`.
 - **Verifiering:** Kodvägar och standardparameter har lästs tillbaka från GitHub. Ingen XCTest, Xcode-kompilering eller fysisk enhetstest har körts i denna arbetsomgång.
 - **Kvarstående:** Kontrollera att alla anrop använder standardvärdet där nationell översikt ska uppdateras; verifiera i CI att signaturändringen kompilerar och att bakgrundsflödet fortfarande schemalägger lokala SMHI-notiser.
+
+
+## 2026-11-22 – Stabil SMHI-identitet vid ändrad varningsnivå eller rubrik
+
+- Granskningen av notislivscykeln hittade en inkonsekvens: notis-ID och schemaläggningsanspråk använde varningsområdets identitet plus starttid, men aktiv-baslinjen använde även nivå och rubrik.
+- Om SMHI ändrade exempelvis gul till orange eller uppdaterade formuleringen kunde samma pågående varning därför räknas som en ny händelse och skapa en extra notis.
+- Aktiv-baslinjen använder nu samma stabila händelsefingeravtryck som notis-ID:t. En varning som upphör tas fortfarande bort ur baslinjen och kan notifieras på nytt om den senare återkommer som en ny aktiv episod.
+- **Berörda filer:** `VADER/NotificationInboxView.swift`, `Tests/SMHIWarningNotificationPolicyTests.swift`, `docs/DEVELOPMENT_LOG.md`.
+- **Test:** Ett XCTest har lagts till för att verifiera att samma varningsområdesidentitet och starttid inte blir en ny händelse vid ändrad presentation. Testet är tillagt men ännu inte kört i Xcode/CI.
+- **Migreringsnotering:** Äldre sparade baslinjer med formatet nivå/rubrik/start matchar inte det nya fingeravtrycket. En redan aktiv varning kan därför i vissa installationer ge en engångsnotis efter uppdateringen; därefter används stabil identitet.
+- **Status:** Kod och test är committade på `feature/frost-notification-audit`. Ingen merge, IPA eller fysisk iPhone-verifiering.
