@@ -25,6 +25,13 @@ final class SMHIWarningNotificationPolicyTests: XCTestCase {
         XCTAssertNil(SMHIWarningNotificationPolicy.smhiEventFingerprint(warningID: "warning-42", start: nil))
     }
 
+    func testInboxLoadGenerationRejectsOlderRefresh() {
+        let older = UUID()
+        let newer = UUID()
+        XCTAssertFalse(SMHIWarningNotificationPolicy.isCurrentInboxLoad(older, currentGeneration: newer))
+        XCTAssertTrue(SMHIWarningNotificationPolicy.isCurrentInboxLoad(newer, currentGeneration: newer))
+    }
+
     func testEndedWarningReleasesItsInMemoryNotificationClaim() {
         let scheduled: Set<String> = ["still-active", "ended"]
         let current: Set<String> = ["still-active"]
