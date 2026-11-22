@@ -67,6 +67,32 @@ final class WeatherNotificationBudgetTests: XCTestCase {
         ))
     }
 
+    func testRoutineEventAtMinimumLeadBoundaryIsRejected() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        XCTAssertFalse(WeatherWatchRules.canScheduleForecastEvent(
+            eventDate: now.addingTimeInterval(30 * 60 + 30),
+            safetyCritical: false,
+            leadMinutes: 30,
+            now: now,
+            quietHours: "none",
+            minimumLeadTime: 30
+        ))
+    }
+
+    func testRoutineEventOutsideCrossMidnightQuietHoursIsAllowed() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Stockholm")!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 11, day: 22, hour: 12, minute: 0))!
+        let event = calendar.date(from: DateComponents(year: 2026, month: 11, day: 22, hour: 18, minute: 0))!
+        XCTAssertTrue(WeatherWatchRules.canScheduleForecastEvent(
+            eventDate: event,
+            safetyCritical: false,
+            leadMinutes: 30,
+            now: now,
+            quietHours: "22–07"
+        ))
+    }
+
     func testSafetyCriticalEventIsDeliveredImmediatelyWhenLeadTimeHasPassed() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let event = now.addingTimeInterval(10 * 60)
