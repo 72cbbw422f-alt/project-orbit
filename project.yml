@@ -21,6 +21,12 @@ targets:
   VADER:
     type: application
     platform: iOS
+    info:
+      properties:
+        BGTaskSchedulerPermittedIdentifiers:
+          - app.walnut8211.vadra.weather-refresh
+        UIBackgroundModes:
+          - fetch
     sources:
       - path: VADER
     dependencies:
