@@ -344,7 +344,7 @@ enum SMHIWarningService {
             // A user who disables push alerts must still see current nationwide warnings.
             do {
                 let national = try await nationwideWarnings()
-                guard isCurrentCheck(generation) else { return }
+                guard isCurrentCheck(generation) else { return false }
                 let nationalSignatures = Set(national.map { $0.id + "|" + $0.level + "|" + $0.title })
                 let nationalKey = "Regnvakt.smhi.nationalSignatures.v1"
                 let previousNational = Set(defaults.stringArray(forKey: nationalKey) ?? [])
@@ -360,11 +360,11 @@ enum SMHIWarningService {
             // as handled until iOS confirms that the request was accepted.
             guard (defaults.object(forKey: "Regnvakt.notifications.enabled") as? Bool ?? true),
                   (defaults.object(forKey: "Regnvakt.notifications.smhi") as? Bool ?? true),
-                  (defaults.string(forKey: notificationEpochKey) ?? "") == notificationEpoch else { return }
+                  (defaults.string(forKey: notificationEpochKey) ?? "") == notificationEpoch else { return true }
 
             let center = UNUserNotificationCenter.current()
             let authorization = await center.notificationSettings()
-            guard isCurrentCheck(generation) else { return }
+            guard isCurrentCheck(generation) else { return false }
             guard authorization.authorizationStatus == .authorized ||
                   authorization.authorizationStatus == .provisional ||
                   authorization.authorizationStatus == .ephemeral else { return true }
@@ -380,14 +380,14 @@ enum SMHIWarningService {
                 epoch: notificationEpoch,
                 generation: generation
             )
-            guard isCurrentCheck(generation) else { return }
+            guard isCurrentCheck(generation) else { return false }
             await SMHIWarningNotificationGate.shared.prepare(
                 current: currentSignatures,
                 persisted: persistedSignatures,
                 epoch: notificationEpoch,
                 generation: generation
             )
-            guard isCurrentCheck(generation) else { return }
+            guard isCurrentCheck(generation) else { return false }
             // Existing active warnings are retained in the feed, but only a
             // warning newly observed since the baseline can create a new alert.
             // This prevents app activation from replaying an old active warning.
@@ -460,7 +460,7 @@ enum SMHIWarningService {
                     guard isCurrentCheck(generation) else {
                         center.removePendingNotificationRequests(withIdentifiers: [request.identifier])
                         _ = await SMHIWarningNotificationGate.shared.finish(signature, token: claimToken, epoch: notificationEpoch, accepted: false)
-                        return
+                        return false
                     }
                     let stillEnabled = (defaults.object(forKey: "Regnvakt.notifications.enabled") as? Bool ?? true)
                         && (defaults.object(forKey: "Regnvakt.notifications.smhi") as? Bool ?? true)
