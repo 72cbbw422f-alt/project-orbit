@@ -1356,3 +1356,13 @@ completionHandler([.banner, .sound, .list])
 - Interpoleringen är korrigerad till normal Swift-interpolering i `VADER/SMHIWarningNotificationPolicy.swift`.
 - Commit: `19c07fc2c64cfff36e8fe4c2556f15af86ceff5e`.
 - CI för denna korrigering inväntas. Ingen ny IPA eller godkänd testkörning för den här ändringen ännu.
+
+
+## Skydd mot inaktuella parallella uppdateringar i notisinkorgen – 2026-11-22
+
+- Granskning visade att användaren kunde starta flera inkorgsuppdateringar genom upprepade tryck på Uppdatera. Eftersom varje uppdatering innehåller flera asynkrona hämtningar kunde ett äldre anrop avslutas sist och skriva över nyare varningar, levererade notiser eller väntande notiser.
+- Inkorgen använder nu en unik generation per laddning och kontrollerar generationen efter varje asynkron gräns innan resultat publiceras. Endast den senast startade uppdateringen får ändra vyn. Ett fel i aktuell SMHI-hämtning tömmer också tidigare varningslista i stället för att visa gammal data som om den fortfarande vore aktuell.
+- Generationsregeln ligger i en ren policyfunktion och har ett XCTest som verifierar att äldre laddningar avvisas.
+- Berörda filer: `VADER/NotificationInboxView.swift`, `VADER/SMHIWarningNotificationPolicy.swift`, `Tests/SMHIWarningNotificationPolicyTests.swift`, `docs/DEVELOPMENT_LOG.md`.
+- Kodcommits: `fc963d3d62c8496998c263517b3421e41df742b1`, `524583faaefff10fc1fabe07c794b86b4f51aa98`, `884123ea144d899503a5ff3d2858118a48fa6591`, `daddaa3338079f040ee541aeef87fd574f60c5c1`.
+- Verifiering: CI för de senaste ändringarna inväntas. Tidigare fel i SMHI-fingeravtryckets kompilering har korrigerats i commit `19c07fc2`; körningarna för efterföljande commits behöver visa grön status innan detta betraktas som verifierat. Ingen ny IPA eller fysisk iPhone-testning.
