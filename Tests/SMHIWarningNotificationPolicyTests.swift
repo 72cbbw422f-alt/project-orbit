@@ -1,6 +1,30 @@
 import XCTest
 
 final class SMHIWarningNotificationPolicyTests: XCTestCase {
+    func testSMHIInboxFingerprintUsesWarningIdentityAndStartNotMutableCopy() {
+        let first = SMHIWarningNotificationPolicy.smhiEventFingerprint(
+            warningID: "warning-42-area-7", start: "2026-11-22T08:00:00Z"
+        )
+        let changedSeveritySameWarning = SMHIWarningNotificationPolicy.smhiEventFingerprint(
+            warningID: "warning-42-area-7", start: "2026-11-22T08:00:00Z"
+        )
+        let separateArea = SMHIWarningNotificationPolicy.smhiEventFingerprint(
+            warningID: "warning-42-area-8", start: "2026-11-22T08:00:00Z"
+        )
+        let separateEpisode = SMHIWarningNotificationPolicy.smhiEventFingerprint(
+            warningID: "warning-42-area-7", start: "2026-11-22T10:00:00Z"
+        )
+
+        XCTAssertEqual(first, changedSeveritySameWarning)
+        XCTAssertNotEqual(first, separateArea)
+        XCTAssertNotEqual(first, separateEpisode)
+    }
+
+    func testSMHIInboxFingerprintRejectsMissingIdentity() {
+        XCTAssertNil(SMHIWarningNotificationPolicy.smhiEventFingerprint(warningID: nil, start: "2026-11-22T08:00:00Z"))
+        XCTAssertNil(SMHIWarningNotificationPolicy.smhiEventFingerprint(warningID: "warning-42", start: nil))
+    }
+
     func testEndedWarningReleasesItsInMemoryNotificationClaim() {
         let scheduled: Set<String> = ["still-active", "ended"]
         let current: Set<String> = ["still-active"]
