@@ -808,10 +808,10 @@ struct NotificationInboxView: View {
         if let coordinate {
             do {
                 let refreshedWarnings = try await SMHIWarningService.warnings(at: coordinate)
-                guard loadGeneration == generation else { return }
+                guard SMHIWarningNotificationPolicy.isCurrentInboxLoad(generation, currentGeneration: loadGeneration) else { return }
                 warnings = refreshedWarnings
             } catch {
-                guard loadGeneration == generation else { return }
+                guard SMHIWarningNotificationPolicy.isCurrentInboxLoad(generation, currentGeneration: loadGeneration) else { return }
                 warnings = []
                 errorMessage = "Kunde inte hämta SMHI-varningar. Kontrollera anslutningen och försök igen."
             }
@@ -820,10 +820,10 @@ struct NotificationInboxView: View {
             errorMessage = "Väntar på en giltig position från vädertjänsten."
         }
 
-        guard loadGeneration == generation else { return }
+        guard SMHIWarningNotificationPolicy.isCurrentInboxLoad(generation, currentGeneration: loadGeneration) else { return }
         let center = UNUserNotificationCenter.current()
         let allDelivered = await center.deliveredNotifications().sorted { $0.date > $1.date }
-        guard loadGeneration == generation else { return }
+        guard SMHIWarningNotificationPolicy.isCurrentInboxLoad(generation, currentGeneration: loadGeneration) else { return }
         let allPending = await center.pendingNotificationRequests()
             .filter { $0.identifier.hasPrefix("regnvakt.weather.") || $0.identifier.hasPrefix("smhi.") }
             .sorted {
@@ -835,7 +835,7 @@ struct NotificationInboxView: View {
                     ?? .distantFuture
                 return a < b
             }
-        guard loadGeneration == generation else { return }
+        guard SMHIWarningNotificationPolicy.isCurrentInboxLoad(generation, currentGeneration: loadGeneration) else { return }
 
         // A single semantic event can survive under different notification IDs
         // after a forecast refresh. Share one key set across delivered and
