@@ -431,7 +431,7 @@ enum SMHIWarningService {
             for warning in prioritizedActive {
                 guard isCurrentCheck(generation),
                       (defaults.string(forKey: notificationEpochKey) ?? "") == notificationEpoch else { return }
-                let signature = warning.id + "|" + warning.level + "|" + warning.title + "|" + warning.start
+                let signature = SMHIWarningNotificationPolicy.smhiEventFingerprint(warningID: warning.id, start: warning.start) ?? (warning.id + "|" + warning.start)
                 let identifier = notificationIdentifier(for: warning, epoch: notificationEpoch)
 
                 // Recover a request accepted by iOS just before an app interruption.
@@ -489,7 +489,7 @@ enum SMHIWarningService {
     // Include the full warning signature in a deterministic, compact ID.
     // A title change must not be mistaken for an already-pending old notification.
     private static func notificationIdentifier(for warning: SMHIWarning, epoch: String) -> String {
-        let signature = warning.id + "|" + warning.level + "|" + warning.title + "|" + warning.start
+        let signature = SMHIWarningNotificationPolicy.smhiEventFingerprint(warningID: warning.id, start: warning.start) ?? (warning.id + "|" + warning.start)
         let hash = signature.utf8.reduce(UInt64(14_695_981_039_346_656_037)) {
             ($0 ^ UInt64($1)) &* 1_099_511_628_211
         }
