@@ -13,6 +13,27 @@ enum WeatherWatchRules {
         date.addingTimeInterval(notificationHorizonHours * 60 * 60)
     }
 
+    /// Determines whether an event can claim the first-alert slot for its risk
+    /// type. Routine alerts need their configured lead time; safety-critical
+    /// events may be delivered immediately if that lead time has passed.
+    static func canScheduleForecastEvent(
+        eventDate: Date,
+        safetyCritical: Bool,
+        leadMinutes: Int,
+        now: Date,
+        quietHours: String,
+        minimumLeadTime: TimeInterval = 30
+    ) -> Bool {
+        let plannedFireDate = eventDate.addingTimeInterval(-Double(max(0, leadMinutes)) * 60)
+        let immediateSafetyAlert = safetyCritical &&
+            plannedFireDate <= now.addingTimeInterval(max(0, minimumLeadTime))
+        let fireDate = immediateSafetyAlert ? now.addingTimeInterval(2) : plannedFireDate
+        guard immediateSafetyAlert || fireDate > now.addingTimeInterval(max(0, minimumLeadTime)) else {
+            return false
+        }
+        return safetyCritical || !isQuietTime(fireDate, setting: quietHours)
+    }
+
     static func isQuietTime(_ date: Date, setting: String) -> Bool {
         guard setting != "none" else { return false }
         let parts = setting.split(separator: "–").compactMap { Int($0) }
