@@ -20,6 +20,12 @@ enum SMHIWarningNotificationPolicy {
         return (current.subtracting(previous), previous.intersection(current))
     }
 
+    /// Retains in-memory notification claims only while their warning remains active.
+    /// This lets a warning be notified again if it ends and later reappears.
+    static func retainedScheduledSignatures(scheduled: Set<String>, current: Set<String>) -> Set<String> {
+        scheduled.intersection(current)
+    }
+
     static func newlyActiveSignatures(current: Set<String>, previous: Set<String>, hasBaseline: Bool) -> Set<String> {
         activeWarningTransition(current: current, previous: previous, hasBaseline: hasBaseline).newlyActive
     }
