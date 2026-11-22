@@ -1488,3 +1488,11 @@ completionHandler([.banner, .sound, .list])
 - Serverpush ska komplettera befintliga lokala notiser. Klienten ska inte innehålla APNs-hemligheter eller backendens service-role-nyckel.
 - **Berörda filer:** `docs/SERVER_PUSH_DESIGN.md`, `docs/DEVELOPMENT_LOG.md`.
 - **Verifiering:** Dokumenten är committade och ska läsas tillbaka från grenen. Ingen backendkod, APNs-konfiguration eller pushleverans är implementerad eller testad.
+
+## 2026-11-22 – CI-trigger verifiering och branchberoende
+
+- Kontrollerade workflow-filen både i PR-grenen och i målgrenen `feature/wind-radar`.
+- PR-grenens `.github/workflows/build.yml` innehåller `pull_request` mot `feature/wind-radar`, men GitHub använder workflow-definitionen från målgrenen för att starta en pull_request-körning. Målgrenens nuvarande workflow saknar `pull_request`-trigger.
+- Därför kan PR-grenens ändring inte ensam aktivera den avsedda PR-körningen. Att lägga till triggern kräver en separat ändring i målgrenen eller en annan godkänd CI-väg.
+- **Åtgärd:** Ingen ändring gjordes i `feature/wind-radar`; grenen lämnas orörd tills ändringen är godkänd/integrerad där.
+- **Verifiering:** Läste båda versionerna av workflow-filen från GitHub. Ingen körning eller byggstatus kunde bekräftas via tillgängliga GitHub-resultat.
