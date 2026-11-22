@@ -1414,3 +1414,12 @@ completionHandler([.banner, .sound, .list])
 - CI #769 på samma kodbas kunde inte starta XCTest eftersom GitHub-runnern saknade den begärda simulatorn `iPhone 16`; detta är ett runner-/destinationfel (exit 70), inte ett testassertionsfel. #768 körde däremot hela kedjan framgångsrikt före artefaktinspektionen.
 - Ny CI krävs efter ändringen. Nästa IPA måste inspekteras på nytt och uttryckligen innehålla båda nycklarna innan den lämnas för fysisk testning.
 - SHA-256 för granskad, ej godkänd IPA: `b63224c10bf7f7fe4cfa663f503b256a5c950a906e457b1c9fb8442143a527c6`. Ingen fysisk iPhone-testning eller merge.
+
+## 2026-11-22 – Diagnostik för väderaviseringar
+
+- **Problem:** Användaren bekräftade att testaviseringen levereras när appen ligger i bakgrunden, men skärmbild från Aviseringar visar noll kommande väderaviseringar och noll levererade.
+- **Ändring:** `VADER/WeatherNotificationScheduler.swift` visar nu i schemaläggningsstatus antalet bevakade platser, färska prognoser, för gamla prognoser, identifierade riskhändelser och valda notiser. Detta skiljer frånvaro av riskhändelser från utgångna prognoser och urval som inte resulterar i schemalagda notiser.
+- **Avsikt:** Diagnostik före ändring av risktrösklar eller prognoshorisont. Inga säkerhetsgränser eller notisfilter har ändrats.
+- **Testning:** Kodändringen är committad på `feature/frost-notification-audit`. CI/build efter denna commit inväntas. Ingen fysisk iPhone-verifiering utförd.
+- **Återstår:** Läs den nya statusraden i nästa IPA och använd räknarna för att identifiera varför notiskön är tom.
+
