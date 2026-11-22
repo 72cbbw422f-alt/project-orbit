@@ -18,6 +18,55 @@ final class WeatherNotificationBudgetTests: XCTestCase {
     }
 
 
+    func testRoutineEventTooCloseToScheduleDoesNotConsumeRiskType() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        XCTAssertFalse(WeatherWatchRules.canScheduleForecastEvent(
+            eventDate: now.addingTimeInterval(10 * 60),
+            safetyCritical: false,
+            leadMinutes: 30,
+            now: now,
+            quietHours: "none"
+        ))
+    }
+
+    func testLaterRoutineEventCanBeScheduledAfterEarlierEventWasTooClose() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        XCTAssertTrue(WeatherWatchRules.canScheduleForecastEvent(
+            eventDate: now.addingTimeInterval(3 * 60 * 60),
+            safetyCritical: false,
+            leadMinutes: 30,
+            now: now,
+            quietHours: "none"
+        ))
+    }
+
+    func testRoutineEventDuringQuietHoursDoesNotConsumeRiskType() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Stockholm")!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 11, day: 22, hour: 20, minute: 0))!
+        let event = calendar.date(from: DateComponents(year: 2026, month: 11, day: 22, hour: 23, minute: 0))!
+        XCTAssertFalse(WeatherWatchRules.canScheduleForecastEvent(
+            eventDate: event,
+            safetyCritical: false,
+            leadMinutes: 30,
+            now: now,
+            quietHours: "22–07"
+        ))
+    }
+
+    func testSafetyCriticalEventCanBeScheduledImmediatelyDuringQuietHours() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Stockholm")!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 11, day: 22, hour: 23, minute: 0))!
+        XCTAssertTrue(WeatherWatchRules.canScheduleForecastEvent(
+            eventDate: now.addingTimeInterval(10 * 60),
+            safetyCritical: true,
+            leadMinutes: 30,
+            now: now,
+            quietHours: "22–07"
+        ))
+    }
+
     func testSafetyCriticalEventIsDeliveredImmediatelyWhenLeadTimeHasPassed() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let event = now.addingTimeInterval(10 * 60)
