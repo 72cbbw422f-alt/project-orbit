@@ -100,13 +100,14 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
         }
         if !monitoredCoordinates.isEmpty {
             let generation = SMHIWarningService.beginCheck()
-            await SMHIWarningService.checkAndNotify(
+            smhiRefreshSucceeded = await SMHIWarningService.checkAndNotify(
                 at: monitoredCoordinates,
                 generation: generation
             )
         }
 
         var refreshedCount = 0
+        var smhiRefreshSucceeded = false
         for place in currentlyMonitoredPlaces {
             guard !Task.isCancelled else { break }
             do {
@@ -133,7 +134,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                 // Preserve the last valid forecast and its already-scheduled requests.
             }
         }
-        return refreshedCount > 0
+        return refreshedCount > 0 || smhiRefreshSucceeded
     }
 
     func requestLocation() {
