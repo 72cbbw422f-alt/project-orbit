@@ -1452,3 +1452,11 @@ completionHandler([.banner, .sound, .list])
 - Ändringen är begränsad till testdestinationen; Release-bygget och IPA-paketeringen är oförändrade.
 - Berörd fil i denna ändring: `.github/workflows/build.yml`.
 - Verifiering: workflow-filen har lästs tillbaka från utvecklingsgrenen och den dynamiska destinationen finns på plats. Ingen ny CI-körning eller XCTest-resultat har kunnat bekräftas ännu; IPA är inte verifierad.
+
+## 2026-11-22 – Validering av bakgrundsmetadata före IPA-paketering
+
+- Byggworkflowen kontrollerar nu den faktiskt byggda appens `Info.plist` innan IPA skapas.
+- Valideringen kräver exakt bundle identifier `app.walnut8211.vadra`, BGTaskScheduler-identifieraren `app.walnut8211.vadra.weather-refresh` och `UIBackgroundModes`-värdet `fetch`.
+- Om någon deklaration saknas avbryts paketeringssteget; en IPA med felaktig bakgrundskonfiguration kan därmed inte laddas upp som byggartefakt.
+- Berörd fil: `.github/workflows/build.yml`.
+- Verifiering: workflow-ändringen är committad. Python-valideringen körs först på GitHub-runnern mot den genererade appen; inget körresultat eller IPA är ännu verifierat.
