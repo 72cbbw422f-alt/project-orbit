@@ -33,13 +33,31 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
+      - name: Select available iPhone simulator
+        run: |
+          DEVICE_ID="$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          data = json.load(sys.stdin)
+          devices = [
+              device
+              for runtime_devices in data.get("devices", {}).values()
+              for device in runtime_devices
+              if device.get("isAvailable") and device.get("name", "").startswith("iPhone")
+          ]
+          if not devices:
+              raise SystemExit("No available iPhone simulator is installed on this runner")
+          print(devices[0]["udid"])
+          ')"
+          echo "SIMULATOR_ID=$DEVICE_ID" >> "$GITHUB_ENV"
+          echo "Selected simulator: $DEVICE_ID"
+
       - name: Run frost risk unit tests
         run: |
           xcodebuild \
             -project VADER.xcodeproj \
             -scheme VADERTests \
             -configuration Debug \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -destination "platform=iOS Simulator,id=${SIMULATOR_ID}" \
             CODE_SIGNING_ALLOWED=NO \
             test
 
