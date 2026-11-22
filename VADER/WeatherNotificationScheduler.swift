@@ -557,8 +557,21 @@ enum WeatherNotificationScheduler {
 
         var requests: [UNNotificationRequest] = []
         for event in events {
-            let fireDate = event.immediate ? Date().addingTimeInterval(2) : event.date.addingTimeInterval(-Double(lead) * 60)
-            guard event.immediate || fireDate > Date().addingTimeInterval(30) else { continue }
+            let now = Date()
+            let plannedFireDate = event.immediate
+                ? now.addingTimeInterval(2)
+                : event.date.addingTimeInterval(-Double(lead) * 60)
+            // Safety-critical frost/ice events must not disappear merely because
+            // their lead-time trigger has already passed when a fresh forecast arrives.
+            let deliverImmediately = WeatherNotificationBudget.shouldDeliverImmediately(
+                alreadyImmediate: event.immediate,
+                safetyCritical: event.safetyCritical,
+                eventDate: event.date,
+                leadMinutes: lead,
+                now: now
+            )
+            let fireDate = deliverImmediately ? now.addingTimeInterval(2) : plannedFireDate
+            guard deliverImmediately || fireDate > now.addingTimeInterval(30) else { continue }
             // Frost and ice alerts are safety-critical and intentionally bypass quiet hours.
             guard event.safetyCritical || !WeatherWatchRules.isQuietTime(fireDate, setting: quietSetting) else { continue }
 
@@ -588,22 +601,22 @@ enum WeatherNotificationScheduler {
             content.title = "\(weatherIcon) \(event.title)\(riskLabel)"
             content.body = "\(event.body) • \(place)"
             content.sound = .default
-            content.userInfo = ["watch": event.type, "place": place, "safetyCritical": event.safetyCritical, "immediate": event.immediate, "alertDay": swedishCalendar.startOfDay(for: event.date), "forecastEventDate": event.date.timeIntervalSince1970, "leadMinutes": lead]
+            content.userInfo = ["watch": event.type, "place": place, "safetyCritical": event.safetyCritical, "immediate": deliverImmediately, "alertDay": swedishCalendar.startOfDay(for: event.date), "forecastEventDate": event.date.timeIntervalSince1970, "leadMinutes": lead]
             var components = swedishCalendar.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
             components.timeZone = swedishTimeZone
             let trigger: UNNotificationTrigger
-            if event.immediate {
+            if deliverImmediately {
                 trigger = UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false)
             } else {
                 trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
             }
             let stamp: String
-            if event.immediate {
+            if deliverImmediately {
                 let day = DateFormatter()
                 day.calendar = swedishCalendar
                 day.timeZone = swedishTimeZone
                 day.dateFormat = "yyyyMMdd"
-                stamp = day.string(from: Date())
+                stamp = day.string(from: swedishCalendar.startOfDay(for: event.date))
             } else if event.type == "frost" {
                 // Stable local-day identity: refreshed hourly forecasts must
                 // update one frost warning, never create a new alert per hour.
@@ -625,7 +638,7 @@ enum WeatherNotificationScheduler {
                 stamp = hourStamp.string(from: event.date)
             }
             let locationToken = locationID.replacingOccurrences(of: ",", with: "_")
-            let identifier = prefix + locationToken + "." + event.type + (event.immediate ? ".current." : ".") + stamp
+            let identifier = prefix + locationToken + "." + event.type + (deliverImmediately ? ".current." : ".") + stamp
             requests.append(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
         }
         return requests
