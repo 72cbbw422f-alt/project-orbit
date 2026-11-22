@@ -20,6 +20,14 @@ enum SMHIWarningNotificationPolicy {
         return (current.subtracting(previous), previous.intersection(current))
     }
 
+    /// Gives each SMHI warning-area episode a stable inbox identity.
+    /// Notification wording and severity may change while the underlying warning remains the same.
+    static func smhiEventFingerprint(warningID: String?, start: String?) -> String? {
+        guard let warningID, !warningID.isEmpty,
+              let start, !start.isEmpty else { return nil }
+        return "smhi|\\(warningID)|\\(start)"
+    }
+
     /// Retains in-memory notification claims only while their warning remains active.
     /// This lets a warning be notified again if it ends and later reappears.
     static func retainedScheduledSignatures(scheduled: Set<String>, current: Set<String>) -> Set<String> {
