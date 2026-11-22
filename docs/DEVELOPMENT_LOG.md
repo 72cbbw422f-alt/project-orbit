@@ -1538,3 +1538,11 @@ completionHandler([.banner, .sound, .list])
 - **Berörd fil:** `VADER/NotificationInboxView.swift`.
 - **Verifiering:** Ändringen har lästs tillbaka och strukturellt kontrollerats. Befintliga XCTest täcker stabilt fingeravtryck, men XCTest/CI/build är ännu inte körda efter denna commit.
 - **Status:** Committad på `feature/frost-notification-audit`; ingen merge, IPA eller fysisk iPhone-verifiering.
+
+## 2026-11-22 – Tydligare status för SMHI-varningar och aviseringshistorik
+
+- SMHI-korten i aviseringsvyn visar nu uttryckligen om varningen är **AKTIV VARNING** eller **KOMMANDE VARNING**, baserat på varningens starttid.
+- Sektionen med redan levererade iOS-notiser har bytt rubrik till **HISTORIK – LEVERERADE AVISERINGAR** och förklarar att en levererad notis inte innebär att SMHI-varningen fortfarande är aktiv.
+- Historiken rensas inte automatiskt. Användaren behåller kontrollen via befintliga funktioner för att radera en notis eller rensa historiken.
+- **Berörda filer:** `VADER/NotificationInboxView.swift`, `docs/DEVELOPMENT_LOG.md`.
+- **Verifiering:** Källändringen är committad och ska läsas tillbaka. Ingen XCTest eller Xcode-kompilering har körts i denna arbetsomgång; UI måste verifieras i en byggd app på iPhone.
