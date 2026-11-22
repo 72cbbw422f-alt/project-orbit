@@ -1348,3 +1348,11 @@ completionHandler([.banner, .sound, .list])
 - Rättningscommit: `f9dbdae872c74aff72ee259b131ca4cf8c74d9ab`.
 - Verifiering: CI #749 har startats för rättningen och står i kö. #746–#748 misslyckades vid kompilering av testerna. Ingen IPA från den nya ändringen är verifierad. Senaste fullständigt godkända kod/IPA är fortfarande commit `5da0f062` (60 XCTest och unsigned IPA).
 - PR #1 förblir öppen som draft; ingen merge eller fysisk iPhone-testning.
+
+
+## Korrigera stränginterpolering i SMHI-identiteten – 2026-11-22
+
+- Källgranskning efter den första rättningen upptäckte att interpoleringen i fingeravtryckssträngen hade dubbla escape-tecken. Den skulle då ha skapat en bokstavlig sträng i stället för att inkludera varnings-ID och starttid.
+- Interpoleringen är korrigerad till normal Swift-interpolering i `VADER/SMHIWarningNotificationPolicy.swift`.
+- Commit: `19c07fc2c64cfff36e8fe4c2556f15af86ceff5e`.
+- CI för denna korrigering inväntas. Ingen ny IPA eller godkänd testkörning för den här ändringen ännu.
