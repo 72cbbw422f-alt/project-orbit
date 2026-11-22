@@ -113,6 +113,22 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                 // Preserve the last valid forecast and its already-scheduled requests.
             }
         }
+
+        // Background refresh must check official warnings as well as forecast risks.
+        // One SMHI request is evaluated against every explicitly monitored place,
+        // using the same generation gate as foreground checks.
+        guard !Task.isCancelled else { return refreshedCount > 0 }
+        let monitoredCoordinates = monitoredPlaces.map {
+            CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
+        }
+        if !monitoredCoordinates.isEmpty {
+            let generation = SMHIWarningService.beginCheck()
+            await SMHIWarningService.checkAndNotify(
+                at: monitoredCoordinates,
+                generation: generation
+            )
+        }
+
         return refreshedCount > 0
     }
 
