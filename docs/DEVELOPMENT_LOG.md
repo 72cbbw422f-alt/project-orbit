@@ -1506,3 +1506,13 @@ completionHandler([.banner, .sound, .list])
 - **Berörda filer:** `VADER/NotificationInboxView.swift`, `VADER/WeatherService.swift`, `docs/DEVELOPMENT_LOG.md`.
 - **Tester:** Kodvägarna har lästs tillbaka från GitHub och kontrollerats för Bool-returer samt variabelordning. XCTest, Xcode-build och fysisk iPhone-test är ännu inte körda/verifierade i denna arbetsomgång.
 - **Kvarstående:** Kör CI/build när PR-triggern kan aktiveras från målgrenen eller via godkänd alternativ väg. Verifiera sedan bakgrundskörning med SMHI lyckad/Open-Meteo misslyckad, båda lyckade, samt SMHI-fel. Kontrollera också att användarens inställningar för SMHI-notiser inte påverkar rapporteringen av en lyckad datahämtning.
+
+
+## 2026-11-22 – Begränsa SMHI-anrop i bakgrundsuppdatering
+
+- Den platsbaserade SMHI-kontrollen och den nationella översikten använde samma endpoint men gjorde två separata nätverksanrop i följd. I ett begränsat `BGAppRefreshTask` kunde det andra anropet förbruka tid som behövs för de uttryckligen bevakade platserna.
+- `SMHIWarningService.checkAndNotify` har fått parametern `refreshNationwideOverview`, med standardvärdet `true` för befintliga anropsvägar. Bakgrundsuppdateringen skickar uttryckligen `false` och gör därmed endast den platsbaserade hämtningen. Övriga anropsvägar behåller uppdateringen av nationell översikt.
+- Detta minskar en redundant endpoint-hämtning i bakgrunden; det garanterar inte att iOS kör bakgrundsjobbet eller att nätverket svarar inom en viss tid.
+- **Berörda filer:** `VADER/NotificationInboxView.swift`, `VADER/WeatherService.swift`, `docs/DEVELOPMENT_LOG.md`.
+- **Verifiering:** Kodvägar och standardparameter har lästs tillbaka från GitHub. Ingen XCTest, Xcode-kompilering eller fysisk enhetstest har körts i denna arbetsomgång.
+- **Kvarstående:** Kontrollera att alla anrop använder standardvärdet där nationell översikt ska uppdateras; verifiera i CI att signaturändringen kompilerar och att bakgrundsflödet fortfarande schemalägger lokala SMHI-notiser.
