@@ -1404,3 +1404,13 @@ completionHandler([.banner, .sound, .list])
 - Berörda filer: `project.yml`. `VADER/Info.plist` fanns redan med rätt deklarationer och återanvänds.
 - CI #765 (app delegate) och #764 (bakgrundsuppdatering) passerade på sina respektive commits. #760 stoppades av att testet kördes mot en mellanliggande commit före tillägget av `shouldDeliverImmediately`; den senare committen med hjälpfunktionen och testerna passerade separata körningar #761 och #762.
 - Rättning av XcodeGen-strukturen kräver ny fullständig CI-körning. Ingen ny IPA verifierad och ingen fysisk iPhone-testning genomförd.
+
+
+## Release-artefaktgranskning – saknade BGTask-nycklar i byggd Info.plist – 2026-11-22
+
+- CI #768 på commit `9c55af2a` passerade XcodeGen, XCTest, iOS Release-build, unsigned IPA-paketering och artifact-upload.
+- Direkt inspektion av den nedladdade IPA:n visade dock att den byggda `Payload/Regnvakt.app/Info.plist` saknade både `BGTaskSchedulerPermittedIdentifiers` och `UIBackgroundModes`, trots att deklarationerna fanns i källans `VADER/Info.plist`. Därför är artefakt #14752867522 inte godkänd för test av bakgrundsuppdatering.
+- `project.yml` har nu både en giltig `info.path` och explicita `info.properties` för de två bakgrundsnycklarna. Detta ska säkerställa att XcodeGen skriver in dem i den genererade appens Info.plist.
+- CI #769 på samma kodbas kunde inte starta XCTest eftersom GitHub-runnern saknade den begärda simulatorn `iPhone 16`; detta är ett runner-/destinationfel (exit 70), inte ett testassertionsfel. #768 körde däremot hela kedjan framgångsrikt före artefaktinspektionen.
+- Ny CI krävs efter ändringen. Nästa IPA måste inspekteras på nytt och uttryckligen innehålla båda nycklarna innan den lämnas för fysisk testning.
+- SHA-256 för granskad, ej godkänd IPA: `b63224c10bf7f7fe4cfa663f503b256a5c950a906e457b1c9fb8442143a527c6`. Ingen fysisk iPhone-testning eller merge.
