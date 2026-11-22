@@ -56,6 +56,22 @@ enum WeatherNotificationBudget {
         )
     }
 
+    /// Converts a missed lead-time trigger into an immediate local alert only
+    /// for safety-critical events. Routine forecast alerts remain scheduled or skipped.
+    static func shouldDeliverImmediately(
+        alreadyImmediate: Bool,
+        safetyCritical: Bool,
+        eventDate: Date,
+        leadMinutes: Int,
+        now: Date,
+        minimumLeadTime: TimeInterval = 30
+    ) -> Bool {
+        if alreadyImmediate { return true }
+        guard safetyCritical else { return false }
+        let plannedFireDate = eventDate.addingTimeInterval(-Double(max(0, leadMinutes)) * 60)
+        return plannedFireDate <= now.addingTimeInterval(max(0, minimumLeadTime))
+    }
+
     /// Conservative Regnvakt app policy, not an iOS platform limit.
     /// The reserve is additional headroom after counting already-pending
     /// SMHI and unrelated notifications.
