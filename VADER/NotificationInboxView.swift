@@ -46,7 +46,10 @@ private actor SMHIWarningNotificationGate {
         // long-lived state without allowing an overlapping, stale refresh to
         // erase a newer successful claim.
         let cutoff = Date().addingTimeInterval(-90 * 24 * 60 * 60)
-        scheduled = Set(scheduled.filter { signatureIsRecent($0, cutoff: cutoff) })
+        scheduled = Set(SMHIWarningNotificationPolicy.retainedScheduledSignatures(
+            scheduled: Set(scheduled.filter { signatureIsRecent($0, cutoff: cutoff) }),
+            current: current
+        ))
         let recentPersisted = persisted.filter { signatureIsRecent($0, cutoff: cutoff) }
         scheduled.formUnion(recentPersisted.intersection(current))
         UserDefaults.standard.set(Array(scheduled), forKey: persistenceKey)
