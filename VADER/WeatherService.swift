@@ -103,7 +103,8 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
             let generation = SMHIWarningService.beginCheck()
             smhiRefreshSucceeded = await SMHIWarningService.checkAndNotify(
                 at: monitoredCoordinates,
-                generation: generation
+                generation: generation,
+                refreshNationwideOverview: false
             )
         }
 
