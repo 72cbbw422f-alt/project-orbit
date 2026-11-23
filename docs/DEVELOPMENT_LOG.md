@@ -1546,3 +1546,13 @@ completionHandler([.banner, .sound, .list])
 - Historiken rensas inte automatiskt. Användaren behåller kontrollen via befintliga funktioner för att radera en notis eller rensa historiken.
 - **Berörda filer:** `VADER/NotificationInboxView.swift`, `docs/DEVELOPMENT_LOG.md`.
 - **Verifiering:** Källändringen är committad och ska läsas tillbaka. Ingen XCTest eller Xcode-kompilering har körts i denna arbetsomgång; UI måste verifieras i en byggd app på iPhone.
+
+
+## 2026-11-23 – Säker migrering av nationell SMHI-baslinje
+
+- Åtgärdade en övergångsrisk efter ändringen från äldre nationella signaturer (`id|nivå|rubrik`) till stabila händelsefingeravtryck (`smhi|id|starttid`). Utan migrering kunde alla redan kända nationella varningar felaktigt markeras som nya efter uppdatering.
+- Vid första kontrollen efter uppdatering identifieras en äldre baslinje och jämförs mot aktuella varningar i det gamla formatet. Därefter sparas den nya stabila baslinjen. Verkligt nytillkomna varningar upptäcks fortfarande under migreringen.
+- Första kontrollen utan tidigare baslinje etablerar endast baslinje och markerar inte allt som nytt.
+- **Berörda filer:** `VADER/SMHIWarningNotificationPolicy.swift`, `VADER/NotificationInboxView.swift`, `Tests/SMHIWarningNotificationPolicyTests.swift`, `docs/DEVELOPMENT_LOG.md`.
+- **Tester:** Fyra XCTest-fall tillagda för migrering, ny varning under migrering, första baslinje och stabil efterföljande baslinje. Körs i nästa CI efter commit.
+- **Status:** Ändringen görs isolerat på `feature/frost-notification-audit`. Ingen merge eller produktionsändring.
