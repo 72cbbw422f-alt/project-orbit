@@ -1,6 +1,18 @@
 import Foundation
 
 enum SMHIWarningNotificationPolicy {
+    /// Identifies marine warning districts. Vänern is intentionally excluded:
+    /// it is an inland lake and must not receive the broad coastal catchment.
+    static func isMarineWarningArea(areaCode: String, areaName: String) -> Bool {
+        if areaCode == "SWE_SEA_DISTRICTS" { return true }
+        let marineNames = [
+            "Bottenhavet", "Bottenviken", "Skagerrak", "Kattegatt", "Östersjön",
+            "Kvarken", "Ålands hav", "Rigabukten", "Skärgårdshavet",
+            "Finska Viken", "Bälten", "Öresund"
+        ]
+        return marineNames.contains { areaName.localizedCaseInsensitiveContains($0) }
+    }
+
     /// Returns true only for the newest SMHI location-snapshot check.
     static func isCurrentCheck(_ generation: String, storedGeneration: String?) -> Bool {
         storedGeneration == generation
