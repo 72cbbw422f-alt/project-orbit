@@ -1635,3 +1635,20 @@ completionHandler([.banner, .sound, .list])
 - **Begränsning:** BGAppRefresh är fortsatt best-effort. Denna ändring ger vanliga vädervakter företräde om iOS startar uppgiften, men garanterar inte att iOS startar den.
 - **Git:** `feature/frost-notification-audit`; PR #1 förblir draft/open mot `feature/wind-radar`. Ingen merge eller produktionsändring.
 - **Nästa steg:** Verifiera CI, granska schemaläggning och uppdateringsflöde för lokala vädernotiser, samt kontrollera pending-notiser och borttagna/avstängda platser.
+
+
+## 2026-11-23 – Granskning av schemaläggning för vanliga vädervakter
+
+- Fortsatt kodgranskning av `WeatherNotificationScheduler`, `WeatherNotificationBudget`, `WeatherWatchRules`, `NotificationSettingsView`, `VaktView` och relevanta delar av `WeatherService`.
+- Bekräftat i koden:
+  - Regn, snö, vind och åska skapar högst en första schemaläggningsbar händelse per risktyp och bevakad plats inom den åtta timmar långa notishorisonten.
+  - Frost och halkrisk behandlas som säkerhetskritiska och kan schemaläggas direkt när den ordinarie förvarningstiden redan passerat.
+  - Tysta timmar gäller vanliga prognosnotiser men inte frost/halkrisk.
+  - Ändringar av vädervakternas reglage, förvarningstid och tysta timmar startar en ny global avstämning av väntande notiser.
+  - Den globala avstämningen räknar in andra appars och SMHI:s väntande notiser i sin konservativa kapacitetsbudget, och bevarar redan väntande omedelbara frostnotiser.
+  - Avstängda/borttagna platser tas bort ur prognosregistret och deras väntande samt levererade prognosnotiser rensas innan återstående platser stäms av igen.
+- Medvetet beteende: vid appstart används endast prognoser som är högst två timmar gamla. Äldre prognoser ger inga nya notiser och deras gamla väntande vädernotiser rensas för att undvika att skicka aviseringar baserade på inaktuellt väder.
+- Inga ytterligare kodändringar gjordes i denna granskningsomgång; ingen ny testkod tillagd. Detta är en statisk kodgranskning, inte ett bevis på leverans på fysisk iPhone.
+- **CI:** GitHub Actions #823 kör fortfarande på commit `78094eec0fff376a2ad1cec75a8c7eda61bcc0d2`. Xcode-projektgenerering är klar; steget att välja simulator är fortfarande igång, så XCTest, Release-build och IPA är ännu inte verifierade för denna commit.
+- **Git:** `feature/frost-notification-audit`; PR #1 fortsatt draft/open mot `feature/wind-radar`. Ingen merge eller produktionsändring.
+- **Nästa steg:** få CI #823 i mål och därefter åtgärda eventuella verifierade fel. Fortsätt sedan med riktade tester av schemaläggningsregler och fysisk iPhone-testning av vanliga vädernotiser.
