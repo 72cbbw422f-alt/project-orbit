@@ -1592,3 +1592,15 @@ completionHandler([.banner, .sound, .list])
 - **Risk/avgränsning:** Detta ändrar endast klassificeringen som styr 75 km respektive 5 km närhetsradie. Polygoninnehåll och SMHI:s officiella varningsgeometri ändras inte.
 - **Git:** `feature/frost-notification-audit`; ingen merge eller ändring av målgrenen.
 - **Kvarstår:** Verifiera XCTest, Release-build och IPA i CI. Geografisk träffsäkerhet måste även kontrolleras mot verkliga SMHI-varningspolygoner och platser nära kust/insjö.
+
+
+## 2026-11-23 – Verifierad geografisk korrigering och IPA 820
+
+- GitHub Actions PR-körning #820 ([45163378558](https://github.com/72cbbw422f-alt/project-orbit/actions/runs/45163378558)) kördes på aktuell kodcommit `bb7217dc329c7a321998ea2e2c0227bdc9354f92` och slutfördes med `success`.
+- XCTest: 79 tester körda, 0 fel. `TEST SUCCEEDED`. De nya testerna för marin klassificering och undantaget Vänern ingår.
+- iOS Release-enhetsbygge: `BUILD SUCCEEDED`.
+- Workflowens metadata-validering passerade; bundle ID är `app.walnut8211.vadra`, BGTaskScheduler-ID är `app.walnut8211.vadra.weather-refresh` och bakgrundsläget `fetch` finns.
+- Osignerad IPA paketerades och laddades upp: artifact `Regnvakt-unsigned-IPA`, ID `14814955452`, från commit `bb7217d...`. Arkivet och den inre IPA-filen har kontrollerats med ZIP-integritetstest.
+- Xcode visar en informationsvarning om att AppIntents-metadataextraktion hoppas över eftersom AppIntents.framework inte används. Detta stoppade inte bygget.
+- **Begränsning:** IPA:n är osignerad. Ingen fysisk iPhone-installation, SMHI-polygonvalidering mot aktuella verkliga varningsdata eller bakgrundsleverans efter tvångsavslut är verifierad.
+- **Git:** `feature/frost-notification-audit`; PR #1 fortsatt draft/open mot `feature/wind-radar`. Ingen merge eller ändring av målgrenen.
