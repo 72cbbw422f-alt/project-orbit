@@ -451,14 +451,10 @@ private struct ReferenceWeatherHome: View {
     }
 
     private var watchEvent: (title: String, detail: String, symbol: String, level: String, tint: Color) {
-        let nearTermFormatter = DateFormatter()
-        nearTermFormatter.locale = Locale(identifier: "en_US_POSIX")
-        nearTermFormatter.timeZone = .current
-        nearTermFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
         let now = Date()
         let nearTermHorizon = now.addingTimeInterval(6 * 60 * 60)
         let nearTermHours = hours.filter { hour in
-            guard let date = nearTermFormatter.date(from: hour.id) else { return false }
+            guard let date = hour.date else { return false }
             return date >= now && date <= nearTermHorizon
         }
         let currentHour = Calendar.current.component(.hour, from: now)
@@ -495,7 +491,7 @@ private struct ReferenceWeatherHome: View {
         }
 
         if frostWatchEnabled, let frost = nearTermHours.first(where: { hour in
-            guard let date = nearTermFormatter.date(from: hour.id) else { return false }
+            guard let date = hour.date else { return false }
             let hourOfDay = Calendar.current.component(.hour, from: date)
             return hour.temperature <= ((hourOfDay >= 18 || hourOfDay < 9) ? 1 : 0)
         }) {
@@ -1205,12 +1201,12 @@ private struct ForecastDayDetails: View {
     @Environment(\.dismiss) private var dismiss
 
     private var dayHours: [HourForecast] {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(identifier: "Europe/Stockholm")
-        formatter.dateFormat = "yyyy-MM-dd"
-        let key = formatter.string(from: day.date)
-        return hours.filter { $0.id.hasPrefix(key) }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
+        return hours.filter { hour in
+            guard let date = hour.date else { return false }
+            return calendar.isDate(date, inSameDayAs: day.date)
+        }
     }
 
     var body: some View {
