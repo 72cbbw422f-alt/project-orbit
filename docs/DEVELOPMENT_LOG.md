@@ -1652,3 +1652,14 @@ completionHandler([.banner, .sound, .list])
 - **CI:** GitHub Actions #823 kör fortfarande på commit `78094eec0fff376a2ad1cec75a8c7eda61bcc0d2`. Xcode-projektgenerering är klar; steget att välja simulator är fortfarande igång, så XCTest, Release-build och IPA är ännu inte verifierade för denna commit.
 - **Git:** `feature/frost-notification-audit`; PR #1 fortsatt draft/open mot `feature/wind-radar`. Ingen merge eller produktionsändring.
 - **Nästa steg:** få CI #823 i mål och därefter åtgärda eventuella verifierade fel. Fortsätt sedan med riktade tester av schemaläggningsregler och fysisk iPhone-testning av vanliga vädernotiser.
+
+
+## 2026-11-23 – Riktade tester för vädernotisernas tidsgränser
+
+- Lade till XCTest för förvarningstid för vanliga prognosnotiser, omedelbar schemaläggning av säkerhetskritiska händelser när förvarningstiden passerat, undantag från tysta timmar för säkerhetskritiska händelser samt 30-sekunders marginalen före schemaläggning.
+- Testerna ligger i `Tests/FrostRiskRulesTests.swift` och testar den rena regelmodulen `WeatherWatchRules`; de verifierar inte iOS leverans eller schemaläggning i en fysisk enhet.
+- **Berörda filer:** `Tests/FrostRiskRulesTests.swift`, `docs/DEVELOPMENT_LOG.md`.
+- **Tester:** nya XCTest är tillagda men inväntar GitHub Actions. Ingen lokal Xcode-körning eller fysisk iPhone-testning i denna arbetsomgång.
+- **CI före ändringen:** #824 lyckades på tidigare head `4396b5bf63877b48a109afb6efb535b13c9cc927`, inklusive XCTest, Release-bygge och IPA-paketering.
+- **Git:** `feature/frost-notification-audit`; teständringen är commit `77c41d088f227809639b274301c4f0528da78fe0`. PR #1 fortsatt draft/open mot `feature/wind-radar`. Ingen merge.
+- **Kvarstår:** verifiera att de nya testerna passerar i CI. Därefter fortsätter testtäckningen för stabila notis-ID:n och sommartids-/vintertidsövergångar. Fysisk leverans på iPhone är fortfarande ej verifierad.
