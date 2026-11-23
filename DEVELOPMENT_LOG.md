@@ -3,11 +3,13 @@
 ## 2026-11-23
 
 ### Changes
+- Fixed the in-app test notification: it now carries an explicit test/safety-critical marker so the notification delegate presents it while Regnvakt is foregrounded. Ordinary forecast notices remain suppressed in the foreground by design.
 - Updated `.github/workflows/build.yml` so pushes to `feature/frost-notification-audit` also run the iOS CI workflow; feature commits are no longer dependent on opening/updating a PR against `feature/wind-radar` to receive CI coverage.
 - Added `testLatestDeliveredCurrentFrostDaysUsesNewestImmediateAlertPerRegisteredLocation` to `Tests/WeatherNotificationBudgetTests.swift`.
 - The test covers the global delivered-alert recovery path: newest immediate frost day wins per registered location; non-immediate forecast frost, removed locations, foreign SMHI identifiers, and alerts without an alert day are ignored.
 
 ### Files
+- `VADER/NotificationSettingsView.swift`
 - `.github/workflows/build.yml`
 - `Tests/WeatherNotificationBudgetTests.swift`
 
@@ -34,5 +36,5 @@
 
 ### Remaining
 - Install/sign the unsigned IPA with the user's authorized FlareStore signing workflow and test on the physical iPhone.
-- Confirm the new push-triggered CI run on commit `dec59b78dd9f208da9f66ba771c97683e88e08aa` completes successfully.
+- Confirm the push-triggered CI run after commits `dec59b78dd9f208da9f66ba771c97683e88e08aa` and `383c25d243b8d0229fafa66c56f05b3ae688c6ec` completes successfully.
 - Install/sign the unsigned IPA with FlareStore and test local notifications on a physical iPhone while foregrounded, backgrounded, and terminated; CI/unit tests cannot establish real iOS delivery behavior.
