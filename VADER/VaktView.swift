@@ -40,17 +40,13 @@ struct VaktDashboard: View {
     let refreshSMHIWarnings: () -> Void
 
     private var nearTermHours: [HourForecast] {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
         let now = Date()
         let horizon = WeatherWatchRules.forecastHorizon(from: now)
         return hours.filter { hour in
-            guard let date = formatter.date(from: hour.id) else { return false }
+            guard let date = hour.date else { return false }
             return date >= now && date <= horizon
         }.sorted {
-            (formatter.date(from: $0.id) ?? .distantFuture) < (formatter.date(from: $1.id) ?? .distantFuture)
+            ($0.date ?? .distantFuture) < ($1.date ?? .distantFuture)
         }
     }
 
@@ -297,14 +293,10 @@ private struct WatchDetailSheet: View {
     }
 
     private var nearTermHours: [HourForecast] {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = .current
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
         let now = Date()
         let horizon = WeatherWatchRules.forecastHorizon(from: now)
         return hours.filter { hour in
-            guard let date = formatter.date(from: hour.id) else { return false }
+            guard let date = hour.date else { return false }
             return date >= now && date <= horizon
         }
     }
