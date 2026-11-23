@@ -37,6 +37,41 @@ final class SMHIWarningNotificationPolicyTests: XCTestCase {
         XCTAssertEqual(transition.retainedBaseline, [beforeUpdate])
     }
 
+    func testNationalBaselineMigrationDoesNotMarkExistingWarningsAsNew() {
+        let legacy = Set(["warning-1|Gul|Kraftigt regn", "warning-2|Orange|Hård vind"])
+        let current = Set(["smhi|warning-1|2026-11-22T08:00:00Z", "smhi|warning-2|2026-11-22T09:00:00Z"])
+        let legacyCurrent = Set(["warning-1|Gul|Kraftigt regn", "warning-2|Orange|Hård vind"])
+
+        XCTAssertFalse(SMHIWarningNotificationPolicy.hasNewNationalWarnings(
+            current: current, previous: legacy, legacyCurrent: legacyCurrent, hasBaseline: true
+        ))
+    }
+
+    func testNationalBaselineMigrationStillDetectsActuallyNewWarning() {
+        let legacy = Set(["warning-1|Gul|Kraftigt regn"])
+        let current = Set(["smhi|warning-1|2026-11-22T08:00:00Z", "smhi|warning-2|2026-11-22T09:00:00Z"])
+        let legacyCurrent = Set(["warning-1|Gul|Kraftigt regn", "warning-2|Orange|Hård vind"])
+
+        XCTAssertTrue(SMHIWarningNotificationPolicy.hasNewNationalWarnings(
+            current: current, previous: legacy, legacyCurrent: legacyCurrent, hasBaseline: true
+        ))
+    }
+
+    func testFirstNationalBaselineDoesNotMarkExistingWarningsAsNew() {
+        XCTAssertFalse(SMHIWarningNotificationPolicy.hasNewNationalWarnings(
+            current: ["smhi|warning-1|2026-11-22T08:00:00Z"], previous: [],
+            legacyCurrent: ["warning-1|Gul|Kraftigt regn"], hasBaseline: false
+        ))
+    }
+
+    func testStableNationalBaselineDetectsNewEpisode() {
+        XCTAssertTrue(SMHIWarningNotificationPolicy.hasNewNationalWarnings(
+            current: ["smhi|warning-1|2026-11-22T08:00:00Z", "smhi|warning-2|2026-11-22T09:00:00Z"],
+            previous: ["smhi|warning-1|2026-11-22T08:00:00Z"],
+            legacyCurrent: [], hasBaseline: true
+        ))
+    }
+
     func testSMHIInboxFingerprintRejectsMissingIdentity() {
         XCTAssertNil(SMHIWarningNotificationPolicy.smhiEventFingerprint(warningID: nil, start: "2026-11-22T08:00:00Z"))
         XCTAssertNil(SMHIWarningNotificationPolicy.smhiEventFingerprint(warningID: "warning-42", start: nil))
