@@ -667,4 +667,49 @@ final class WeatherNotificationBudgetTests: XCTestCase {
         XCTAssertEqual(plan.identifiersToAdd, ["regnvakt.weather.north.ice.new"])
     }
 
+    func testLatestDeliveredCurrentFrostDaysUsesNewestImmediateAlertPerRegisteredLocation() {
+        let oldDay = Date(timeIntervalSince1970: 1_800_000_000)
+        let newDay = oldDay.addingTimeInterval(24 * 60 * 60)
+        let alerts = [
+            DeliveredCurrentFrostAlert(
+                identifier: "regnvakt.weather.north.frost.current.old",
+                alertDay: oldDay,
+                isImmediate: true
+            ),
+            DeliveredCurrentFrostAlert(
+                identifier: "regnvakt.weather.north.frost.current.new",
+                alertDay: newDay,
+                isImmediate: true
+            ),
+            DeliveredCurrentFrostAlert(
+                identifier: "regnvakt.weather.north.frost.current.forecast",
+                alertDay: newDay.addingTimeInterval(24 * 60 * 60),
+                isImmediate: false
+            ),
+            DeliveredCurrentFrostAlert(
+                identifier: "regnvakt.weather.removed.frost.current.new",
+                alertDay: newDay,
+                isImmediate: true
+            ),
+            DeliveredCurrentFrostAlert(
+                identifier: "regnvakt.weather.south.frost.current.unknown",
+                alertDay: nil,
+                isImmediate: true
+            ),
+            DeliveredCurrentFrostAlert(
+                identifier: "smhi.warning.north.frost.current.new",
+                alertDay: newDay,
+                isImmediate: true
+            )
+        ]
+
+        XCTAssertEqual(
+            WeatherNotificationBudget.latestDeliveredCurrentFrostDays(
+                alerts: alerts,
+                registeredLocationIDs: ["north", "south"]
+            ),
+            ["north": newDay]
+        )
+    }
+
 }
