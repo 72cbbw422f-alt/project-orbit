@@ -127,4 +127,32 @@ final class WeatherWatchRulesTests: XCTestCase {
         ))
     }
 
+
+    func testQuietHoursRemainCorrectAcrossSwedishAutumnClockChange() {
+        // On 2026-10-25, 02:30 occurs twice: once in CEST and once in CET.
+        XCTAssertTrue(WeatherWatchRules.isQuietTime(
+            stockholmDate("2026-10-25T02:30:00+02:00"), setting: "22–07"
+        ))
+        XCTAssertTrue(WeatherWatchRules.isQuietTime(
+            stockholmDate("2026-10-25T02:30:00+01:00"), setting: "22–07"
+        ))
+        XCTAssertFalse(WeatherWatchRules.isQuietTime(
+            stockholmDate("2026-10-25T07:00:00+01:00"), setting: "22–07"
+        ))
+    }
+
+    func testNegativeLeadTimeIsClampedToZero() {
+        let now = stockholmDate("2026-11-20T12:00:00+01:00")
+        XCTAssertFalse(WeatherWatchRules.canScheduleForecastEvent(
+            eventDate: now.addingTimeInterval(20),
+            safetyCritical: false, leadMinutes: -15,
+            now: now, quietHours: "none"
+        ))
+        XCTAssertTrue(WeatherWatchRules.canScheduleForecastEvent(
+            eventDate: now.addingTimeInterval(60),
+            safetyCritical: false, leadMinutes: -15,
+            now: now, quietHours: "none"
+        ))
+    }
+
 }
