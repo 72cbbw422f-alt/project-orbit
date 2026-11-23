@@ -1696,3 +1696,5 @@ completionHandler([.banner, .sound, .list])
 - **Tester:** lagt till parser-tester för båda 02:30-förekomsterna hösten 2026 samt bakåtkompatibilitet för äldre cache-ID. CI inväntas; ingen lokal Xcode-miljö eller fysisk iPhone-testning.
 - **Git:** `feature/frost-notification-audit`; PR #1 fortsatt draft/open mot `feature/wind-radar`. Ingen merge.
 - **Kvarstår:** granska API:ets Unix-konvention mot verkliga svar, verifiera CI-kompilering och XCTest, kontrollera UI-sortering/dygnsgruppering och därefter skapa IPA från godkänd CI-körning.
+
+- **CI-fel rättat 2026-11-23:** De första tre körningarna stoppades av felaktigt escapade Swift-stränginterpoleringar i de nya DST-testerna. Testkoden är korrigerad genom att först skapa datumobjekten och därefter bygga ID-strängarna. Ny CI-körning inväntas.
