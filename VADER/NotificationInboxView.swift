@@ -299,7 +299,7 @@ enum SMHIWarningService {
 
     static func checkAndNotify(at coordinate: CLLocationCoordinate2D) async {
         let generation = beginCheck()
-        await checkAndNotify(at: [coordinate], generation: generation)
+        _ = await checkAndNotify(at: [coordinate], generation: generation)
     }
 
     static func checkAndNotify(
