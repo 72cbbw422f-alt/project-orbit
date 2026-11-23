@@ -1581,3 +1581,14 @@ completionHandler([.banner, .sound, .list])
 - **Begränsning:** IPA:n är osignerad. Ingen fysisk iPhone-installation eller bakgrundsnotisleverans är verifierad. iOS BGAppRefresh är best-effort; stabil leverans när appen är tvångsavslutad kräver fortsatt serverbaserad APNs-lösning.
 - **Git:** `feature/frost-notification-audit`; dokumentationsuppdateringen görs som separat commit. PR #1 är fortsatt draft/open mot `feature/wind-radar`; ingen merge eller ändring av målgrenen.
 - **Nästa steg:** Fortsätt granska livscykeln för flera bevakade platser och borttagna platser. Verifiera därefter den osignerade IPA:n på fysisk iPhone via användarens sideload-flöde.
+
+## 2026-11-23 – Avgränsning av kustnära SMHI-träffområde
+
+- Granskningen av geografisk matchning visade att namnet `Vänern` klassificerades som marint och därmed fick samma 75 km närhetsradie som kust- och havsdistrikt.
+- Vänern är en insjö och ska inte omfattas av kustnära fångstområde. Det kan annars ge falska lokala träffar långt från sjön.
+- Klassificeringen har flyttats till den testbara policyn `SMHIWarningNotificationPolicy.isMarineWarningArea(areaCode:areaName:)`. Den officiella GeoJSON-koden `SWE_SEA_DISTRICTS` prioriteras; namnreservlistan omfattar havs-/kustdistrikt men inte Vänern.
+- **Berörda filer:** `VADER/SMHIWarningNotificationPolicy.swift`, `VADER/NotificationInboxView.swift`, `Tests/SMHIWarningNotificationPolicyTests.swift`, `docs/DEVELOPMENT_LOG.md`.
+- **Tester:** Fem påståenden tillagda i ett XCTest för havskod, Skagerrak, Bottenhavet, Vänern och Hudiksvall. Ändringen är ännu inte körd i CI; resultat inväntas.
+- **Risk/avgränsning:** Detta ändrar endast klassificeringen som styr 75 km respektive 5 km närhetsradie. Polygoninnehåll och SMHI:s officiella varningsgeometri ändras inte.
+- **Git:** `feature/frost-notification-audit`; ingen merge eller ändring av målgrenen.
+- **Kvarstår:** Verifiera XCTest, Release-build och IPA i CI. Geografisk träffsäkerhet måste även kontrolleras mot verkliga SMHI-varningspolygoner och platser nära kust/insjö.
