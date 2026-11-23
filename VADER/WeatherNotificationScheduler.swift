@@ -169,6 +169,29 @@ enum WeatherNotificationScheduler {
 
         let pendingIDs = pending.map(\.identifier)
         let deliveredIDs = Set(delivered.map { $0.request.identifier })
+        // Keep daily frost deduplication in sync in the global path too.
+        // The legacy per-location scheduler did this; global reconciliation must
+        // remember delivered immediate frost alerts across app launches as well.
+        let deliveredFrostAlerts = delivered.map { notification in
+            DeliveredCurrentFrostAlert(
+                identifier: notification.request.identifier,
+                alertDay: notification.request.content.userInfo["alertDay"] as? Date,
+                isImmediate: (notification.request.content.userInfo["immediate"] as? Bool) == true &&
+                    (notification.request.content.userInfo["watch"] as? String) == "frost"
+            )
+        }
+        let deliveredFrostDays = WeatherNotificationBudget.latestDeliveredCurrentFrostDays(
+            alerts: deliveredFrostAlerts,
+            registeredLocationIDs: Set(registry.values.map(\.locationID)),
+            forecastPrefix: prefix
+        )
+        for (locationID, alertDay) in deliveredFrostDays {
+            let key = currentFrostAlertDayKey + "." + locationID.replacingOccurrences(of: ",", with: "_")
+            let previous = defaults.object(forKey: key) as? Date
+            if previous.map({ $0 < alertDay }) ?? true {
+                defaults.set(alertDay, forKey: key)
+            }
+        }
         let preserveFrost = defaults.object(forKey: "Regnvakt.notifications.frost") as? Bool ?? true
         let preservedFrostIDs = WeatherNotificationBudget.preservedPendingCurrentFrostIdentifiers(
             pendingIdentifiers: pendingIDs,
