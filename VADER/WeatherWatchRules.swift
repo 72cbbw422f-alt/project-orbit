@@ -5,6 +5,16 @@ enum WeatherWatchRules {
     static let notificationHorizonHours: TimeInterval = 8
     static let windGustThreshold = 15.0
 
+    /// Stable forecast identity distinguishes the repeated local hour at the autumn clock change.
+    static func forecastHourIdentifier(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
+        formatter.dateFormat = "yyyyMMddHHmmXXX"
+        return formatter.string(from: date)
+    }
+
     static func forecastHorizon(from date: Date) -> Date {
         date.addingTimeInterval(forecastHorizonHours * 60 * 60)
     }
