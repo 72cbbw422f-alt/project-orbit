@@ -634,12 +634,8 @@ enum WeatherNotificationScheduler {
                 // seconds/minutes while still describing the same displayed
                 // local-hour event. Key the notification by Swedish local hour
                 // so a refresh replaces that event instead of delivering a copy.
-                let hourStamp = DateFormatter()
-                hourStamp.calendar = swedishCalendar
-                hourStamp.timeZone = swedishTimeZone
-                hourStamp.locale = Locale(identifier: "en_US_POSIX")
-                hourStamp.dateFormat = "yyyyMMddHH"
-                stamp = hourStamp.string(from: event.date)
+                // Include UTC offset so the two real instances of the autumn repeated hour remain distinct.
+                stamp = WeatherWatchRules.forecastHourIdentifier(for: event.date)
             }
             let locationToken = locationID.replacingOccurrences(of: ",", with: "_")
             let identifier = prefix + locationToken + "." + event.type + (deliverImmediately ? ".current." : ".") + stamp
