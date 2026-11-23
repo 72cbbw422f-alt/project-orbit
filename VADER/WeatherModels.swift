@@ -29,13 +29,9 @@ struct WeatherRiskAssessment {
         smhiLevel: String,
         now: Date = Date()
     ) -> WeatherRiskAssessment {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
         let horizon = WeatherWatchRules.forecastHorizon(from: now)
         let upcoming = hours.compactMap { hour -> (HourForecast, Date)? in
-            guard let date = formatter.date(from: hour.id), date >= now, date <= horizon else { return nil }
+            guard let date = hour.date, date >= now, date <= horizon else { return nil }
             return (hour, date)
         }.sorted { $0.1 < $1.1 }.map { $0.0 }
 
@@ -58,12 +54,12 @@ struct WeatherRiskAssessment {
         let currentHour = swedishCalendar.component(.hour, from: now)
         let currentFrost = FrostRiskRules.isFrostRisk(temperature: weather.temperature, localHour: currentHour)
         let forecastFrost = upcoming.contains { hour in
-            guard let date = formatter.date(from: hour.id) else { return false }
+            guard let date = hour.date else { return false }
             let localHour = swedishCalendar.component(.hour, from: date)
             return FrostRiskRules.isFrostRisk(temperature: hour.temperature, localHour: localHour)
         }
         let timedUpcoming = upcoming.compactMap { hour -> (HourForecast, Date)? in
-            guard let date = formatter.date(from: hour.id) else { return nil }
+            guard let date = hour.date else { return nil }
             return (hour, date)
         }
         let wetNearFreezeHour = timedUpcoming.first { candidate in
@@ -101,7 +97,7 @@ struct WeatherRiskAssessment {
             wetNearFreeze: wetNearFreezeHour != nil,
             wetNearFreezeHour: wetNearFreezeHour,
             forecastFrostHour: upcoming.first { hour in
-                guard let date = formatter.date(from: hour.id) else { return false }
+                guard let date = hour.date else { return false }
                 let localHour = swedishCalendar.component(.hour, from: date)
                 return FrostRiskRules.isFrostRisk(temperature: hour.temperature, localHour: localHour)
             },
@@ -146,6 +142,18 @@ struct HourForecast: Identifiable, Codable {
     let precipitation: Double
     let wind: Double
     let gust: Double
+
+    /// New forecasts use absolute Unix seconds. Legacy cache IDs remain readable.
+    var date: Date? {
+        if id.hasPrefix("@"), let seconds = TimeInterval(id.dropFirst()) {
+            return Date(timeIntervalSince1970: seconds)
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        return formatter.date(from: id)
+    }
 }
 
 struct DayForecast: Identifiable, Codable {
