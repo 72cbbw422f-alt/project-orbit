@@ -56,6 +56,7 @@ targets:
       - path: VADER/WeatherWatchRules.swift
       - path: VADER/WeatherNotificationBudget.swift
       - path: VADER/SMHIWarningNotificationPolicy.swift
+      - path: VADER/WeatherModels.swift
     dependencies:
       - target: VADER
     settings:
