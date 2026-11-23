@@ -1562,8 +1562,8 @@ completionHandler([.banner, .sound, .list])
 - Senaste PR-körningen för commit `fa8ff764dab67ff721ebce5b8b042a59c3dc95b8` slutfördes med `success`.
 - XCTest körde 78 tester med 0 fel. De fyra nya testerna för nationell SMHI-baslinjemigrering passerade.
 - iOS Release-enhetsbygge och paketering av osignerad IPA lyckades. Artifact: `Regnvakt-unsigned-IPA`, GitHub Actions run `45128499660`.
-- CI-loggen visade en Swift-varning eftersom returvärdet från bakgrundsuppdateringen ignorerades. Anropet i `VADER/VADERApp.swift` uttrycker nu avsiktligt ignorerat resultat med `_ = await`.
-- **Berörda filer:** `VADER/VADERApp.swift`, `docs/DEVELOPMENT_LOG.md`.
+- CI-loggen visade en Swift-varning eftersom returvärdet från bakgrundsuppdateringen ignorerades. Anropet i `VADER/NotificationInboxView.swift` uttrycker nu avsiktligt ignorerat resultat med `_ = await`.
+- **Berörda filer:** `VADER/NotificationInboxView.swift`, `docs/DEVELOPMENT_LOG.md`.
 - **Verifiering:** Föregående commit är byggd och testad; varningsstädningen är en separat efterföljande kodändring och inväntar ny CI-körning. Ingen fysisk iPhone-verifiering.
 - **IPA:** Den tidigare byggda IPA:n motsvarar commit `fa8ff764`, inte den nya varningsstädningen. Ny IPA ska byggas från den nya committen innan den betraktas som senaste.
 - **Kvarstående:** Kontrollera ny CI, därefter fortsätta med fysisk testning av notiser och bevakade platser. Ingen merge eller ändring av målgrenen.
