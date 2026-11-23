@@ -27,6 +27,12 @@ struct WeatherNotificationPendingCounts: Equatable {
     let unrelated: Int
 }
 
+struct DeliveredCurrentFrostAlert {
+    let identifier: String
+    let alertDay: Date?
+    let isImmediate: Bool
+}
+
 enum WeatherNotificationBudget {
     /// Builds the pure priority metadata shared by request construction and
     /// global selection. Immediate frost is always ranked above other safety
@@ -163,6 +169,27 @@ enum WeatherNotificationBudget {
             identifier.contains(".frost.current.") &&
                 registeredPrefixes.contains(where: { identifier.hasPrefix($0) })
         })
+    }
+
+    /// Finds the latest delivered immediate-frost day for each still-registered location.
+    /// Delivered alerts are the source of truth after a foreground/global reconciliation;
+    /// a queued request alone must not mark the day as already alerted.
+    static func latestDeliveredCurrentFrostDays(
+        alerts: [DeliveredCurrentFrostAlert],
+        registeredLocationIDs: Set<String>,
+        forecastPrefix: String = "regnvakt.weather."
+    ) -> [String: Date] {
+        var latestByLocation: [String: Date] = [:]
+        for locationID in registeredLocationIDs {
+            let locationPrefix = forecastPrefix + locationID.replacingOccurrences(of: ",", with: "_") + ".frost.current."
+            for alert in alerts where alert.isImmediate && alert.identifier.hasPrefix(locationPrefix) {
+                guard let alertDay = alert.alertDay else { continue }
+                if latestByLocation[locationID].map({ $0 < alertDay }) ?? true {
+                    latestByLocation[locationID] = alertDay
+                }
+            }
+        }
+        return latestByLocation
     }
 
     /// Selects every identifier owned by the Regnvakt forecast scheduler.
