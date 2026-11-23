@@ -1698,3 +1698,14 @@ completionHandler([.banner, .sound, .list])
 - **Kvarstår:** granska API:ets Unix-konvention mot verkliga svar, verifiera CI-kompilering och XCTest, kontrollera UI-sortering/dygnsgruppering och därefter skapa IPA från godkänd CI-körning.
 
 - **CI-fel rättat 2026-11-23:** De första tre körningarna stoppades av felaktigt escapade Swift-stränginterpoleringar i de nya DST-testerna. Testkoden är korrigerad genom att först skapa datumobjekten och därefter bygga ID-strängarna. Ny CI-körning inväntas.
+
+
+## 2026-11-23 – Rätta testmålets modellberoende efter CI-fel
+
+- CI #838 visade att DST-testerna inte kunde kompilera eftersom `HourForecast` inte ingick i VADERTests mål. Modellen ligger i `VADER/WeatherModels.swift`, som hittills endast kompilerades i appmålet.
+- Lade till `WeatherModels.swift` som källfil i testmålet. Filen innehåller de vädermodeller som testet behöver; appmålets egen kompilering påverkas inte.
+- Korrigerade samtidigt dubbla backslash i stränginterpoleringen i Unix-tidsstämpeltesterna.
+- **Berörda filer:** `project.yml`, `Tests/FrostRiskRulesTests.swift`, `docs/DEVELOPMENT_LOG.md`.
+- **Tester:** CI #838 misslyckades vid testkompilering (`HourForecast` saknades i testmålet). CI #839 körde på den efterföljande dokumentationscommiten och verifierar inte dessa ändringar. Ny CI körs efter ändringarna; XCTest, Release-bygge och IPA inväntas.
+- **Git:** `feature/frost-notification-audit`; PR #1 fortsatt draft/open mot `feature/wind-radar`. Ingen merge.
+- **Kvarstår:** verifiera att modellfilen kan kompileras i testmålet utan symbolkonflikter, kontrollera DST-testerna, därefter granska Open-Meteo Unix-tidskonvention och generera IPA först efter grön CI.
