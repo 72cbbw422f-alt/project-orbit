@@ -229,6 +229,9 @@ struct NotificationSettingsView: View {
             content.title = "Regnvakt fungerar"
             content.body = "Det här är en testavisering. Om du ser den fungerar iPhones lokala notiskanal."
             content.sound = .default
+            // The test must be visible even while Regnvakt is foregrounded.
+            // Routine weather alerts remain intentionally suppressed in the foreground.
+            content.userInfo = ["watch": "test", "safetyCritical": true]
             let request = UNNotificationRequest(
                 identifier: "regnvakt.test.\(UUID().uuidString)",
                 content: content,
