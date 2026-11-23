@@ -617,7 +617,7 @@ private enum OpenMeteoService {
         weekday.locale = Locale(identifier: "sv_SE")
         weekday.dateFormat = "EEEE"
         let days = localDates.indices.filter { localDates[$0] >= todayKey }.map { i -> DayForecast in
-            let date = Date(timeIntervalSince1970: dailyTimestamps[i].doubleValue + utcOffset.doubleValue)
+            let date = dailyDateFormatter.date(from: localDates[i]) ?? Date(timeIntervalSince1970: dailyTimestamps[i].doubleValue + utcOffset.doubleValue)
             let code = i < codes.count ? codes[i].intValue : 0
             return DayForecast(date: date, day: i == todayIndex ? "Idag" : weekday.string(from: date).capitalized,
                 symbol: weatherSymbol(code), condition: conditionText(code),
