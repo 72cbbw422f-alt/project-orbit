@@ -141,6 +141,20 @@ final class WeatherWatchRulesTests: XCTestCase {
         ))
     }
 
+    func testForecastHourIdentifierDistinguishesRepeatedAutumnHour() {
+        let summerOffsetOccurrence = stockholmDate("2026-10-25T02:30:00+02:00")
+        let winterOffsetOccurrence = stockholmDate("2026-10-25T02:30:00+01:00")
+
+        XCTAssertNotEqual(
+            WeatherWatchRules.forecastHourIdentifier(for: summerOffsetOccurrence),
+            WeatherWatchRules.forecastHourIdentifier(for: winterOffsetOccurrence)
+        )
+        XCTAssertEqual(
+            WeatherWatchRules.forecastHourIdentifier(for: stockholmDate("2026-11-20T12:00:00+01:00")),
+            WeatherWatchRules.forecastHourIdentifier(for: stockholmDate("2026-11-20T12:00:00+01:00"))
+        )
+    }
+
     func testNegativeLeadTimeIsClampedToZero() {
         let now = stockholmDate("2026-11-20T12:00:00+01:00")
         XCTAssertFalse(WeatherWatchRules.canScheduleForecastEvent(
