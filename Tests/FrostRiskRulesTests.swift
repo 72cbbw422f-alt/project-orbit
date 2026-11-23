@@ -147,9 +147,9 @@ final class WeatherWatchRulesTests: XCTestCase {
                          precipitationChance: 0, temperature: 1, precipitation: 0, wind: 0, gust: 0)
         }
         let summerDate = stockholmDate("2026-10-25T02:30:00+02:00")
-        let summer = forecast("@\\(Int64(summerDate.timeIntervalSince1970))")
+        let summer = forecast("@\(Int64(summerDate.timeIntervalSince1970))")
         let winterDate = stockholmDate("2026-10-25T02:30:00+01:00")
-        let winter = forecast("@\\(Int64(winterDate.timeIntervalSince1970))")
+        let winter = forecast("@\(Int64(winterDate.timeIntervalSince1970))")
 
         XCTAssertNotEqual(summer.date, winter.date)
         XCTAssertEqual(summer.date, stockholmDate("2026-10-25T02:30:00+02:00"))
