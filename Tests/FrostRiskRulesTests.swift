@@ -141,6 +141,26 @@ final class WeatherWatchRulesTests: XCTestCase {
         ))
     }
 
+    func testHourForecastAbsoluteTimestampDistinguishesRepeatedAutumnHour() {
+        func forecast(_ id: String) -> HourForecast {
+            HourForecast(id: id, time: "02", symbol: "cloud.fill", condition: "Mulet",
+                         precipitationChance: 0, temperature: 1, precipitation: 0, wind: 0, gust: 0)
+        }
+        let summer = forecast("@\\(Int64(stockholmDate("2026-10-25T02:30:00+02:00").timeIntervalSince1970))")
+        let winter = forecast("@\\(Int64(stockholmDate("2026-10-25T02:30:00+01:00").timeIntervalSince1970))")
+
+        XCTAssertNotEqual(summer.date, winter.date)
+        XCTAssertEqual(summer.date, stockholmDate("2026-10-25T02:30:00+02:00"))
+        XCTAssertEqual(winter.date, stockholmDate("2026-10-25T02:30:00+01:00"))
+    }
+
+    func testHourForecastLegacyCacheTimestampRemainsReadable() {
+        let forecast = HourForecast(id: "2026-11-20T12:00", time: "12", symbol: "cloud.fill",
+                                    condition: "Mulet", precipitationChance: 0, temperature: 1,
+                                    precipitation: 0, wind: 0, gust: 0)
+        XCTAssertEqual(forecast.date, stockholmDate("2026-11-20T12:00:00+01:00"))
+    }
+
     func testForecastHourIdentifierDistinguishesRepeatedAutumnHour() {
         let summerOffsetOccurrence = stockholmDate("2026-10-25T02:30:00+02:00")
         let winterOffsetOccurrence = stockholmDate("2026-10-25T02:30:00+01:00")
