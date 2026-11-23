@@ -358,9 +358,18 @@ enum SMHIWarningService {
                     let nationalSignatures = Set(national.compactMap {
                         SMHIWarningNotificationPolicy.smhiEventFingerprint(warningID: $0.id, start: $0.start)
                     })
+                    // Older app versions stored id|level|title. Compare using that legacy
+                    // representation once before replacing it with stable episode fingerprints.
+                    let legacyNationalSignatures = Set(national.map { $0.id + "|" + $0.level + "|" + $0.title })
                     let nationalKey = "Regnvakt.smhi.nationalSignatures.v1"
+                    let hasNationalBaseline = defaults.object(forKey: nationalKey) != nil
                     let previousNational = Set(defaults.stringArray(forKey: nationalKey) ?? [])
-                    if nationalSignatures.contains(where: { !previousNational.contains($0) }) {
+                    if SMHIWarningNotificationPolicy.hasNewNationalWarnings(
+                        current: nationalSignatures,
+                        previous: previousNational,
+                        legacyCurrent: legacyNationalSignatures,
+                        hasBaseline: hasNationalBaseline
+                    ) {
                         defaults.set(true, forKey: "Regnvakt.smhi.hasNewNationalWarnings")
                     }
                     defaults.set(Array(nationalSignatures), forKey: nationalKey)
