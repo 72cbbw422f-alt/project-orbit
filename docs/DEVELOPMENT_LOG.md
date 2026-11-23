@@ -1663,3 +1663,13 @@ completionHandler([.banner, .sound, .list])
 - **CI före ändringen:** #824 lyckades på tidigare head `4396b5bf63877b48a109afb6efb535b13c9cc927`, inklusive XCTest, Release-bygge och IPA-paketering.
 - **Git:** `feature/frost-notification-audit`; teständringen är commit `77c41d088f227809639b274301c4f0528da78fe0`. PR #1 fortsatt draft/open mot `feature/wind-radar`. Ingen merge.
 - **Kvarstår:** verifiera att de nya testerna passerar i CI. Därefter fortsätter testtäckningen för stabila notis-ID:n och sommartids-/vintertidsövergångar. Fysisk leverans på iPhone är fortfarande ej verifierad.
+
+
+## 2026-11-23 – Sommartidsgranskning och förvaringsgränser
+
+- Utökade `Tests/FrostRiskRulesTests.swift` med test för den svenska höstens dubbla 02:30-timme vid övergången från sommartid till normaltid.
+- Lade även till test för att negativ förvarningstid normaliseras till noll och att 30-sekunders säkerhetsmarginalen fortfarande respekteras.
+- **Berörda filer:** `Tests/FrostRiskRulesTests.swift`, `docs/DEVELOPMENT_LOG.md`.
+- **Tester:** CI #825 och #826 kör fortfarande mot tidigare commits. Den nya teständringen är commit `6c7bd38789d251518b342ac0d1007a8736156680`; CI för denna ändring inväntas. Ingen lokal Xcode-körning.
+- **Git:** `feature/frost-notification-audit`; PR #1 fortsatt draft/open mot `feature/wind-radar`. Ingen merge.
+- **Kvarstår:** invänta CI för samtliga teständringar, kontrollera stabila ID:n för upprepade prognosuppdateringar och genomföra fysisk notisverifiering på iPhone.
