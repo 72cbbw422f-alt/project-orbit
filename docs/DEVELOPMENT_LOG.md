@@ -1621,3 +1621,17 @@ completionHandler([.banner, .sound, .list])
 - **Tester/verifiering:** statisk granskning av VADER/VADERApp.swift, VADER/WeatherService.swift, VADER/NotificationInboxView.swift, VADER/SMHIWarningNotificationPolicy.swift och docs/SERVER_PUSH_DESIGN.md. Inget nytt XCTest eller fysisk enhetstest utfört.
 - **Git/CI vid dokumentationstillfället:** feature/frost-notification-audit, PR #1 fortsatt draft/open mot feature/wind-radar, head 10ef6af1da747892773e5691b439f1cbd827524a. CI #821 var fortfarande in_progress; senaste fullt verifierade appbuild är #820 med 79 XCTest utan fel, Release-build och osignerad IPA.
 - **Kvarstår:** invänta CI #821; fatta backendbeslut; därefter implementera och verifiera APNs i separata steg när Apple-beroendena finns. Fortsatt lokal bakgrundsnotis kan endast betraktas som best-effort.
+
+
+## 2026-11-23 – Prioritera vanliga vädervakter i bakgrundsuppdatering
+
+- Användarbeslut: fokusera på lokala notiser för vanliga vädervakter (frost, regn, snö, vind och åska). Server/APNs för SMHI avvaktas.
+- Kodgranskningen visade att `refreshMonitoredForecastsInBackground()` hämtade och analyserade SMHI-varningar **före** Open-Meteo-prognoserna. iOS ger BGAppRefresh en begränsad och opportunistisk körtid; SMHI-arbetet kunde därmed förbruka tid som behövs för att uppdatera de vanliga vädervakterna.
+- Bakgrundsuppgiften är nu avgränsad till uttryckligen bevakade platser och Open-Meteo-prognoser. SMHI-kontrollen i just denna bakgrundsväg är borttagen. Befintlig SMHI-kontroll i förgrundsflödet lämnas orörd.
+- Resultatet från bakgrundsuppgiften baseras nu på om minst en vanlig prognos uppdaterades.
+- **Berörd kodfil:** `VADER/WeatherService.swift`.
+- **Tester:** Ingen lokal Xcode-miljö tillgänglig i denna arbetsomgång. CI körs automatiskt efter commit; XCTest/Release-resultat redovisas när workflowen slutförts.
+- **Enhetstest:** Inte utfört. Ingen fysisk iPhone-verifiering av bakgrundsleverans.
+- **Begränsning:** BGAppRefresh är fortsatt best-effort. Denna ändring ger vanliga vädervakter företräde om iOS startar uppgiften, men garanterar inte att iOS startar den.
+- **Git:** `feature/frost-notification-audit`; PR #1 förblir draft/open mot `feature/wind-radar`. Ingen merge eller produktionsändring.
+- **Nästa steg:** Verifiera CI, granska schemaläggning och uppdateringsflöde för lokala vädernotiser, samt kontrollera pending-notiser och borttagna/avstängda platser.
