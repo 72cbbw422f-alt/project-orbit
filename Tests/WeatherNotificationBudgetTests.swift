@@ -399,6 +399,38 @@ final class WeatherNotificationBudgetTests: XCTestCase {
         )
     }
 
+    func testDeliveredImmediateFrostDaysAreRestoredOnlyForRegisteredLocations() {
+        let earlier = Date(timeIntervalSince1970: 1_800_000_000)
+        let later = earlier.addingTimeInterval(24 * 60 * 60)
+        let alerts = [
+            DeliveredCurrentFrostAlert(identifier: "regnvakt.weather.north.frost.current.today", alertDay: earlier, isImmediate: true),
+            DeliveredCurrentFrostAlert(identifier: "regnvakt.weather.north.frost.current.tomorrow", alertDay: later, isImmediate: true),
+            DeliveredCurrentFrostAlert(identifier: "regnvakt.weather.south.frost.current.today", alertDay: earlier, isImmediate: false),
+            DeliveredCurrentFrostAlert(identifier: "regnvakt.weather.removed.frost.current.today", alertDay: later, isImmediate: true),
+            DeliveredCurrentFrostAlert(identifier: "smhi.warning.north.frost.current.today", alertDay: later, isImmediate: true),
+            DeliveredCurrentFrostAlert(identifier: "regnvakt.weather.north.rain.today", alertDay: later, isImmediate: true)
+        ]
+        XCTAssertEqual(
+            WeatherNotificationBudget.latestDeliveredCurrentFrostDays(
+                alerts: alerts,
+                registeredLocationIDs: ["north", "south"]
+            ),
+            ["north": later]
+        )
+    }
+
+    func testDeliveredCurrentFrostWithoutAlertDayDoesNotCreateDeduplicationMarker() {
+        let alerts = [
+            DeliveredCurrentFrostAlert(identifier: "regnvakt.weather.north.frost.current.today", alertDay: nil, isImmediate: true)
+        ]
+        XCTAssertTrue(
+            WeatherNotificationBudget.latestDeliveredCurrentFrostDays(
+                alerts: alerts,
+                registeredLocationIDs: ["north"]
+            ).isEmpty
+        )
+    }
+
     func testFullForecastCleanupSelectsOnlyRegnvaktNamespace() {
         let identifiers = [
             "regnvakt.weather.north.rain.today",
