@@ -33,6 +33,23 @@ enum SMHIWarningNotificationPolicy {
         return "smhi|\(warningID)|\(start)"
     }
 
+    /// Compares national warning episodes while safely migrating the former id|level|title baseline.
+    /// During the one-time migration, compare current legacy signatures against the stored legacy set
+    /// so already-known warnings do not all appear new merely because the fingerprint format changed.
+    static func hasNewNationalWarnings(
+        current: Set<String>,
+        previous: Set<String>,
+        legacyCurrent: Set<String>,
+        hasBaseline: Bool
+    ) -> Bool {
+        guard hasBaseline else { return false }
+        let hasLegacyBaseline = previous.contains { !$0.hasPrefix("smhi|") }
+        if hasLegacyBaseline {
+            return !legacyCurrent.subtracting(previous).isEmpty
+        }
+        return !current.subtracting(previous).isEmpty
+    }
+
     /// Retains in-memory notification claims only while their warning remains active.
     /// This lets a warning be notified again if it ends and later reappears.
     static func retainedScheduledSignatures(scheduled: Set<String>, current: Set<String>) -> Set<String> {
