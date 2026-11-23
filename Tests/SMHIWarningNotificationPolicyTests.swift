@@ -237,7 +237,7 @@ final class SMHIWarningNotificationPolicyTests: XCTestCase {
     }
     func testMarineWarningAreaUsesCoastalCatchmentOnlyForSeaDistricts() {
         XCTAssertTrue(SMHIWarningNotificationPolicy.isMarineWarningArea(
-            areaCode: "SWE_SEA_DISTRICTS", areaName: "Vänern"
+            areaCode: "SWE_SEA_DISTRICTS", areaName: "Skagerrak"
         ))
         XCTAssertTrue(SMHIWarningNotificationPolicy.isMarineWarningArea(
             areaCode: "OTHER", areaName: "Västra Skagerrak"
