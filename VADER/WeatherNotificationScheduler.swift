@@ -679,11 +679,6 @@ enum WeatherNotificationScheduler {
     }
 
     private static func makeEvents(hours: [HourForecast], currentTemperature: Int?, defaults: UserDefaults, frostDayKey: String) -> [Event] {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
-
         var result: [Event] = []
         var emittedTypes = Set<String>()
         var forecastFrostDays = Set<Date>()
@@ -694,7 +689,7 @@ enum WeatherNotificationScheduler {
         let now = Date()
         let swedishCalendar = Self.swedishCalendar
         let orderedHours = hours.compactMap { hour -> (HourForecast, Date)? in
-            guard let date = formatter.date(from: hour.id) else { return nil }
+            guard let date = hour.date else { return nil }
             return (hour, date)
         }.sorted { $0.1 < $1.1 }
         // Only schedule forecast-driven alerts inside the configured notification horizon.
