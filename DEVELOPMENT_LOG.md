@@ -19,7 +19,8 @@
 
 ### Git
 - Branch: `feature/frost-notification-audit`
-- Commit: `afd55a44f8d2a30d46b54d48fda67673f0f3588d`
+- Code commit: `afd55a44f8d2a30d46b54d48fda67673f0f3588d`
+- Documentation commit: `232014de2f6bcd200577a920dec52bdf45e930ac`
 
 ### Remaining
 - Run the XCTest suite on a GitHub-hosted macOS runner.
