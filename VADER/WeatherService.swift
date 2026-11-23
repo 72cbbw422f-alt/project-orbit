@@ -87,26 +87,17 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
         let monitoredPlaces = places.filter { monitoredIDs.contains($0.id) }
         guard !monitoredPlaces.isEmpty else { return false }
 
-        // Check official warnings first: BGAppRefresh has a limited execution
-        // window, and SMHI alerts must not wait behind multiple forecast requests.
+        // This background task is dedicated to ordinary forecast watches.
+        // SMHI detection is intentionally excluded: its network/geometry work
+        // must not consume the limited BGAppRefresh window needed by Open-Meteo.
+        // SMHI remains checked by its existing foreground flow until a separate
+        // server-push implementation is approved and deployed.
         guard !Task.isCancelled else { return false }
         let currentIDs = Set(
             (defaults.array(forKey: "Regnvakt.monitoredPlaces.v1") as? [String] ?? [])
                 .compactMap(UUID.init(uuidString:))
         )
         let currentlyMonitoredPlaces = monitoredPlaces.filter { currentIDs.contains($0.id) }
-        var smhiRefreshSucceeded = false
-        let monitoredCoordinates = currentlyMonitoredPlaces.map {
-            CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
-        }
-        if !monitoredCoordinates.isEmpty {
-            let generation = SMHIWarningService.beginCheck()
-            smhiRefreshSucceeded = await SMHIWarningService.checkAndNotify(
-                at: monitoredCoordinates,
-                generation: generation,
-                refreshNationwideOverview: false
-            )
-        }
 
         var refreshedCount = 0
         for place in currentlyMonitoredPlaces {
@@ -135,7 +126,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                 // Preserve the last valid forecast and its already-scheduled requests.
             }
         }
-        return refreshedCount > 0 || smhiRefreshSucceeded
+        return refreshedCount > 0
     }
 
     func requestLocation() {
