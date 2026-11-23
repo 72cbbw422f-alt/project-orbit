@@ -1604,3 +1604,20 @@ completionHandler([.banner, .sound, .list])
 - Xcode visar en informationsvarning om att AppIntents-metadataextraktion hoppas över eftersom AppIntents.framework inte används. Detta stoppade inte bygget.
 - **Begränsning:** IPA:n är osignerad. Ingen fysisk iPhone-installation, SMHI-polygonvalidering mot aktuella verkliga varningsdata eller bakgrundsleverans efter tvångsavslut är verifierad.
 - **Git:** `feature/frost-notification-audit`; PR #1 fortsatt draft/open mot `feature/wind-radar`. Ingen merge eller ändring av målgrenen.
+
+
+## 2026-11-23 – Rotorsaksanalys: SMHI-notiser kräver appöppning
+
+- Användartestet bekräftar att SMHI-notiser fortfarande i praktiken upptäcks/visas först när Regnvakt öppnas. Detta är fortsatt ett öppet produktfel, inte verifierat löst.
+- Kodgranskningen bekräftar följande kedja:
+  1. BGAppRefreshTask registreras med identifieraren app.walnut8211.vadra.weather-refresh.
+  2. Nästa körning begärs tidigast efter 30 minuter, men iOS bestämmer om och när uppgiften faktiskt körs.
+  3. Bakgrundsjobbet hämtar SMHI-data för sparade, uttryckligen bevakade platser och skapar därefter en lokal notis när en ny aktiv varning upptäcks.
+  4. Den lokala SMHI-notisen har en kort tidsutlösare efter upptäckt. Den kan inte upptäcka en varning på egen hand när appen inte körs.
+- Detta förklarar symptomets timing: om iOS inte ger appen bakgrundstid sker SMHI-hämtningen först vid nästa appöppning. Att ändra den lokala notisens tidsutlösare löser inte detektionsproblemet.
+- **Slutsats:** Tillförlitlig upptäckt oberoende av appens bakgrundskörning kräver en server som hämtar SMHI-data och skickar APNs-push. APNs är ännu inte konfigurerat och kräver Apple Developer Program, Push Notifications capability, provisioning/entitlements och APNs-nyckel. Ingen pushfunktion får beskrivas som aktiv innan den är driftsatt och testad.
+- **Beslut som krävs före backend:** bekräfta Supabase eller annan driftplattform samt godkänna ägande, region, kostnad och lagring av bevakade platskoordinater. Inga konton eller externa resurser skapas utan detta beslut.
+- **Berörda filer i denna arbetsomgång:** endast denna logg. Ingen produktionskod ändrad.
+- **Tester/verifiering:** statisk granskning av VADER/VADERApp.swift, VADER/WeatherService.swift, VADER/NotificationInboxView.swift, VADER/SMHIWarningNotificationPolicy.swift och docs/SERVER_PUSH_DESIGN.md. Inget nytt XCTest eller fysisk enhetstest utfört.
+- **Git/CI vid dokumentationstillfället:** feature/frost-notification-audit, PR #1 fortsatt draft/open mot feature/wind-radar, head 10ef6af1da747892773e5691b439f1cbd827524a. CI #821 var fortfarande in_progress; senaste fullt verifierade appbuild är #820 med 79 XCTest utan fel, Release-build och osignerad IPA.
+- **Kvarstår:** invänta CI #821; fatta backendbeslut; därefter implementera och verifiera APNs i separata steg när Apple-beroendena finns. Fortsatt lokal bakgrundsnotis kan endast betraktas som best-effort.
