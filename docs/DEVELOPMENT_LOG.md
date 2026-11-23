@@ -1567,3 +1567,17 @@ completionHandler([.banner, .sound, .list])
 - **Verifiering:** Föregående commit är byggd och testad; varningsstädningen är en separat efterföljande kodändring och inväntar ny CI-körning. Ingen fysisk iPhone-verifiering.
 - **IPA:** Den tidigare byggda IPA:n motsvarar commit `fa8ff764`, inte den nya varningsstädningen. Ny IPA ska byggas från den nya committen innan den betraktas som senaste.
 - **Kvarstående:** Kontrollera ny CI, därefter fortsätta med fysisk testning av notiser och bevakade platser. Ingen merge eller ändring av målgrenen.
+
+## 2026-11-23 – Slutlig CI-verifiering och ny IPA
+
+- PR #1:s senaste körning, GitHub Actions run [45138474956](https://github.com/72cbbw422f-alt/project-orbit/actions/runs/45138474956), slutfördes med `success` på PR-head `d83d91b19d1d8efbe4e19ad19a7e091994d41082`.
+- Föregående kodkörning [45138441840](https://github.com/72cbbw422f-alt/project-orbit/actions/runs/45138441840) passerade också. Den innehåller ändringen som uttryckligen ignorerar Bool-returen från den publika enkoordinats-wrappern.
+- XCTest: 78 tester körda, 0 fel. `TEST SUCCEEDED`.
+- iOS Release-enhetsbygge: `BUILD SUCCEEDED`.
+- Den byggda appens Info.plist validerades för bundle ID `app.walnut8211.vadra`, BGTaskScheduler-identifieraren `app.walnut8211.vadra.weather-refresh` och bakgrundsläget `fetch`.
+- Osignerad IPA paketerades och laddades upp som artifact `Regnvakt-unsigned-IPA`, artifact ID `14802545926`, från PR-head `d83d91b...`. Artefakten har kontrollerats som ZIP/IPA och innehållet passerade ZIP-integritetstest.
+- **Berörda filer i kodändringen:** `VADER/NotificationInboxView.swift`. Denna uppföljning uppdaterar endast denna logg.
+- **Varningar:** Xcode rapporterade att AppIntents-metadataextraktion hoppades över eftersom appen inte använder AppIntents.framework. Det är en informationsvarning och bygget passerade. Den tidigare Swift-varningen om ignorerat SMHI-returvärde är inte längre ett stoppande problem.
+- **Begränsning:** IPA:n är osignerad. Ingen fysisk iPhone-installation eller bakgrundsnotisleverans är verifierad. iOS BGAppRefresh är best-effort; stabil leverans när appen är tvångsavslutad kräver fortsatt serverbaserad APNs-lösning.
+- **Git:** `feature/frost-notification-audit`; dokumentationsuppdateringen görs som separat commit. PR #1 är fortsatt draft/open mot `feature/wind-radar`; ingen merge eller ändring av målgrenen.
+- **Nästa steg:** Fortsätt granska livscykeln för flera bevakade platser och borttagna platser. Verifiera därefter den osignerade IPA:n på fysisk iPhone via användarens sideload-flöde.
