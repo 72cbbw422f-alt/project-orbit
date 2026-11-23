@@ -2,7 +2,7 @@ name: Build Regnvakt iOS
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/frost-notification-audit]
   pull_request:
     branches: [feature/wind-radar]
   workflow_dispatch:
