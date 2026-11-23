@@ -1684,3 +1684,15 @@ completionHandler([.banner, .sound, .list])
 - **Berörda filer:** VADER/WeatherWatchRules.swift, VADER/WeatherNotificationScheduler.swift, Tests/FrostRiskRulesTests.swift, docs/DEVELOPMENT_LOG.md.
 - **Git:** feature/frost-notification-audit; PR #1 är fortsatt draft/open mot feature/wind-radar. Ingen merge.
 - **Kvarstår:** verifiera CI för senaste kod och dokumentation, kontrollera att prognoskällans tim-ID:n hanteras korrekt runt tidsomställningen och testa verklig leverans på iPhone.
+
+
+## 2026-11-23 – Absoluta tidsstämplar i prognospipelinen
+
+- Open-Meteo hämtas nu med `timeformat=unixtime`. Timprognoser lagras med absoluta Unix-tidsstämplar i sina ID:n, så höstens dubbla lokala timme får två olika verkliga tidpunkter.
+- Dygnsdatum, soluppgång och solnedgång konverteras separat med API:ets tidszon och `utc_offset_seconds`. Soltider och dagslängd beräknas från absoluta tidpunkter.
+- Lade till `HourForecast.date`, som hanterar nya absoluta ID:n och fortsätter läsa äldre cachade lokala tidssträngar. Äldre cachedata kan inte återställa den redan förlorade skillnaden mellan höstens två upprepade timmar.
+- Riskbedömning, startsidans väderhändelse, vaktsidan, dygnsdetaljer och notisschemaläggning använder nu den gemensamma datumegenskapen i stället för egna lokala strängparsningar.
+- **Berörda filer:** `VADER/WeatherService.swift`, `VADER/WeatherModels.swift`, `VADER/ContentView.swift`, `VADER/VaktView.swift`, `VADER/WeatherNotificationScheduler.swift`, `Tests/FrostRiskRulesTests.swift`, `docs/DEVELOPMENT_LOG.md`.
+- **Tester:** lagt till parser-tester för båda 02:30-förekomsterna hösten 2026 samt bakåtkompatibilitet för äldre cache-ID. CI inväntas; ingen lokal Xcode-miljö eller fysisk iPhone-testning.
+- **Git:** `feature/frost-notification-audit`; PR #1 fortsatt draft/open mot `feature/wind-radar`. Ingen merge.
+- **Kvarstår:** granska API:ets Unix-konvention mot verkliga svar, verifiera CI-kompilering och XCTest, kontrollera UI-sortering/dygnsgruppering och därefter skapa IPA från godkänd CI-körning.
