@@ -1673,3 +1673,14 @@ completionHandler([.banner, .sound, .list])
 - **Tester:** CI #825 och #826 kör fortfarande mot tidigare commits. Den nya teständringen är commit `6c7bd38789d251518b342ac0d1007a8736156680`; CI för denna ändring inväntas. Ingen lokal Xcode-körning.
 - **Git:** `feature/frost-notification-audit`; PR #1 fortsatt draft/open mot `feature/wind-radar`. Ingen merge.
 - **Kvarstår:** invänta CI för samtliga teständringar, kontrollera stabila ID:n för upprepade prognosuppdateringar och genomföra fysisk notisverifiering på iPhone.
+
+
+## 2026-11-23 – Unika prognosnotiser vid höstens tidsomställning
+
+- Granskningen hittade en identitetskollision: vanliga prognosnotiser använde svensk lokal timme (yyyyMMddHH). Under höstens återgång från sommartid förekommer exempelvis 02:00 två gånger med olika UTC-offset, men samma notis-ID. Den senare prognostimmen kunde därför ersätta den tidigare.
+- WeatherWatchRules.forecastHourIdentifier(for:) skapar nu identiteten med datum, timme, minut och UTC-offset (yyyyMMddHHmmXXX). Det skiljer de två verkliga 02:30-tillfällena åt och behåller stabil identitet vid upprepade hämtningar av samma timprognos.
+- WeatherNotificationScheduler.swift använder den gemensamma funktionen för regn, snö, vind, åska och halkrisk. Frost behåller avsiktligt sin dagsbaserade identitet.
+- **Tester:** nytt XCTest verifierar att de två 02:30-tillfällena får olika ID och att samma prognostid ger stabil identitet. CI inväntas; ingen lokal Xcode-körning eller fysisk iPhone-testning.
+- **Berörda filer:** VADER/WeatherWatchRules.swift, VADER/WeatherNotificationScheduler.swift, Tests/FrostRiskRulesTests.swift, docs/DEVELOPMENT_LOG.md.
+- **Git:** feature/frost-notification-audit; PR #1 är fortsatt draft/open mot feature/wind-radar. Ingen merge.
+- **Kvarstår:** verifiera CI för senaste kod och dokumentation, kontrollera att prognoskällans tim-ID:n hanteras korrekt runt tidsomställningen och testa verklig leverans på iPhone.
