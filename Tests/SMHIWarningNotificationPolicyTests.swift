@@ -235,4 +235,22 @@ final class SMHIWarningNotificationPolicyTests: XCTestCase {
         XCTAssertFalse(SMHIWarningNotificationPolicy.shouldPresentInForeground(level: "Gul", scheduledAt: now.timeIntervalSince1970, start: "bad", end: "", now: now))
         XCTAssertFalse(SMHIWarningNotificationPolicy.shouldPresentInForeground(level: "Gul", scheduledAt: now.timeIntervalSince1970, start: "2026-01-01T10:00:00", end: "bad", now: now))
     }
+    func testMarineWarningAreaUsesCoastalCatchmentOnlyForSeaDistricts() {
+        XCTAssertTrue(SMHIWarningNotificationPolicy.isMarineWarningArea(
+            areaCode: "SWE_SEA_DISTRICTS", areaName: "Vänern"
+        ))
+        XCTAssertTrue(SMHIWarningNotificationPolicy.isMarineWarningArea(
+            areaCode: "OTHER", areaName: "Västra Skagerrak"
+        ))
+        XCTAssertTrue(SMHIWarningNotificationPolicy.isMarineWarningArea(
+            areaCode: "OTHER", areaName: "Bottenhavet"
+        ))
+        XCTAssertFalse(SMHIWarningNotificationPolicy.isMarineWarningArea(
+            areaCode: "OTHER", areaName: "Vänern"
+        ))
+        XCTAssertFalse(SMHIWarningNotificationPolicy.isMarineWarningArea(
+            areaCode: "OTHER", areaName: "Hudiksvall"
+        ))
+    }
+
 }
