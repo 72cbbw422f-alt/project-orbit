@@ -1709,3 +1709,14 @@ completionHandler([.banner, .sound, .list])
 - **Tester:** CI #838 misslyckades vid testkompilering (`HourForecast` saknades i testmålet). CI #839 körde på den efterföljande dokumentationscommiten och verifierar inte dessa ändringar. Ny CI körs efter ändringarna; XCTest, Release-bygge och IPA inväntas.
 - **Git:** `feature/frost-notification-audit`; PR #1 fortsatt draft/open mot `feature/wind-radar`. Ingen merge.
 - **Kvarstår:** verifiera att modellfilen kan kompileras i testmålet utan symbolkonflikter, kontrollera DST-testerna, därefter granska Open-Meteo Unix-tidskonvention och generera IPA först efter grön CI.
+
+
+## 2026-11-23 – Återställ deduplicering efter levererad aktuell frostrisk
+
+- Granskningen hittade en skillnad mellan den äldre per-plats-schemaläggaren och den globala avstämningen: den äldre vägen läste levererade omedelbara frostmärkningar och sparade dagens datum per plats, men den globala vägen gjorde inte det.
+- Det kunde göra att en redan levererad aktuell frostrisk glömdes efter att global avstämning tagit över, så en senare prognosuppdatering samma svenska kalenderdag kunde skapa ytterligare en frostavisering.
+- Den globala avstämningen synkroniserar nu senaste levererade omedelbara frostdag per fortfarande registrerad plats innan nya prognoshändelser skapas. Endast Regnvakt-frostnotiser med rätt plats-ID, watch=frost, immediate=true och giltigt alertDay räknas.
+- **Berörda filer:** VADER/WeatherNotificationBudget.swift, VADER/WeatherNotificationScheduler.swift, Tests/WeatherNotificationBudgetTests.swift, docs/DEVELOPMENT_LOG.md.
+- **Tester:** två nya XCTest täcker återställning av senaste datum, ignorering av borttagna platser/SMHI/icke-omedelbara aviseringar samt saknat datum. CI inväntas; ingen lokal Xcode-körning eller fysisk iPhone-testning.
+- **Git:** feature/frost-notification-audit; PR #1 fortsatt draft/open mot feature/wind-radar. Ingen merge.
+- **Kvarstår:** verifiera XCTest och Release/IPA i CI, därefter fortsätta granskningen av notisernas livscykel och fysisk leverans på iPhone.
