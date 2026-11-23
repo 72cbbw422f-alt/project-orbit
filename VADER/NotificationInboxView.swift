@@ -171,20 +171,10 @@ enum SMHIWarningService {
                 // The GeoJSON area code is the authoritative geographic type.
                 // Affected-area IDs are not a safe way to classify all Swedish
                 // sea districts (for example, Skagerrak has a different ID range).
-                let isMarineArea = areaCode == "SWE_SEA_DISTRICTS" ||
-                    areaName.localizedCaseInsensitiveContains("Bottenhavet") ||
-                    areaName.localizedCaseInsensitiveContains("Bottenviken") ||
-                    areaName.localizedCaseInsensitiveContains("Skagerrak") ||
-                    areaName.localizedCaseInsensitiveContains("Kattegatt") ||
-                    areaName.localizedCaseInsensitiveContains("Östersjön") ||
-                    areaName.localizedCaseInsensitiveContains("Kvarken") ||
-                    areaName.localizedCaseInsensitiveContains("Ålands hav") ||
-                    areaName.localizedCaseInsensitiveContains("Rigabukten") ||
-                    areaName.localizedCaseInsensitiveContains("Skärgårdshavet") ||
-                    areaName.localizedCaseInsensitiveContains("Finska Viken") ||
-                    areaName.localizedCaseInsensitiveContains("Bälten") ||
-                    areaName.localizedCaseInsensitiveContains("Öresund") ||
-                    areaName.localizedCaseInsensitiveContains("Vänern")
+                let isMarineArea = SMHIWarningNotificationPolicy.isMarineWarningArea(
+                    areaCode: areaCode,
+                    areaName: areaName
+                )
                 if let filterCoordinates, !filterCoordinates.contains(where: { coordinate in
                     contains(coordinate, geometryType: type, coordinates: coordinates)
                         || isWithinDistance(
