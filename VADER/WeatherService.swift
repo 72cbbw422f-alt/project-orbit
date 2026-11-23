@@ -474,6 +474,7 @@ private enum OpenMeteoService {
             URLQueryItem(name: "past_days", value: "1"),
             URLQueryItem(name: "forecast_days", value: "7"),
             URLQueryItem(name: "timezone", value: "auto"),
+            URLQueryItem(name: "timeformat", value: "unixtime"),
             URLQueryItem(name: "wind_speed_unit", value: "ms")
         ]
         guard let url = components.url else { throw URLError(.badURL) }
@@ -483,8 +484,9 @@ private enum OpenMeteoService {
         guard let current = root["current"] as? [String: Any],
               let daily = root["daily"] as? [String: Any],
               let hourly = root["hourly"] as? [String: Any],
-              let dates = daily["time"] as? [String],
-              let hourlyTimes = hourly["time"] as? [String] else { throw URLError(.cannotParseResponse) }
+              let dailyTimestamps = daily["time"] as? [NSNumber],
+              let hourlyTimestamps = hourly["time"] as? [NSNumber],
+              let utcOffset = root["utc_offset_seconds"] as? NSNumber else { throw URLError(.cannotParseResponse) }
         // Required values must be present and finite. A missing API field is
         // unknown weather, never a safe zero (especially for wind and temperature).
         let requiredCurrentKeys = [
@@ -509,14 +511,17 @@ private enum OpenMeteoService {
         let winds = daily["wind_speed_10m_max"] as? [NSNumber] ?? []
         let gusts = daily["wind_gusts_10m_max"] as? [NSNumber] ?? []
         let uv = daily["uv_index_max"] as? [NSNumber] ?? []
-        let sunrises = daily["sunrise"] as? [String] ?? []
-        let sunsets = daily["sunset"] as? [String] ?? []
+        let sunrises = daily["sunrise"] as? [NSNumber] ?? []
+        let sunsets = daily["sunset"] as? [NSNumber] ?? []
         let dailyNumericArrays = [lows, highs, codes, chances, amounts, winds, gusts, uv]
-        guard !dates.isEmpty,
-              dailyNumericArrays.allSatisfy({ $0.count >= dates.count }),
-              sunrises.count >= dates.count,
-              sunsets.count >= dates.count,
-              dailyNumericArrays.allSatisfy({ values in values.prefix(dates.count).allSatisfy { $0.doubleValue.isFinite } }) else {
+        guard !dailyTimestamps.isEmpty,
+              dailyNumericArrays.allSatisfy({ $0.count >= dailyTimestamps.count }),
+              sunrises.count >= dailyTimestamps.count,
+              sunsets.count >= dailyTimestamps.count,
+              dailyTimestamps.allSatisfy({ $0.doubleValue.isFinite }),
+              sunrises.prefix(dailyTimestamps.count).allSatisfy({ $0.doubleValue.isFinite }),
+              sunsets.prefix(dailyTimestamps.count).allSatisfy({ $0.doubleValue.isFinite }),
+              dailyNumericArrays.allSatisfy({ values in values.prefix(dailyTimestamps.count).allSatisfy { $0.doubleValue.isFinite } }) else {
             throw URLError(.cannotParseResponse)
         }
         let hourlyTemps = hourly["temperature_2m"] as? [NSNumber] ?? []
@@ -530,20 +535,21 @@ private enum OpenMeteoService {
         // forecast rather than silently replacing missing precipitation/wind
         // values with zero and reporting false "no risk".
         let hourlyArrays = [hourlyTemps, hourlyChances, hourlyAmounts, hourlyCodes, hourlyWinds, hourlyGusts]
-        guard !hourlyTimes.isEmpty,
-              hourlyArrays.allSatisfy({ $0.count >= hourlyTimes.count }),
-              hourlyArrays.allSatisfy({ values in values.prefix(hourlyTimes.count).allSatisfy { $0.doubleValue.isFinite } }),
-              hourlyTimes.allSatisfy({ value in
-                  let parts = value.split(separator: "T")
-                  return parts.count == 2 && parts[0].count == 10 && parts[1].count == 5
-              }) else {
+        guard !hourlyTimestamps.isEmpty,
+              hourlyArrays.allSatisfy({ $0.count >= hourlyTimestamps.count }),
+              hourlyTimestamps.allSatisfy({ $0.doubleValue.isFinite && $0.doubleValue > 0 }),
+              hourlyArrays.allSatisfy({ values in values.prefix(hourlyTimestamps.count).allSatisfy { $0.doubleValue.isFinite } }) else {
             throw URLError(.cannotParseResponse)
         }
         let apiTimeZone = TimeZone(identifier: root["timezone"] as? String ?? "") ?? .current
-        let hourFormatter = DateFormatter()
-        hourFormatter.locale = Locale(identifier: "en_US_POSIX")
-        hourFormatter.timeZone = apiTimeZone
-        hourFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        let dailyDateFormatter = DateFormatter()
+        dailyDateFormatter.locale = Locale(identifier: "en_US_POSIX")
+        dailyDateFormatter.timeZone = apiTimeZone
+        dailyDateFormatter.dateFormat = "yyyy-MM-dd"
+        let localDates = dailyTimestamps.map {
+            dailyDateFormatter.string(from: Date(timeIntervalSince1970: $0.doubleValue + utcOffset.doubleValue))
+        }
+        let hourlyDates = hourlyTimestamps.map { Date(timeIntervalSince1970: $0.doubleValue) }
         let displayHour = DateFormatter()
         displayHour.locale = Locale(identifier: "sv_SE")
         displayHour.timeZone = apiTimeZone
@@ -552,21 +558,18 @@ private enum OpenMeteoService {
         // Start at the first actual future hourly timestamp. Using the start
         // of the current clock hour can label a timestamp already in the past as "Nu".
         // Never fall back to index zero when the API returns only past hours.
-        guard let startIndex = hourlyTimes.firstIndex(where: {
-            guard let date = hourFormatter.date(from: $0) else { return false }
-            return date >= now
-        }) else {
+        guard let startIndex = hourlyDates.firstIndex(where: { $0 >= now }) else {
             throw URLError(.cannotParseResponse)
         }
-        let hours: [HourForecast] = hourlyTimes.indices
+        let hours: [HourForecast] = hourlyTimestamps.indices
             .filter { $0 >= startIndex && $0 < startIndex + 168 }
             .compactMap { i in
                 guard i < hourlyTemps.count, i < hourlyCodes.count else { return nil }
                 let code = hourlyCodes[i].intValue
-                let date = hourFormatter.date(from: hourlyTimes[i])
-                let label = i == startIndex ? "Nu" : date.map { displayHour.string(from: $0) } ?? "--"
+                let date = hourlyDates[i]
+                let label = i == startIndex ? "Nu" : displayHour.string(from: date)
                 return HourForecast(
-                    id: hourlyTimes[i], time: label, symbol: weatherSymbol(code),
+                    id: "@\(Int64(hourlyTimestamps[i].doubleValue.rounded()))", time: label, symbol: weatherSymbol(code),
                     condition: conditionText(code),
                     precipitationChance: i < hourlyChances.count ? hourlyChances[i].intValue : 0,
                     temperature: hourlyTemps[i].intValue,
@@ -575,20 +578,20 @@ private enum OpenMeteoService {
                     gust: i < hourlyGusts.count ? hourlyGusts[i].doubleValue : 0)
             }
         let direction = number(current, "wind_direction_10m")
-        let localDateFormatter = DateFormatter()
-        localDateFormatter.locale = Locale(identifier: "en_US_POSIX")
-        localDateFormatter.timeZone = apiTimeZone
-        localDateFormatter.dateFormat = "yyyy-MM-dd"
-        let todayKey = localDateFormatter.string(from: Date())
-        guard let todayIndex = dates.firstIndex(of: todayKey) else { throw URLError(.cannotParseResponse) }
-        func clockTime(_ values: [String], _ index: Int) -> String {
+        let todayKey = dailyDateFormatter.string(from: Date())
+        guard let todayIndex = localDates.firstIndex(of: todayKey) else { throw URLError(.cannotParseResponse) }
+        let clockFormatter = DateFormatter()
+        clockFormatter.locale = Locale(identifier: "sv_SE")
+        clockFormatter.timeZone = apiTimeZone
+        clockFormatter.dateFormat = "HH:mm"
+        func clockTime(_ values: [NSNumber], _ index: Int) -> String {
             guard values.indices.contains(index) else { return "—:—" }
-            return String(values[index].suffix(5))
+            return clockFormatter.string(from: Date(timeIntervalSince1970: values[index].doubleValue))
         }
         func daylight(_ index: Int) -> Int {
-            guard sunrises.indices.contains(index), sunsets.indices.contains(index),
-                  let rise = hourFormatter.date(from: sunrises[index]),
-                  let set = hourFormatter.date(from: sunsets[index]) else { return 0 }
+            guard sunrises.indices.contains(index), sunsets.indices.contains(index) else { return 0 }
+            let rise = Date(timeIntervalSince1970: sunrises[index].doubleValue)
+            let set = Date(timeIntervalSince1970: sunsets[index].doubleValue)
             return max(0, Int(set.timeIntervalSince(rise) / 60))
         }
         let todayDaylight = daylight(todayIndex)
@@ -610,14 +613,11 @@ private enum OpenMeteoService {
             sunsetTime: clockTime(sunsets, todayIndex),
             daylightMinutes: todayDaylight,
             daylightChangeMinutes: todayDaylight - yesterdayDaylight)
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        dateFormatter.timeZone = apiTimeZone
         let weekday = DateFormatter()
         weekday.locale = Locale(identifier: "sv_SE")
         weekday.dateFormat = "EEEE"
-        let days = dates.indices.filter { dates[$0] >= todayKey }.map { i -> DayForecast in
-            let date = dateFormatter.date(from: dates[i]) ?? Date()
+        let days = localDates.indices.filter { localDates[$0] >= todayKey }.map { i -> DayForecast in
+            let date = Date(timeIntervalSince1970: dailyTimestamps[i].doubleValue + utcOffset.doubleValue)
             let code = i < codes.count ? codes[i].intValue : 0
             return DayForecast(date: date, day: i == todayIndex ? "Idag" : weekday.string(from: date).capitalized,
                 symbol: weatherSymbol(code), condition: conditionText(code),
