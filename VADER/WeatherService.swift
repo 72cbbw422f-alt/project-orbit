@@ -78,42 +78,62 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
     /// iOS controls when this runs; it is not guaranteed after a user force-quits the app.
     static func refreshMonitoredForecastsInBackground() async -> Bool {
         let defaults = UserDefaults.standard
+        let startedAt = Date()
+        let diagnosticPrefix = "Regnvakt.backgroundRefresh."
+        func saveDiagnostic(_ key: String, _ value: Any) {
+            defaults.set(value, forKey: diagnosticPrefix + key)
+        }
+
         guard let placesData = defaults.data(forKey: "Regnvakt.savedPlaces.v1"),
               let places = try? JSONDecoder().decode([SavedWeatherPlace].self, from: placesData),
               let storedIDs = defaults.array(forKey: "Regnvakt.monitoredPlaces.v1") as? [String] else {
+            saveDiagnostic("placeCount", 0)
+            saveDiagnostic("successCount", 0)
+            saveDiagnostic("failureCount", 0)
+            saveDiagnostic("skippedCount", 0)
+            saveDiagnostic("diagnostic", "Inga sparade bevakningsdata kunde läsas")
             return false
         }
         let monitoredIDs = Set(storedIDs.compactMap(UUID.init(uuidString:)))
         let monitoredPlaces = places.filter { monitoredIDs.contains($0.id) }
-        guard !monitoredPlaces.isEmpty else { return false }
+        guard !monitoredPlaces.isEmpty else {
+            saveDiagnostic("placeCount", 0)
+            saveDiagnostic("successCount", 0)
+            saveDiagnostic("failureCount", 0)
+            saveDiagnostic("skippedCount", 0)
+            saveDiagnostic("diagnostic", "Inga aktiva vädervakter")
+            return false
+        }
 
         // This background task is dedicated to ordinary forecast watches.
         // SMHI detection is intentionally excluded: its network/geometry work
         // must not consume the limited BGAppRefresh window needed by Open-Meteo.
-        // SMHI remains checked by its existing foreground flow until a separate
-        // server-push implementation is approved and deployed.
-        guard !Task.isCancelled else { return false }
-        let currentIDs = Set(
-            (defaults.array(forKey: "Regnvakt.monitoredPlaces.v1") as? [String] ?? [])
-                .compactMap(UUID.init(uuidString:))
-        )
-        let currentlyMonitoredPlaces = monitoredPlaces.filter { currentIDs.contains($0.id) }
-
+        // SMHI remains on its existing foreground flow until server push is approved.
         var refreshedCount = 0
-        for place in currentlyMonitoredPlaces {
-            guard !Task.isCancelled else { break }
+        var failedCount = 0
+        var skippedCount = 0
+        var lastFailure = ""
+
+        for place in monitoredPlaces {
+            guard !Task.isCancelled else {
+                skippedCount += 1
+                break
+            }
             do {
                 let forecast = try await OpenMeteoService.fetch(
                     latitude: place.latitude,
                     longitude: place.longitude
                 )
-                // The user may have disabled or removed this place while the
-                // background request was suspended. Re-read persisted selection.
+                // Re-read persisted selection after suspension: a place may have
+                // been disabled or removed while the network request was running.
                 let latestIDs = Set(
                     (defaults.array(forKey: "Regnvakt.monitoredPlaces.v1") as? [String] ?? [])
                         .compactMap(UUID.init(uuidString:))
                 )
-                guard latestIDs.contains(place.id) else { continue }
+                guard latestIDs.contains(place.id) else {
+                    skippedCount += 1
+                    continue
+                }
                 WeatherNotificationScheduler.refresh(
                     place: place.name,
                     latitude: place.latitude,
@@ -123,10 +143,24 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                 )
                 refreshedCount += 1
             } catch {
-                // Preserve the last valid forecast and its already-scheduled requests.
+                failedCount += 1
+                // Store only the error type and numeric code, never a URL,
+                // coordinates, or place name.
+                let nsError = error as NSError
+                lastFailure = "\(nsError.domain) (kod \(nsError.code))"
             }
         }
-        return refreshedCount > 0
+
+        saveDiagnostic("placeCount", monitoredPlaces.count)
+        saveDiagnostic("successCount", refreshedCount)
+        saveDiagnostic("failureCount", failedCount)
+        saveDiagnostic("skippedCount", skippedCount)
+        saveDiagnostic("diagnostic", lastFailure.isEmpty ? "Inga hämtfel registrerade" : "Senaste hämtfel: \(lastFailure)")
+        saveDiagnostic("durationSeconds", Date().timeIntervalSince(startedAt))
+        if refreshedCount > 0 {
+            saveDiagnostic("lastSuccessAt", Date().timeIntervalSince1970)
+        }
+        return refreshedCount > 0 && !Task.isCancelled
     }
 
     func requestLocation() {
