@@ -1,3 +1,19 @@
+## 2026-11-24 — conservative trigger-date validation
+
+### Changes
+- Tightened stale pending-forecast preservation to accept only calendar triggers with a concrete next trigger date.
+- Removed the interval-trigger fallback: its configured interval is the original delay, not a reliable remaining fire time for an already-pending request. Inferring a future date from it could preserve an alert incorrectly.
+
+### Verification
+- The preceding commit `47e6f734b691fa798607849bf311b591050c4758` passed the complete GitHub Actions workflow: frost-risk XCTest step, iOS device build, unsigned IPA packaging and artifact upload.
+- This follow-up hardening change requires a new CI run. Physical iPhone delivery remains unverified.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Code commit: `154d7369f92e7d8e0bbc0d1511a8406944af3574`
+
+---
+
 ## 2026-11-24 — follow-up compile correction
 
 ### Changes
