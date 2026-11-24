@@ -218,11 +218,15 @@ enum WeatherNotificationScheduler {
         var candidates: [WeatherNotificationCandidate] = []
         var freshForecastCount = 0
         var staleForecastCount = 0
+        var staleLocationIDs = Set<String>()
         for stored in registry.values.sorted(by: { $0.locationID < $1.locationID }) {
             guard isCurrentBatch() else { return }
             let age = Date().timeIntervalSince(stored.savedAt)
             let fresh = age >= 0 && age <= 2 * 60 * 60
-            if fresh { freshForecastCount += 1 } else { staleForecastCount += 1 }
+            if fresh { freshForecastCount += 1 } else {
+                staleForecastCount += 1
+                staleLocationIDs.insert(stored.locationID)
+            }
             let liveTemperature = allowImmediateCurrentFrost &&
                 stored.locationID == immediateFrostLocationID && fresh ? stored.currentTemperature : nil
             let requests = makeRequests(
@@ -244,11 +248,40 @@ enum WeatherNotificationScheduler {
 
         // Existing pending current-frost alerts are preserved even if the
         // refreshed forecast no longer emits a current-frost event.
+        // For an older stored forecast, retain only previously scheduled requests
+        // with explicit snapshot metadata and a still-future event/trigger.
+        let enabledWatchTypes = Set(["rain", "snow", "wind", "thunder", "frost", "ice"].filter {
+            defaults.object(forKey: "Regnvakt.notifications.\($0)") as? Bool ?? true
+        })
+        let stalePendingAlerts = pending.compactMap { request -> PendingForecastAlert? in
+            let info = request.content.userInfo
+            guard let locationID = registry.values.first(where: {
+                request.identifier.hasPrefix(prefix + $0.locationID.replacingOccurrences(of: ",", with: "_") + ".")
+            })?.locationID,
+            staleLocationIDs.contains(locationID),
+            (info["immediate"] as? Bool) != true,
+            let watch = info["watch"] as? String,
+            let generatedAt = info["forecastSnapshotAt"] as? Date,
+            let eventTimestamp = info["forecastEventDate"] as? TimeInterval,
+            let nextFireDate = request.trigger?.nextTriggerDate() else { return nil }
+            return PendingForecastAlert(
+                identifier: request.identifier, locationID: locationID, watch: watch,
+                generatedAt: generatedAt, eventDate: Date(timeIntervalSince1970: eventTimestamp),
+                fireDate: nextFireDate
+            )
+        }
+        let preservedStaleForecastIDs = WeatherNotificationBudget.preservablePendingForecastIdentifiers(
+            alerts: stalePendingAlerts,
+            registeredLocationIDs: Set(registry.values.map(\\.locationID)),
+            enabledWatchTypes: enabledWatchTypes,
+            now: Date()
+        )
+        let preservedPendingIDs = preservedFrostIDs.union(preservedStaleForecastIDs)
         let availableCapacity = WeatherNotificationBudget.availableForecastCapacity(pendingIdentifiers: pendingIDs)
-        let candidateIdentifiers = Set(candidates.map(\.identifier))
+        let candidateIdentifiers = Set(candidates.map(\\.identifier))
         let selectionCapacity = WeatherNotificationBudget.selectionCapacity(
             availableCapacity: availableCapacity,
-            preservedPendingIdentifiers: preservedFrostIDs,
+            preservedPendingIdentifiers: preservedPendingIDs,
             candidateIdentifiers: candidateIdentifiers
         )
         let selectedIDs = WeatherNotificationBudget.select(
@@ -260,7 +293,7 @@ enum WeatherNotificationScheduler {
             selectedIdentifiers: selectedIDs,
             pendingIdentifiers: pendingIDs,
             deliveredIdentifiers: deliveredIDs,
-            preservedPendingIdentifiers: preservedFrostIDs,
+            preservedPendingIdentifiers: preservedPendingIDs,
             forecastPrefix: prefix
         )
 
@@ -628,7 +661,7 @@ enum WeatherNotificationScheduler {
             content.title = "\(weatherIcon) \(event.title)\(riskLabel)"
             content.body = "\(event.body) • \(place)"
             content.sound = .default
-            content.userInfo = ["watch": event.type, "place": place, "safetyCritical": event.safetyCritical, "immediate": deliverImmediately, "alertDay": swedishCalendar.startOfDay(for: event.date), "forecastEventDate": event.date.timeIntervalSince1970, "leadMinutes": lead]
+            content.userInfo = ["watch": event.type, "place": place, "safetyCritical": event.safetyCritical, "immediate": deliverImmediately, "alertDay": swedishCalendar.startOfDay(for: event.date), "forecastEventDate": event.date.timeIntervalSince1970, "forecastSnapshotAt": now, "leadMinutes": lead]
             var components = swedishCalendar.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
             components.timeZone = swedishTimeZone
             let trigger: UNNotificationTrigger
