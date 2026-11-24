@@ -27,6 +27,16 @@ struct WeatherNotificationPendingCounts: Equatable {
     let unrelated: Int
 }
 
+
+struct PendingForecastAlert {
+    let identifier: String
+    let locationID: String
+    let watch: String
+    let generatedAt: Date
+    let eventDate: Date
+    let fireDate: Date
+}
+
 struct DeliveredCurrentFrostAlert {
     let identifier: String
     let alertDay: Date?
@@ -212,6 +222,30 @@ enum WeatherNotificationBudget {
         let normalizedID = locationID.replacingOccurrences(of: ",", with: "_")
         let locationPrefix = forecastPrefix + normalizedID + "."
         return identifiers.filter { $0.hasPrefix(locationPrefix) }
+    }
+
+
+    /// Keeps an already-armed forecast alert only while its source forecast is
+    /// within a short grace window and both its event and delivery time remain ahead.
+    /// Missing metadata is deliberately rejected so legacy requests cannot live forever.
+    static func preservablePendingForecastIdentifiers(
+        alerts: [PendingForecastAlert],
+        registeredLocationIDs: Set<String>,
+        enabledWatchTypes: Set<String>,
+        now: Date,
+        maximumForecastAge: TimeInterval = 4 * 60 * 60
+    ) -> Set<String> {
+        guard maximumForecastAge >= 0 else { return [] }
+        return Set(alerts.compactMap { alert in
+            let age = now.timeIntervalSince(alert.generatedAt)
+            guard !alert.identifier.isEmpty,
+                  registeredLocationIDs.contains(alert.locationID),
+                  enabledWatchTypes.contains(alert.watch),
+                  age >= 0, age <= maximumForecastAge,
+                  alert.eventDate > now,
+                  alert.fireDate > now else { return nil }
+            return alert.identifier
+        })
     }
 
     /// Reserves shared capacity for already-pending current-frost requests
