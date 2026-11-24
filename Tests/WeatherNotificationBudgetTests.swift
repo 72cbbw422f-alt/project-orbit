@@ -712,4 +712,48 @@ final class WeatherNotificationBudgetTests: XCTestCase {
         )
     }
 
+    func testPreservablePendingForecastRequiresFreshMetadataFutureEventAndEnabledWatch() {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let valid = PendingForecastAlert(
+            identifier: "regnvakt.weather.north.rain.valid", locationID: "north", watch: "rain",
+            generatedAt: now.addingTimeInterval(-3 * 60 * 60),
+            eventDate: now.addingTimeInterval(2 * 60 * 60),
+            fireDate: now.addingTimeInterval(90 * 60)
+        )
+        let alerts = [
+            valid,
+            PendingForecastAlert(identifier: "expired", locationID: "north", watch: "rain",
+                generatedAt: now.addingTimeInterval(-5 * 60 * 60), eventDate: now.addingTimeInterval(2 * 60 * 60), fireDate: now.addingTimeInterval(90 * 60)),
+            PendingForecastAlert(identifier: "event-passed", locationID: "north", watch: "rain",
+                generatedAt: now.addingTimeInterval(-60), eventDate: now, fireDate: now.addingTimeInterval(30)),
+            PendingForecastAlert(identifier: "trigger-passed", locationID: "north", watch: "rain",
+                generatedAt: now.addingTimeInterval(-60), eventDate: now.addingTimeInterval(60), fireDate: now),
+            PendingForecastAlert(identifier: "wrong-location", locationID: "removed", watch: "rain",
+                generatedAt: now.addingTimeInterval(-60), eventDate: now.addingTimeInterval(60), fireDate: now.addingTimeInterval(30)),
+            PendingForecastAlert(identifier: "disabled-watch", locationID: "north", watch: "snow",
+                generatedAt: now.addingTimeInterval(-60), eventDate: now.addingTimeInterval(60), fireDate: now.addingTimeInterval(30)),
+            PendingForecastAlert(identifier: "future-snapshot", locationID: "north", watch: "rain",
+                generatedAt: now.addingTimeInterval(60), eventDate: now.addingTimeInterval(120), fireDate: now.addingTimeInterval(90))
+        ]
+
+        XCTAssertEqual(
+            WeatherNotificationBudget.preservablePendingForecastIdentifiers(
+                alerts: alerts, registeredLocationIDs: ["north"], enabledWatchTypes: ["rain"], now: now
+            ),
+            [valid.identifier]
+        )
+    }
+
+    func testPreservablePendingForecastRejectsSnapshotAtMaximumAgeBoundaryPlusOneSecond() {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let alert = PendingForecastAlert(
+            identifier: "old", locationID: "north", watch: "rain",
+            generatedAt: now.addingTimeInterval(-(4 * 60 * 60 + 1)),
+            eventDate: now.addingTimeInterval(60), fireDate: now.addingTimeInterval(30)
+        )
+        XCTAssertTrue(WeatherNotificationBudget.preservablePendingForecastIdentifiers(
+            alerts: [alert], registeredLocationIDs: ["north"], enabledWatchTypes: ["rain"], now: now
+        ).isEmpty)
+    }
+
 }
