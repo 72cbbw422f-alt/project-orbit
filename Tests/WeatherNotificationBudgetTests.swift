@@ -54,7 +54,7 @@ final class WeatherNotificationBudgetTests: XCTestCase {
         ))
     }
 
-    func testSafetyCriticalEventCanBeScheduledImmediatelyDuringQuietHours() {
+    func testFutureSafetyCriticalForecastCanClaimSlotAfterLeadTimePassedDuringQuietHours() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "Europe/Stockholm")!
         let now = calendar.date(from: DateComponents(year: 2026, month: 11, day: 22, hour: 23, minute: 0))!
