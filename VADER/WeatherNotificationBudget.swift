@@ -82,10 +82,10 @@ enum WeatherNotificationBudget {
         now: Date,
         minimumLeadTime: TimeInterval = 30
     ) -> Bool {
-        if alreadyImmediate { return true }
-        guard safetyCritical else { return false }
-        let plannedFireDate = eventDate.addingTimeInterval(-Double(max(0, leadMinutes)) * 60)
-        return plannedFireDate <= now.addingTimeInterval(max(0, minimumLeadTime))
+        // Forecast-derived safety events are future events, even when their
+        // configured lead time has passed. They are scheduled at eventDate by
+        // the scheduler. Only a separately detected current-risk event is immediate.
+        return alreadyImmediate
     }
 
     /// Conservative Regnvakt app policy, not an iOS platform limit.
