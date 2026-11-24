@@ -1,5 +1,36 @@
 # Development log — frost notification audit
 
+## 2026-11-24 — radar nowcast parser hardening
+
+### Changes
+- Extracted MET Norway nowcast JSON decoding into `VADER/RadarNowcastParser.swift` so the API response handling is deterministic and independently testable.
+- The parser sorts time-series points chronologically, classifies radar coverage explicitly, keeps missing/non-numeric measurements unknown, and clamps negative precipitation values to zero.
+- Updated `VADER/RadarMapView.swift` to consume the typed parser result instead of decoding nested JSON inline.
+- Added four XCTest cases for chronological ordering, radar coverage, unknown measurements, negative-value handling and malformed payloads.
+- Included the parser source in the XCTest target through `project.yml`.
+
+### Files
+- `VADER/RadarNowcastParser.swift` (new)
+- `VADER/RadarMapView.swift`
+- `Tests/RadarNowcastParserTests.swift` (new)
+- `project.yml`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source changes and test coverage are committed to `feature/frost-notification-audit`.
+- CI has not yet been observed for this parser change; compilation and the four new tests remain unverified until the GitHub Actions run completes.
+- No physical-device radar test has been performed.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Parser commit: `4ffd0cae00b024663baa26e1507a0c7b02700ca2`
+- Parser tests commit: `f424124f8e03e71c5c906974d60b8129406aa7ce`
+- Radar integration commit: `b4338e1c0e4fc10eb07337300d54ef54bcd75b56`
+- XCTest target commit: `f30a932b7a2acb6aafe14e3c8820eaf41cae8258`
+- Validation cleanup commit: `27a6f8be127f26c0996a77b3dbe2d1304c5de74a`
+
+---
+
 ## 2026-11-23
 
 ### Changes
