@@ -1,3 +1,18 @@
+## 2026-11-24 — follow-up compile correction
+
+### Changes
+- CI exposed a Swift syntax issue in the first trigger-type correction: a local declaration had been placed inside a multi-condition `guard` before its `else` clause.
+- Moved trigger-date extraction after the metadata guard. The code now validates metadata first, then resolves the next fire date from the concrete calendar or interval trigger type.
+
+### Verification
+- Both CI attempts for commit `5656ab4d62af8a88c8cdb4bb0bc12ca668cbf56e` failed at compile time on this guard syntax; no tests executed and no IPA was packaged.
+- Corrected in commit `40a94bfe43d5bbd9b9357fc9bbff9c4fecf1b758`. New CI result pending.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+
+---
+
 ## 2026-11-24 — correct notification trigger date extraction
 
 ### Changes
