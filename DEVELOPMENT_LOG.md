@@ -199,3 +199,29 @@
 - Confirm CI passes all tests and Release build.
 - Install the new IPA and verify that upcoming frost/ice events are pending before the event and are not delivered merely on app launch.
 - Verify explicit current-frost alerts still deliver promptly.
+
+
+## 2026-11-24 — clarify safety forecast eligibility semantics
+
+### Findings
+- A follow-up audit found that `WeatherWatchRules.canScheduleForecastEvent` still used the local name and documentation “immediate safety alert” for a safety-critical forecast whose lead-time point had passed.
+- That helper only decides whether a forecast event may claim the first-alert slot; it does not create or schedule the notification. Actual delivery timing is handled in `WeatherNotificationScheduler`.
+
+### Changes
+- Renamed the internal decision flag to `safetyEventPastLeadTime`.
+- Updated documentation to state that the event may claim the alert slot after lead time, while the scheduler arms it for the forecast event time.
+- Renamed the corresponding XCTest to describe slot eligibility during quiet hours, not immediate delivery.
+
+### Files
+- `VADER/WeatherWatchRules.swift`
+- `Tests/WeatherNotificationBudgetTests.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source/test changes committed. CI validation is pending.
+- No new physical-device test has been performed for this clarification; the prior IPA's physical-device result remains the user's reported background delivery of the test notification only.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Rules commit: `75c3d02fbc5ffcb6059ab86c3584347eb71045eb`
+- Test commit: `4631fe8fb6b7553051f1c166603b1c03b075cf26`
