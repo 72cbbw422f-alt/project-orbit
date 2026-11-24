@@ -262,7 +262,8 @@ enum WeatherNotificationScheduler {
             (info["immediate"] as? Bool) != true,
             let watch = info["watch"] as? String,
             let generatedAt = info["forecastSnapshotAt"] as? Date,
-            let eventTimestamp = info["forecastEventDate"] as? TimeInterval,
+            let eventTimestamp = info["forecastEventDate"] as? TimeInterval else { return nil }
+
             let nextFireDate: Date
             if let calendarTrigger = request.trigger as? UNCalendarNotificationTrigger,
                let date = calendarTrigger.nextTriggerDate() {
