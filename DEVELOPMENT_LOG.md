@@ -164,3 +164,38 @@
 - Install/sign the unsigned IPA with the user's authorized FlareStore signing workflow and test on the physical iPhone.
 - Confirm the push-triggered CI run after commits `dec59b78dd9f208da9f66ba771c97683e88e08aa` and `383c25d243b8d0229fafa66c56f05b3ae688c6ec` completes successfully.
 - Install/sign the unsigned IPA with FlareStore and test local notifications on a physical iPhone while foregrounded, backgrounded, and terminated; CI/unit tests cannot establish real iOS delivery behavior.
+
+
+## 2026-11-24 — prevent late forecast safety alerts from firing on app launch
+
+### Findings
+- Physical iPhone test confirmed the local test notification is delivered while the app is backgrounded.
+- The user observed a frost forecast notification with the same 11:56 timestamp as opening Regnvakt. Notification history showed no remaining pending weather alerts.
+- The forecast scheduler promoted any safety-critical forecast whose configured lead-time trigger had passed into an immediate notification. This could make an upcoming forecast frost/ice alert appear only when a fresh forecast was fetched on app launch.
+
+### Changes
+- Forecast-derived frost/ice alerts whose lead-time point has passed are now scheduled for the forecast event time, not emitted immediately at app launch.
+- Explicitly detected current-frost alerts retain their immediate path.
+- Updated the unit test to assert that a future safety-critical forecast event is not promoted to an immediate alert.
+
+### Files
+- `VADER/WeatherNotificationScheduler.swift`
+- `VADER/WeatherNotificationBudget.swift`
+- `Tests/WeatherNotificationBudgetTests.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source and test changes committed; GitHub Actions validation is pending.
+- Physical iPhone verification of this revised scheduling behavior is pending.
+- The successful background test proves iOS local-notification delivery, not that forecast refreshes execute reliably while the app is closed.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Scheduler commit: `aa6f596e9ec4abc22c09018e80a70fba529f6374`
+- Policy commit: `822c3527eb4c43e33464f46891d56bef6f8e5fe8`
+- Test commit: `028659774ad09d9efd03a5735e9e9f45660f9a5a`
+
+### Remaining
+- Confirm CI passes all tests and Release build.
+- Install the new IPA and verify that upcoming frost/ice events are pending before the event and are not delivered merely on app launch.
+- Verify explicit current-frost alerts still deliver promptly.
