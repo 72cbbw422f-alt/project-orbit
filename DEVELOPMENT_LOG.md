@@ -1,3 +1,24 @@
+## 2026-11-24 — background notification diagnostic
+
+### Changes
+- Extended the in-app local test notification delay from 5 to 15 seconds so the user has time to leave Regnvakt before delivery.
+- Updated the confirmation text to explicitly instruct the user to return to the Home Screen, making the test distinguish iOS background delivery from foreground presentation.
+
+### Files
+- `VADER/NotificationSettingsView.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source change committed; CI must compile and run the full XCTest suite before this diagnostic build is distributed.
+- The test notification is a local UserNotifications request; it does not prove that weather-watch candidate generation or forecast scheduling is correct. Those require separate device validation.
+- Physical iPhone background delivery remains unverified until the new IPA is installed and tested.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Code commit: `feb9fbe1c55ba5c050d34648378804285dfad5a8`
+
+---
+
 ## 2026-11-24 — conservative trigger-date validation
 
 ### Changes
