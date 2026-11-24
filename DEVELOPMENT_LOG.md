@@ -225,3 +225,27 @@
 - Branch: `feature/frost-notification-audit`
 - Rules commit: `75c3d02fbc5ffcb6059ab86c3584347eb71045eb`
 - Test commit: `4631fe8fb6b7553051f1c166603b1c03b075cf26`
+
+
+## 2026-11-24 — background refresh diagnostics
+
+### Changes
+- Added persisted timestamps and status for BGAppRefreshTask submission, start, completion and expiration.
+- The notification settings screen now shows the latest background refresh status, last start/completion, and the earliest requested run time.
+- The UI explicitly explains that iOS controls actual execution and the requested time is not a guarantee.
+- Submission errors are recorded instead of being silently swallowed.
+
+### Files
+- `VADER/VADERApp.swift`
+- `VADER/NotificationSettingsView.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source changes committed; GitHub Actions XCTest and Release build pending.
+- This diagnostic records task lifecycle when iOS invokes the task. It does not force iOS to run background refreshes or guarantee a cadence.
+- Physical iPhone verification of the new diagnostic UI and actual BGAppRefreshTask invocation remains pending.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- App delegate commit: `d1121c77d2e194ffae6b3594f8a05e690fe9c38e`
+- Settings UI commit: `c74355a31718074ba15e304bf07646e2ed06dc40`
