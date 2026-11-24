@@ -272,13 +272,13 @@ enum WeatherNotificationScheduler {
         }
         let preservedStaleForecastIDs = WeatherNotificationBudget.preservablePendingForecastIdentifiers(
             alerts: stalePendingAlerts,
-            registeredLocationIDs: Set(registry.values.map(\\.locationID)),
+            registeredLocationIDs: Set(registry.values.map(\.locationID)),
             enabledWatchTypes: enabledWatchTypes,
             now: Date()
         )
         let preservedPendingIDs = preservedFrostIDs.union(preservedStaleForecastIDs)
         let availableCapacity = WeatherNotificationBudget.availableForecastCapacity(pendingIdentifiers: pendingIDs)
-        let candidateIdentifiers = Set(candidates.map(\\.identifier))
+        let candidateIdentifiers = Set(candidates.map(\.identifier))
         let selectionCapacity = WeatherNotificationBudget.selectionCapacity(
             availableCapacity: availableCapacity,
             preservedPendingIdentifiers: preservedPendingIDs,
