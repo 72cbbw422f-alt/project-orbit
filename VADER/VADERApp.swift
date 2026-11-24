@@ -32,23 +32,33 @@ final class RegnvaktAppDelegate: NSObject, UIApplicationDelegate {
 
     private func scheduleNextWeatherRefresh() {
         let request = BGAppRefreshTaskRequest(identifier: Self.weatherRefreshIdentifier)
-        request.earliestBeginDate = Date(timeIntervalSinceNow: 30 * 60)
+        let earliestDate = Date(timeIntervalSinceNow: 30 * 60)
+        request.earliestBeginDate = earliestDate
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "Regnvakt.backgroundRefresh.requestedAt")
+        UserDefaults.standard.set(earliestDate.timeIntervalSince1970, forKey: "Regnvakt.backgroundRefresh.earliestAt")
         do {
             try BGTaskScheduler.shared.submit(request)
+            UserDefaults.standard.set("Begäran registrerad hos iOS", forKey: "Regnvakt.backgroundRefresh.status")
         } catch {
-            // iOS may reject or defer refresh requests. Existing local alerts
-            // remain scheduled independently of this opportunistic refresh.
+            UserDefaults.standard.set("iOS avvisade begäran: \\(error.localizedDescription)", forKey: "Regnvakt.backgroundRefresh.status")
         }
     }
 
     private func handle(_ task: BGAppRefreshTask) {
+        let defaults = UserDefaults.standard
+        defaults.set(Date().timeIntervalSince1970, forKey: "Regnvakt.backgroundRefresh.startedAt")
+        defaults.set("Bakgrundsuppdatering körs", forKey: "Regnvakt.backgroundRefresh.status")
         scheduleNextWeatherRefresh()
         let refresh = Task { @MainActor in
             let succeeded = await WeatherViewModel.refreshMonitoredForecastsInBackground()
-            task.setTaskCompleted(success: succeeded)
+            let expired = Task.isCancelled
+            defaults.set(Date().timeIntervalSince1970, forKey: "Regnvakt.backgroundRefresh.completedAt")
+            defaults.set(expired ? "Avbruten av iOS tidsgräns" : (succeeded ? "Prognos hämtad och vakter uppdaterade" : "Ingen prognos kunde uppdateras"), forKey: "Regnvakt.backgroundRefresh.status")
+            task.setTaskCompleted(success: succeeded && !expired)
         }
         task.expirationHandler = {
             refresh.cancel()
+            defaults.set("Avbruten av iOS tidsgräns", forKey: "Regnvakt.backgroundRefresh.status")
         }
     }
 }
