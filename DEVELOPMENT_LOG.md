@@ -1,3 +1,29 @@
+## 2026-11-24 — bounded preservation of scheduled forecast alerts
+
+### Changes
+- Added forecast snapshot timestamps to newly scheduled local weather notifications.
+- Added a pure validation rule for preserving already-pending forecast alerts while a monitored location only has a stale cached forecast.
+- Preservation requires a registered location, an enabled watch, a snapshot no older than four hours, and both the weather event and notification trigger still being in the future.
+- Legacy requests without snapshot metadata, expired requests, and requests for disabled/removed watches are not preserved. Stale forecasts still never generate new candidates.
+- Included preserved stale requests in global pending-capacity accounting.
+
+### Files
+- `VADER/WeatherNotificationScheduler.swift`
+- `VADER/WeatherNotificationBudget.swift`
+- `Tests/WeatherNotificationBudgetTests.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Added deterministic unit tests for valid preservation, expired snapshots, passed event/trigger times, removed locations, disabled watches, future-dated metadata, and the maximum-age boundary.
+- GitHub Actions build and XCTest results pending.
+- Physical iPhone delivery in background/terminated states remains unverified.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Commit: pending
+
+---
+
 # Development log — frost notification audit
 
 ## 2026-11-24 — radar nowcast parser hardening
