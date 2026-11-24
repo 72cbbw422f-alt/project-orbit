@@ -264,15 +264,11 @@ enum WeatherNotificationScheduler {
             let generatedAt = info["forecastSnapshotAt"] as? Date,
             let eventTimestamp = info["forecastEventDate"] as? TimeInterval else { return nil }
 
-            let nextFireDate: Date
-            if let calendarTrigger = request.trigger as? UNCalendarNotificationTrigger,
-               let date = calendarTrigger.nextTriggerDate() {
-                nextFireDate = date
-            } else if let intervalTrigger = request.trigger as? UNTimeIntervalNotificationTrigger {
-                nextFireDate = Date().addingTimeInterval(intervalTrigger.timeInterval)
-            } else {
-                return nil
-            }
+            // Forecast alerts are scheduled against an absolute weather-event time.
+            // Do not infer a remaining fire time from a time-interval trigger's
+            // original delay: that value is not the request's remaining lifetime.
+            guard let calendarTrigger = request.trigger as? UNCalendarNotificationTrigger,
+                  let nextFireDate = calendarTrigger.nextTriggerDate() else { return nil }
             return PendingForecastAlert(
                 identifier: request.identifier, locationID: locationID, watch: watch,
                 generatedAt: generatedAt, eventDate: Date(timeIntervalSince1970: eventTimestamp),
