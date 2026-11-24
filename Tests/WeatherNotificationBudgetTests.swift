@@ -93,10 +93,10 @@ final class WeatherNotificationBudgetTests: XCTestCase {
         ))
     }
 
-    func testSafetyCriticalEventIsDeliveredImmediatelyWhenLeadTimeHasPassed() {
+    func testFutureSafetyCriticalEventIsNotDeliveredImmediatelyWhenLeadTimeHasPassed() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let event = now.addingTimeInterval(10 * 60)
-        XCTAssertTrue(WeatherNotificationBudget.shouldDeliverImmediately(
+        XCTAssertFalse(WeatherNotificationBudget.shouldDeliverImmediately(
             alreadyImmediate: false,
             safetyCritical: true,
             eventDate: event,
