@@ -235,12 +235,12 @@ struct NotificationSettingsView: View {
             let request = UNNotificationRequest(
                 identifier: "regnvakt.test.\(UUID().uuidString)",
                 content: content,
-                trigger: UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
+                trigger: UNTimeIntervalNotificationTrigger(timeInterval: 15, repeats: false)
             )
             UNUserNotificationCenter.current().add(request) { error in
                 Task { @MainActor in
                     testNotificationMessage = error == nil
-                        ? "Testavisering schemalagd. Den ska visas inom cirka 5 sekunder."
+                        ? "Testavisering schemalagd om 15 sekunder. Gå till hemskärmen direkt för att testa leverans när appen är i bakgrunden."
                         : "Kunde inte schemalägga testaviseringen: \(error!.localizedDescription)"
                 }
             }
