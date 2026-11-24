@@ -263,7 +263,15 @@ enum WeatherNotificationScheduler {
             let watch = info["watch"] as? String,
             let generatedAt = info["forecastSnapshotAt"] as? Date,
             let eventTimestamp = info["forecastEventDate"] as? TimeInterval,
-            let nextFireDate = request.trigger?.nextTriggerDate() else { return nil }
+            let nextFireDate: Date
+            if let calendarTrigger = request.trigger as? UNCalendarNotificationTrigger,
+               let date = calendarTrigger.nextTriggerDate() {
+                nextFireDate = date
+            } else if let intervalTrigger = request.trigger as? UNTimeIntervalNotificationTrigger {
+                nextFireDate = Date().addingTimeInterval(intervalTrigger.timeInterval)
+            } else {
+                return nil
+            }
             return PendingForecastAlert(
                 identifier: request.identifier, locationID: locationID, watch: watch,
                 generatedAt: generatedAt, eventDate: Date(timeIntervalSince1970: eventTimestamp),
