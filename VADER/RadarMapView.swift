@@ -1313,11 +1313,8 @@ struct RadarMapView: View {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard !Task.isCancelled, nowcastRequestID == requestID,
                   coordinateKey == String(format: "%.5f,%.5f", requestedCoordinate.latitude, requestedCoordinate.longitude) else { return }
-            guard (response as? HTTPURLResponse)?.statusCode == 200,
-                  let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let properties = root["properties"] as? [String: Any],
-                  let timeseries = properties["timeseries"] as? [[String: Any]] else {
-                throw URLError(.cannotParseResponse)
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+                throw URLError(.badServerResponse)
             }
 
             let result = try RadarNowcastParser.parse(data)
