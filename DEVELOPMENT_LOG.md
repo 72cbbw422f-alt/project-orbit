@@ -1,3 +1,27 @@
+## 2026-11-24 — per-run background forecast diagnostics
+
+### Changes
+- Background refresh now records the number of monitored places, successful updates, failed fetches and places skipped because monitoring changed during a request or the task was cancelled.
+- Stores the last successful fetch timestamp, run duration and a sanitized latest error domain/code.
+- Does not persist place names, coordinates, request URLs or raw error descriptions.
+- Exposes the counters and sanitized diagnostic in Notification Settings.
+
+### Files
+- `VADER/WeatherService.swift`
+- `VADER/NotificationSettingsView.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source changes committed; GitHub Actions XCTest, Release build and unsigned IPA packaging must pass before device distribution.
+- Physical iPhone execution and SwiftUI refresh of the diagnostic values remain unverified.
+- Background refresh remains opportunistic and controlled by iOS; this change does not guarantee execution.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Commit: pending
+
+---
+
 ## 2026-11-24 — background notification diagnostic
 
 ### Changes
