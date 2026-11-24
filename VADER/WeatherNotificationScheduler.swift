@@ -635,7 +635,14 @@ enum WeatherNotificationScheduler {
                 leadMinutes: lead,
                 now: now
             )
-            let fireDate = deliverImmediately ? now.addingTimeInterval(2) : plannedFireDate
+            // A forecast event inside its lead-time window is still a future event.
+            // Arm it for the event time instead of delivering immediately on app launch.
+            // Explicit current-frost events remain immediate through event.immediate.
+            let fireDate = deliverImmediately
+                ? now.addingTimeInterval(2)
+                : (event.safetyCritical && plannedFireDate <= now.addingTimeInterval(30)
+                    ? event.date
+                    : plannedFireDate)
             guard deliverImmediately || fireDate > now.addingTimeInterval(30) else { continue }
             // Frost and ice alerts are safety-critical and intentionally bypass quiet hours.
             guard event.safetyCritical || !WeatherWatchRules.isQuietTime(fireDate, setting: quietSetting) else { continue }
