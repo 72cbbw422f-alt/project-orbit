@@ -22,6 +22,13 @@ struct NotificationSettingsView: View {
     @AppStorage("Regnvakt.backgroundRefresh.startedAt") private var backgroundRefreshStartedAt = 0.0
     @AppStorage("Regnvakt.backgroundRefresh.completedAt") private var backgroundRefreshCompletedAt = 0.0
     @AppStorage("Regnvakt.backgroundRefresh.earliestAt") private var backgroundRefreshEarliestAt = 0.0
+    @AppStorage("Regnvakt.backgroundRefresh.placeCount") private var backgroundRefreshPlaceCount = 0
+    @AppStorage("Regnvakt.backgroundRefresh.successCount") private var backgroundRefreshSuccessCount = 0
+    @AppStorage("Regnvakt.backgroundRefresh.failureCount") private var backgroundRefreshFailureCount = 0
+    @AppStorage("Regnvakt.backgroundRefresh.skippedCount") private var backgroundRefreshSkippedCount = 0
+    @AppStorage("Regnvakt.backgroundRefresh.lastSuccessAt") private var backgroundRefreshLastSuccessAt = 0.0
+    @AppStorage("Regnvakt.backgroundRefresh.diagnostic") private var backgroundRefreshDiagnostic = ""
+    @AppStorage("Regnvakt.backgroundRefresh.durationSeconds") private var backgroundRefreshDuration = 0.0
 
     private let cyan = Color(red: 0.04, green: 0.78, blue: 0.98)
     private let muted = Color(red: 0.69, green: 0.78, blue: 0.88)
@@ -156,6 +163,21 @@ struct NotificationSettingsView: View {
                         if backgroundRefreshEarliestAt > 0 {
                             Text("Nästa begärda tidigaste körning: \(Date(timeIntervalSince1970: backgroundRefreshEarliestAt).formatted(date: .abbreviated, time: .shortened))")
                                 .font(.system(size: 11, weight: .medium)).foregroundStyle(muted)
+                        }
+                        Text("\\(backgroundRefreshSuccessCount) av \\(backgroundRefreshPlaceCount) platser uppdaterade • \\(backgroundRefreshFailureCount) fel • \\(backgroundRefreshSkippedCount) överhoppade")
+                            .font(.system(size: 11, weight: .medium)).foregroundStyle(muted)
+                        if backgroundRefreshLastSuccessAt > 0 {
+                            Text("Senaste lyckade hämtning: \\(Date(timeIntervalSince1970: backgroundRefreshLastSuccessAt).formatted(date: .abbreviated, time: .shortened))")
+                                .font(.system(size: 11, weight: .medium)).foregroundStyle(muted)
+                        }
+                        if !backgroundRefreshDiagnostic.isEmpty {
+                            Text(backgroundRefreshDiagnostic)
+                                .font(.system(size: 10, weight: .medium)).foregroundStyle(muted.opacity(0.9))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        if backgroundRefreshDuration > 0 {
+                            Text("Körtid: \\(backgroundRefreshDuration, specifier: "%.1f") sekunder")
+                                .font(.system(size: 10, weight: .medium)).foregroundStyle(muted)
                         }
                         Text("iOS bestämmer när begäran faktiskt körs. Den angivna tiden är inte en garanti.")
                             .font(.system(size: 10, weight: .medium)).foregroundStyle(muted.opacity(0.85))
