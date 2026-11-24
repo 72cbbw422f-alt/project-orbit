@@ -29,13 +29,6 @@ private struct RadarFrame: Identifiable, Equatable {
     var id: TimeInterval { time.timeIntervalSince1970 }
 }
 
-private struct NowcastPoint: Identifiable {
-    let time: Date
-    let precipitationRate: Double?
-    let amountNextHour: Double?
-    var id: TimeInterval { time.timeIntervalSince1970 }
-}
-
 private enum RadarService {
     private struct RainViewerManifest: Decodable {
         struct Radar: Decodable {
@@ -1327,41 +1320,25 @@ struct RadarMapView: View {
                 throw URLError(.cannotParseResponse)
             }
 
-            let meta = properties["meta"] as? [String: Any]
-            let coverage = (meta?["radar_coverage"] as? String ?? "").lowercased()
-            let formatter = ISO8601DateFormatter()
-            let parsed = timeseries.compactMap { item -> NowcastPoint? in
-                guard let stamp = item["time"] as? String,
-                      let date = formatter.date(from: stamp),
-                      let data = item["data"] as? [String: Any] else { return nil }
-                let instant = data["instant"] as? [String: Any]
-                let details = instant?["details"] as? [String: Any]
-                let rate = (details?["precipitation_rate"] as? NSNumber)?.doubleValue
-                let nextHour = data["next_1_hours"] as? [String: Any]
-                let nextDetails = nextHour?["details"] as? [String: Any]
-                let amount = (nextDetails?["precipitation_amount"] as? NSNumber)?.doubleValue
-                return NowcastPoint(
-                    time: date,
-                    precipitationRate: rate?.isFinite == true ? max(0, rate!) : nil,
-                    amountNextHour: amount?.isFinite == true ? max(0, amount!) : nil
-                )
-            }
+            let result = try RadarNowcastParser.parse(data)
+            let parsed = result.points
             guard !Task.isCancelled, nowcastRequestID == requestID else { return }
             nowcastPoints = Array(parsed.prefix(8))
             nowcastUpdated = Date()
 
-            if coverage == "ok" {
+            switch result.coverage {
+            case .ok:
                 let hasPrecipitation = parsed.contains { ($0.precipitationRate ?? 0) >= 0.1 }
                 nowcastStatus = hasPrecipitation
                     ? "Radarbaserad korttidsprognos. Staplarna visar nederbördsintensitet (mm/h)."
                     : "Ingen nederbörd väntas de närmaste prognostimmarna. Värdena visas i mm/h."
-            } else if coverage == "temporarily unavailable" {
+            case .temporarilyUnavailable:
                 nowcastStatus = "MET Norways radartäckning är tillfälligt ur funktion här."
                 nowcastPoints = []
-            } else if coverage == "no coverage" {
+            case .noCoverage:
                 nowcastStatus = "Ingen radarbaserad närprognos för den här platsen."
                 nowcastPoints = []
-            } else {
+            case .unknown:
                 nowcastStatus = parsed.isEmpty
                     ? "Närprognos saknas för vald plats."
                     : "Modellprognos tillgänglig; radarbaserad nederbördsintensitet saknas."
