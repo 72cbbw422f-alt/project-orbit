@@ -1,3 +1,20 @@
+## 2026-11-24 — correct notification trigger date extraction
+
+### Changes
+- Fixed the compile error in stale pending-alert inspection: `nextTriggerDate()` is called only on supported concrete trigger types (`UNCalendarNotificationTrigger` and `UNTimeIntervalNotificationTrigger`).
+- Calendar triggers use their next matching date; interval triggers derive the next fire time from the stored interval. Unknown trigger types are not preserved.
+
+### Verification
+- Previous CI run #872 failed during Swift compilation because `UNNotificationTrigger` itself does not expose `nextTriggerDate()`.
+- The failure was corrected in the scheduler. A fresh CI run is required; XCTest, Release build and IPA packaging are not yet verified.
+- Physical iPhone notification delivery remains unverified.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Fix commit: `5656ab4d62af8a88c8cdb4bb0bc12ca668cbf56e`
+
+---
+
 ## 2026-11-24 — bounded preservation of scheduled forecast alerts
 
 ### Changes
