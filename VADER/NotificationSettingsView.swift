@@ -18,6 +18,10 @@ struct NotificationSettingsView: View {
     @AppStorage("Regnvakt.notifications.scheduleStatus") private var scheduleStatus = "Kontrollerar schemaläggning…"
     @AppStorage("Regnvakt.notifications.scheduledCount") private var scheduledCount = 0
     @AppStorage("Regnvakt.notifications.scheduleUpdated") private var scheduleUpdatedTimestamp = 0.0
+    @AppStorage("Regnvakt.backgroundRefresh.status") private var backgroundRefreshStatus = "Ingen bakgrundskörning registrerad"
+    @AppStorage("Regnvakt.backgroundRefresh.startedAt") private var backgroundRefreshStartedAt = 0.0
+    @AppStorage("Regnvakt.backgroundRefresh.completedAt") private var backgroundRefreshCompletedAt = 0.0
+    @AppStorage("Regnvakt.backgroundRefresh.earliestAt") private var backgroundRefreshEarliestAt = 0.0
 
     private let cyan = Color(red: 0.04, green: 0.78, blue: 0.98)
     private let muted = Color(red: 0.69, green: 0.78, blue: 0.88)
@@ -129,6 +133,33 @@ struct NotificationSettingsView: View {
                             Text("\(scheduledCount) väntande i iPhone" + (scheduleUpdatedTimestamp <= 0 ? "" : " • Kontrollerat \(Date(timeIntervalSince1970: scheduleUpdatedTimestamp).formatted(date: .omitted, time: .shortened))"))
                                 .font(.system(size: 11, weight: .medium)).foregroundStyle(muted)
                         }
+                    }
+
+                    Divider().overlay(line)
+                    VStack(alignment: .leading, spacing: 5) {
+                        Label("BAKGRUNDSUPPDATERING", systemImage: "arrow.clockwise.circle")
+                            .font(.system(size: 11, weight: .heavy)).tracking(0.7).foregroundStyle(cyan)
+                        Text(backgroundRefreshStatus)
+                            .font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if backgroundRefreshStartedAt > 0 {
+                            Text("Senast startad: \(Date(timeIntervalSince1970: backgroundRefreshStartedAt).formatted(date: .abbreviated, time: .shortened))")
+                                .font(.system(size: 11, weight: .medium)).foregroundStyle(muted)
+                        } else {
+                            Text("Ingen körning har registrerats ännu.")
+                                .font(.system(size: 11, weight: .medium)).foregroundStyle(muted)
+                        }
+                        if backgroundRefreshCompletedAt > 0 {
+                            Text("Senast avslutad: \(Date(timeIntervalSince1970: backgroundRefreshCompletedAt).formatted(date: .omitted, time: .shortened))")
+                                .font(.system(size: 11, weight: .medium)).foregroundStyle(muted)
+                        }
+                        if backgroundRefreshEarliestAt > 0 {
+                            Text("Nästa begärda tidigaste körning: \(Date(timeIntervalSince1970: backgroundRefreshEarliestAt).formatted(date: .abbreviated, time: .shortened))")
+                                .font(.system(size: 11, weight: .medium)).foregroundStyle(muted)
+                        }
+                        Text("iOS bestämmer när begäran faktiskt körs. Den angivna tiden är inte en garanti.")
+                            .font(.system(size: 10, weight: .medium)).foregroundStyle(muted.opacity(0.85))
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .padding(14).background(panel, in: RoundedRectangle(cornerRadius: 18))
