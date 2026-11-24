@@ -164,10 +164,10 @@ struct NotificationSettingsView: View {
                             Text("Nästa begärda tidigaste körning: \(Date(timeIntervalSince1970: backgroundRefreshEarliestAt).formatted(date: .abbreviated, time: .shortened))")
                                 .font(.system(size: 11, weight: .medium)).foregroundStyle(muted)
                         }
-                        Text("\\(backgroundRefreshSuccessCount) av \\(backgroundRefreshPlaceCount) platser uppdaterade • \\(backgroundRefreshFailureCount) fel • \\(backgroundRefreshSkippedCount) överhoppade")
+                        Text("\(backgroundRefreshSuccessCount) av \(backgroundRefreshPlaceCount) platser uppdaterade • \(backgroundRefreshFailureCount) fel • \(backgroundRefreshSkippedCount) överhoppade")
                             .font(.system(size: 11, weight: .medium)).foregroundStyle(muted)
                         if backgroundRefreshLastSuccessAt > 0 {
-                            Text("Senaste lyckade hämtning: \\(Date(timeIntervalSince1970: backgroundRefreshLastSuccessAt).formatted(date: .abbreviated, time: .shortened))")
+                            Text("Senaste lyckade hämtning: \(Date(timeIntervalSince1970: backgroundRefreshLastSuccessAt).formatted(date: .abbreviated, time: .shortened))")
                                 .font(.system(size: 11, weight: .medium)).foregroundStyle(muted)
                         }
                         if !backgroundRefreshDiagnostic.isEmpty {
@@ -176,7 +176,7 @@ struct NotificationSettingsView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         if backgroundRefreshDuration > 0 {
-                            Text("Körtid: \\(backgroundRefreshDuration, specifier: "%.1f") sekunder")
+                            Text("Körtid: \(backgroundRefreshDuration, specifier: "%.1f") sekunder")
                                 .font(.system(size: 10, weight: .medium)).foregroundStyle(muted)
                         }
                         Text("iOS bestämmer när begäran faktiskt körs. Den angivna tiden är inte en garanti.")
