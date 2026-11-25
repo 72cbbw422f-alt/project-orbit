@@ -273,3 +273,39 @@
 - Branch: `feature/frost-notification-audit`
 - App delegate commit: `d1121c77d2e194ffae6b3594f8a05e690fe9c38e`
 - Settings UI commit: `c74355a31718074ba15e304bf07646e2ed06dc40`
+
+
+## 2026-11-25 — expand notification look-ahead and report the live iOS queue
+
+### Findings
+- The Open-Meteo request already retrieves 48 hourly forecast entries, but the notification scheduler only considered the next 8 hours.
+- The app's notification settings screen displayed a persisted count from the last scheduler reconciliation. It did not query UserNotifications when the screen appeared, so the displayed count could be stale after iOS delivered an alert.
+- The dashboard risk horizon remains 8 hours; only the local notification planning horizon is extended.
+
+### Changes
+- Extended `WeatherWatchRules.notificationHorizonHours` from 8 to 24 hours. The scheduler can now arm the first eligible alert of each enabled risk type further ahead, using the existing lead-time, quiet-hour, safety-priority, deduplication, and global pending-budget rules.
+- Added an XCTest asserting that the notification horizon is 24 hours while the dashboard forecast horizon remains 8 hours.
+- Updated notification settings to query iOS pending notification requests when the screen loads, replace the persisted count with the live Regnvakt-owned pending count, and display up to five upcoming trigger times and titles.
+
+### Files
+- `VADER/WeatherWatchRules.swift`
+- `Tests/WeatherNotificationBudgetTests.swift`
+- `VADER/NotificationSettingsView.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Changes committed to `feature/frost-notification-audit`.
+- CI/XCTest and Release device build have not yet been checked for these commits.
+- The updated queue display has not been verified on a physical iPhone.
+- The 24-hour horizon increases planning lead time; it does not guarantee background forecast refreshes or delivery of alerts when a forecast is stale.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Rules commit: `6b806fa79a9fea8ddb0dcf2647b3caa1574fed6b`
+- Tests commit: `29d2a4fbde8cb5969d33f4d4e60534940a37aea8`
+- Settings commit: `f787cf976e6c6f6d324ed351159c165181d9ceb5`
+
+### Remaining
+- Confirm GitHub Actions tests and Release build.
+- Verify the live pending count and upcoming notification list on the user's iPhone.
+- Confirm that 24-hour scheduling yields useful advance alerts without duplicates or excessive notifications.
