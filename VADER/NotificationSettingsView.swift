@@ -267,6 +267,7 @@ struct NotificationSettingsView: View {
     }
 
     @MainActor
+    @MainActor
     private func refreshPendingWeatherNotifications() async {
         let requests = await UNUserNotificationCenter.current().pendingNotificationRequests()
         let weatherRequests = requests.filter { $0.identifier.hasPrefix("regnvakt.weather.") }
@@ -290,7 +291,7 @@ struct NotificationSettingsView: View {
             formatter.timeStyle = .short
             pendingWeatherSummary = weatherRequests.prefix(5).map { item in
                 "\(formatter.string(from: item.0)) • \(item.1)"
-            }.joined(separator: "\\n")
+            }.joined(separator: "\n")
         }
     }
 
