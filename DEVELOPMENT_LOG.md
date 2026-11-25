@@ -335,3 +335,34 @@
 - Confirm workflow execution and XCTest/Release build.
 - Verify the live pending queue on device.
 - Evaluate whether a 24-hour horizon produces useful future alerts under existing thresholds and budget.
+
+
+## 2026-11-25 — verify independent future risk notifications after delivery
+
+### Findings
+- The global selector excludes identifiers already present in iOS delivered notifications, but selection is identifier-specific. A delivered current-frost alert must not suppress distinct future ice, rain, or snow alerts.
+- The scheduler selects at most the first schedulable event per risk type and monitored location. Different risk types and different locations can coexist in the global candidate pool.
+
+### Changes
+- Added a test proving that a delivered current-frost identifier does not block later ice and rain candidates for the same location.
+- Added an end-to-end pure selection/reconciliation test covering safety-priority ice, ordinary rain, snow at another location, removal of stale Regnvakt requests, and preservation of foreign SMHI requests.
+
+### Files
+- `Tests/WeatherNotificationBudgetTests.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Tests are committed to the development branch. GitHub Actions XCTest and Release build have not yet been confirmed for this commit.
+- The tests exercise the pure selection and reconciliation policies; they do not simulate the iOS notification daemon or prove physical-device delivery.
+- No new IPA has been built or distributed.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Test commit: `e2ce9a776e66eb5e420661ab78e2f5990acd2afc`
+- Documentation commit: pending
+
+### Remaining
+- Confirm the push-triggered GitHub Actions workflow runs and passes the complete XCTest suite and Release device build.
+- If CI passes, install the resulting unsigned IPA through the user's normal FlareStore workflow and verify multiple future alerts on the physical iPhone.
+- Keep PR #1 open; do not merge without approval.
+
