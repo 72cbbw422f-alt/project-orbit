@@ -397,3 +397,33 @@
 - If all steps pass, inspect the IPA artifact before distribution.
 - Keep PR #1 open; do not merge without approval.
 
+
+
+## 2026-11-25 — correct pending notification trigger date lookup
+
+### Findings
+- The next CI run exposed a second compile error in the live pending-notification list: `UNNotificationTrigger` does not declare `nextTriggerDate()`.
+- The API is available on concrete calendar and time-interval trigger subclasses, not on the base trigger type.
+- The compiler reached Swift compilation of the app target; XCTest execution was cancelled because this compile error stopped the build.
+
+### Changes
+- Updated the pending weather queue reader to branch on `UNCalendarNotificationTrigger` and `UNTimeIntervalNotificationTrigger`, calling each concrete type's `nextTriggerDate()` implementation.
+- Unknown trigger types are safely omitted from the upcoming-date list rather than causing a compile-time API misuse.
+
+### Files
+- `VADER/NotificationSettingsView.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source correction committed; a new GitHub Actions run must verify the API usage, full XCTest suite, Release device build and IPA packaging.
+- No IPA was produced by the failed runs. No physical-device verification has been performed for this correction.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Code fix: `03b1962e54fc45ab84f4f249f964722daf6d5173`
+- Documentation commit: pending
+
+### Remaining
+- Check the new push and PR runs and inspect any failing step logs.
+- Only distribute an IPA after the complete workflow passes and the artifact is confirmed.
+- Keep PR #1 open; do not merge without approval.
