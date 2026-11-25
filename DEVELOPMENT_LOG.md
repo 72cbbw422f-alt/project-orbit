@@ -366,3 +366,34 @@
 - If CI passes, install the resulting unsigned IPA through the user's normal FlareStore workflow and verify multiple future alerts on the physical iPhone.
 - Keep PR #1 open; do not merge without approval.
 
+
+
+## 2026-11-25 — CI compile correction for notification settings
+
+### Findings
+- GitHub Actions run #928 (push) and run #929 (pull request) both failed before XCTest execution.
+- The compiler error was exact and reproducible in `VADER/NotificationSettingsView.swift:271`: duplicate global actor annotation, `@MainActor` applied twice to `refreshPendingWeatherNotifications()`.
+- This was a Swift compile failure, not a failure of the newly added multi-risk regression assertions. XCTest was cancelled because the app target did not compile.
+
+### Changes
+- Removed the duplicate `@MainActor` annotation while retaining the method's required actor isolation.
+
+### Files
+- `VADER/NotificationSettingsView.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- The correction is committed. A fresh GitHub Actions run is required to verify compilation, XCTest, Release build and IPA packaging.
+- The failed runs did not reach XCTest, Release build or IPA packaging.
+- No new IPA has been built or distributed.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Fix commit: `36d844a24e194105ea3de59056843939b7b14b2b`
+- Documentation commit: pending
+
+### Remaining
+- Verify the fresh push and PR workflow runs.
+- If all steps pass, inspect the IPA artifact before distribution.
+- Keep PR #1 open; do not merge without approval.
+
