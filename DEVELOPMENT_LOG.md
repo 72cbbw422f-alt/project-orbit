@@ -309,3 +309,29 @@
 - Confirm GitHub Actions tests and Release build.
 - Verify the live pending count and upcoming notification list on the user's iPhone.
 - Confirm that 24-hour scheduling yields useful advance alerts without duplicates or excessive notifications.
+
+
+## 2026-11-25 — notification queue visibility and planning horizon
+
+### Changes on `feature/frost-notification-audit`
+- Extended `WeatherWatchRules.notificationHorizonHours` to 24 hours. The dashboard's `forecastHorizonHours` remains 8 hours.
+- Added an XCTest asserting the separate 8-hour dashboard and 24-hour notification horizons.
+- Notification Settings now queries `UNUserNotificationCenter.pendingNotificationRequests()` on view task, filters Regnvakt-owned identifiers, calculates actual next trigger dates and displays up to five upcoming alerts.
+- Follow-up correction: mark the async UI refresh method `@MainActor` and use actual newline separators in the upcoming-alert list.
+
+### Files
+- `VADER/WeatherWatchRules.swift`
+- `Tests/WeatherNotificationBudgetTests.swift`
+- `VADER/NotificationSettingsView.swift`
+
+### Verification
+- Source files were fetched again from the development branch after the earlier commit/branch discrepancy. The 24-hour constant, horizon test, and live pending-queue implementation are present on the branch.
+- The line-break and actor-isolation correction is committed as `c96627aba7137e02d6f180fef9c592f61f2a2117`.
+- No GitHub Actions run has yet been confirmed for the latest commit.
+- No new IPA has been built or tested on a physical iPhone.
+- The live queue display refreshes when Notification Settings' SwiftUI task runs; it is not a background observer.
+
+### Next
+- Confirm workflow execution and XCTest/Release build.
+- Verify the live pending queue on device.
+- Evaluate whether a 24-hour horizon produces useful future alerts under existing thresholds and budget.
