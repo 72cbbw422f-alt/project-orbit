@@ -35,10 +35,10 @@ final class WeatherWatchRulesTests: XCTestCase {
         ISO8601DateFormatter().date(from: iso8601)!
     }
 
-    func testForecastAndNotificationHorizonsAreEightHours() {
+    func testDashboardHorizonIsEightHoursAndNotificationHorizonIsTwentyFour() {
         let start = stockholmDate("2026-11-20T12:00:00+01:00")
         XCTAssertEqual(WeatherWatchRules.forecastHorizon(from: start).timeIntervalSince(start), 8 * 60 * 60)
-        XCTAssertEqual(WeatherWatchRules.notificationForecastHorizon(from: start).timeIntervalSince(start), 8 * 60 * 60)
+        XCTAssertEqual(WeatherWatchRules.notificationForecastHorizon(from: start).timeIntervalSince(start), 24 * 60 * 60)
     }
 
     func testDefaultQuietHoursCrossMidnightInStockholmTime() {
