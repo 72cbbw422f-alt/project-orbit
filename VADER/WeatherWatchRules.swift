@@ -2,7 +2,7 @@ import Foundation
 
 enum WeatherWatchRules {
     static let forecastHorizonHours: TimeInterval = 8
-    static let notificationHorizonHours: TimeInterval = 8
+    static let notificationHorizonHours: TimeInterval = 24
     static let windGustThreshold = 15.0
 
     /// Stable forecast identity distinguishes the repeated local hour at the autumn clock change.
