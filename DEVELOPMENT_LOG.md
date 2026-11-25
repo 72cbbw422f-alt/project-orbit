@@ -427,3 +427,34 @@
 - Check the new push and PR runs and inspect any failing step logs.
 - Only distribute an IPA after the complete workflow passes and the artifact is confirmed.
 - Keep PR #1 open; do not merge without approval.
+
+
+## 2026-11-25 — update legacy horizon regression assertion
+
+### Findings
+- The notification-trigger API correction compiled successfully in GitHub Actions and the XCTest suite started.
+- The suite exposed one stale assertion in `Tests/FrostRiskRulesTests.swift`: it still expected the notification planning horizon to be 8 hours, although the intended change separates the 8-hour dashboard horizon from the 24-hour notification horizon.
+- CI reported 100 tests executed in the relevant suite group with one assertion failure; the failing assertion compared 86,400 seconds against 28,800 seconds. Other tests in the reported groups passed.
+
+### Changes
+- Renamed the outdated test to describe both horizons explicitly.
+- Kept the dashboard forecast expectation at 8 hours and corrected the notification planning expectation to 24 hours.
+
+### Files
+- `Tests/FrostRiskRulesTests.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- The correction is committed. A fresh GitHub Actions run must verify the full suite and Release/IPA stages.
+- The prior run did not reach the Release build or IPA packaging because XCTest failed.
+- No physical-device verification has been performed for this change.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Test correction: `721d10066fdb2ce4b134a8b4baad0b814f6150c4`
+- Documentation commit: pending
+
+### Remaining
+- Confirm the fresh push/PR workflows pass all tests.
+- Verify Release device build, Info.plist validation, IPA packaging and artifact upload.
+- Keep PR #1 open; do not merge without approval.
