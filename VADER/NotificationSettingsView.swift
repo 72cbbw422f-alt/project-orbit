@@ -15,6 +15,7 @@ struct NotificationSettingsView: View {
     @State private var permissionStatus = "Kontrollerar behörighet…"
     @State private var requestingPermission = false
     @State private var testNotificationMessage = ""
+    @State private var pendingWeatherSummary = ""
     @AppStorage("Regnvakt.notifications.scheduleStatus") private var scheduleStatus = "Kontrollerar schemaläggning…"
     @AppStorage("Regnvakt.notifications.scheduledCount") private var scheduledCount = 0
     @AppStorage("Regnvakt.notifications.scheduleUpdated") private var scheduleUpdatedTimestamp = 0.0
@@ -139,6 +140,11 @@ struct NotificationSettingsView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                             Text("\(scheduledCount) väntande i iPhone" + (scheduleUpdatedTimestamp <= 0 ? "" : " • Kontrollerat \(Date(timeIntervalSince1970: scheduleUpdatedTimestamp).formatted(date: .omitted, time: .shortened))"))
                                 .font(.system(size: 11, weight: .medium)).foregroundStyle(muted)
+                            if !pendingWeatherSummary.isEmpty {
+                                Text(pendingWeatherSummary)
+                                    .font(.system(size: 11, weight: .medium)).foregroundStyle(muted)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                         }
                     }
 
@@ -199,7 +205,10 @@ struct NotificationSettingsView: View {
             .padding(.top, 22)
         }
         .background(Color(red: 0.008, green: 0.025, blue: 0.055).ignoresSafeArea())
-        .task { await refreshPermissionStatus() }
+        .task {
+            await refreshPermissionStatus()
+            await refreshPendingWeatherNotifications()
+        }
         .onChange(of: notificationsEnabled) { _, enabled in
             if !enabled {
                 SMHIWarningService.clearPendingNotifications()
@@ -255,6 +264,34 @@ struct NotificationSettingsView: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(isEnabled ? activeGreen.opacity(0.34) : .clear, lineWidth: 1)
         )
+    }
+
+    @MainActor
+    private func refreshPendingWeatherNotifications() async {
+        let requests = await UNUserNotificationCenter.current().pendingNotificationRequests()
+        let weatherRequests = requests.filter { $0.identifier.hasPrefix("regnvakt.weather.") }
+            .compactMap { request -> (Date, String)? in
+                guard let fireDate = request.trigger?.nextTriggerDate() else { return nil }
+                return (fireDate, request.content.title)
+            }
+            .sorted { $0.0 < $1.0 }
+
+        scheduledCount = weatherRequests.count
+        scheduleUpdatedTimestamp = Date().timeIntervalSince1970
+        if weatherRequests.isEmpty {
+            scheduleStatus = "Inga kommande vädernotiser är schemalagda just nu"
+            pendingWeatherSummary = ""
+        } else {
+            scheduleStatus = "\(weatherRequests.count) vädernotis(er) väntar i iPhone"
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "sv_SE")
+            formatter.timeZone = TimeZone(identifier: "Europe/Stockholm")
+            formatter.dateStyle = .none
+            formatter.timeStyle = .short
+            pendingWeatherSummary = weatherRequests.prefix(5).map { item in
+                "\(formatter.string(from: item.0)) • \(item.1)"
+            }.joined(separator: "\\n")
+        }
     }
 
     @MainActor
