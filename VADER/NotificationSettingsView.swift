@@ -267,7 +267,6 @@ struct NotificationSettingsView: View {
     }
 
     @MainActor
-    @MainActor
     private func refreshPendingWeatherNotifications() async {
         let requests = await UNUserNotificationCenter.current().pendingNotificationRequests()
         let weatherRequests = requests.filter { $0.identifier.hasPrefix("regnvakt.weather.") }
