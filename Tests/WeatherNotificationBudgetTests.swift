@@ -762,4 +762,56 @@ final class WeatherNotificationBudgetTests: XCTestCase {
         ).isEmpty)
     }
 
+
+    func testDeliveredFrostDoesNotBlockLaterIceAndRainCandidates() {
+        let deliveredFrost = "regnvakt.weather.north.frost.current.20261125"
+        let ice = "regnvakt.weather.north.ice.20261125T1800"
+        let rain = "regnvakt.weather.north.rain.20261125T2100"
+        let candidates = [
+            candidate(ice, location: "north", priority: .safetyCritical, minutes: 180),
+            candidate(rain, location: "north", priority: .forecast, minutes: 360)
+        ]
+
+        XCTAssertEqual(
+            WeatherNotificationBudget.select(
+                candidates: candidates,
+                capacity: 2,
+                deliveredIdentifiers: [deliveredFrost]
+            ),
+            [ice, rain]
+        )
+    }
+
+    func testMultipleRiskTypesAcrossLocationsSurviveGlobalReconciliation() {
+        let northIce = "regnvakt.weather.north.ice.20261125T1800"
+        let northRain = "regnvakt.weather.north.rain.20261125T2100"
+        let southSnow = "regnvakt.weather.south.snow.20261125T1900"
+        let deliveredFrost = "regnvakt.weather.north.frost.current.20261125"
+        let selected = WeatherNotificationBudget.select(
+            candidates: [
+                candidate(northRain, location: "north", minutes: 360),
+                candidate(southSnow, location: "south", minutes: 240),
+                candidate(northIce, location: "north", priority: .safetyCritical, minutes: 180)
+            ],
+            capacity: 3,
+            deliveredIdentifiers: [deliveredFrost]
+        )
+        let plan = WeatherNotificationReconciliationPlan.make(
+            selectedIdentifiers: selected,
+            pendingIdentifiers: [
+                "regnvakt.weather.north.rain.old",
+                "regnvakt.weather.south.snow.old",
+                "smhi.warning.active"
+            ],
+            deliveredIdentifiers: [deliveredFrost],
+            preservedPendingIdentifiers: []
+        )
+
+        XCTAssertEqual(Set(plan.identifiersToAdd), Set([northIce, northRain, southSnow]))
+        XCTAssertEqual(Set(plan.pendingIdentifiersToRemove), Set([
+            "regnvakt.weather.north.rain.old",
+            "regnvakt.weather.south.snow.old"
+        ]))
+    }
+
 }
