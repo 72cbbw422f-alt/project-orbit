@@ -271,7 +271,15 @@ struct NotificationSettingsView: View {
         let requests = await UNUserNotificationCenter.current().pendingNotificationRequests()
         let weatherRequests = requests.filter { $0.identifier.hasPrefix("regnvakt.weather.") }
             .compactMap { request -> (Date, String)? in
-                guard let fireDate = request.trigger?.nextTriggerDate() else { return nil }
+                let fireDate: Date?
+                if let calendarTrigger = request.trigger as? UNCalendarNotificationTrigger {
+                    fireDate = calendarTrigger.nextTriggerDate()
+                } else if let intervalTrigger = request.trigger as? UNTimeIntervalNotificationTrigger {
+                    fireDate = intervalTrigger.nextTriggerDate()
+                } else {
+                    fireDate = nil
+                }
+                guard let fireDate else { return nil }
                 return (fireDate, request.content.title)
             }
             .sorted { $0.0 < $1.0 }
