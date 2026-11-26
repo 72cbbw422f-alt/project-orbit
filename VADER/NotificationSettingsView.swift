@@ -270,33 +270,36 @@ struct NotificationSettingsView: View {
     private func refreshPendingWeatherNotifications() async {
         let requests = await UNUserNotificationCenter.current().pendingNotificationRequests()
         let weatherRequests = requests.filter { $0.identifier.hasPrefix("regnvakt.weather.") }
-            .compactMap { request -> (Date, String)? in
-                let fireDate: Date?
-                if let calendarTrigger = request.trigger as? UNCalendarNotificationTrigger {
-                    fireDate = calendarTrigger.nextTriggerDate()
-                } else if let intervalTrigger = request.trigger as? UNTimeIntervalNotificationTrigger {
-                    fireDate = intervalTrigger.nextTriggerDate()
-                } else {
-                    fireDate = nil
-                }
-                guard let fireDate else { return nil }
-                return (fireDate, request.content.title)
+        let upcomingWeatherRequests = weatherRequests.compactMap { request -> (Date, String)? in
+            let fireDate: Date?
+            if let calendarTrigger = request.trigger as? UNCalendarNotificationTrigger {
+                fireDate = calendarTrigger.nextTriggerDate()
+            } else if let intervalTrigger = request.trigger as? UNTimeIntervalNotificationTrigger {
+                fireDate = intervalTrigger.nextTriggerDate()
+            } else {
+                fireDate = nil
             }
-            .sorted { $0.0 < $1.0 }
+            guard let fireDate else { return nil }
+            return (fireDate, request.content.title)
+        }
+        .sorted { $0.0 < $1.0 }
 
+        // Keep the real request count separate from the subset whose trigger
+        // date can be rendered. Most importantly, do not overwrite the
+        // scheduler's diagnostic outcome with a generic UI status on view load.
         scheduledCount = weatherRequests.count
         scheduleUpdatedTimestamp = Date().timeIntervalSince1970
-        if weatherRequests.isEmpty {
-            scheduleStatus = "Inga kommande vädernotiser är schemalagda just nu"
-            pendingWeatherSummary = ""
+        if upcomingWeatherRequests.isEmpty {
+            pendingWeatherSummary = weatherRequests.isEmpty
+                ? ""
+                : "Det finns väntande vädernotiser, men iOS gav inget visningsbart nästa klockslag."
         } else {
-            scheduleStatus = "\(weatherRequests.count) vädernotis(er) väntar i iPhone"
             let formatter = DateFormatter()
             formatter.locale = Locale(identifier: "sv_SE")
             formatter.timeZone = TimeZone(identifier: "Europe/Stockholm")
             formatter.dateStyle = .none
             formatter.timeStyle = .short
-            pendingWeatherSummary = weatherRequests.prefix(5).map { item in
+            pendingWeatherSummary = upcomingWeatherRequests.prefix(5).map { item in
                 "\(formatter.string(from: item.0)) • \(item.1)"
             }.joined(separator: "\n")
         }
