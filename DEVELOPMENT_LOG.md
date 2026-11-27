@@ -458,3 +458,36 @@
 - Confirm the fresh push/PR workflows pass all tests.
 - Verify Release device build, Info.plist validation, IPA packaging and artifact upload.
 - Keep PR #1 open; do not merge without approval.
+
+
+## 2026-11-27 — prevent repeated immediate current-frost alerts on app refresh
+
+### Findings
+- Physical-device testing confirmed that future frost notifications can be delivered while the app is closed.
+- The user then observed that opening Regnvakt, refreshing the forecast, or reopening the app could produce the same immediate current-frost notifications again.
+- The global scheduler previously persisted the current-frost day only after finding the alert in iOS delivered notifications. If iOS no longer exposed a delivered alert to the reconciliation snapshot, a fresh forecast could re-arm the same immediate alert.
+
+### Changes
+- After iOS successfully accepts an immediate current-frost request, persist its alert day for that monitored location.
+- Keep the existing delivered-notification reconciliation as a recovery path.
+- This makes the per-location/day deduplication durable across app launches and forecast refreshes; a failed add does not mark the alert as scheduled.
+
+### Files
+- `VADER/WeatherNotificationScheduler.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source change committed; GitHub Actions validation is pending.
+- No physical-device verification has yet been performed for the fix.
+- Expected device test: one immediate current-frost alert per location/day; reopening or refreshing the app must not produce it again. A new alert on a later local calendar day remains eligible if frost risk continues.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Code commit: `9e0b4cbc464f018f6e7db84d3facc94ea617a087`
+- PR #1 remains open and unmerged.
+
+### Remaining
+- Confirm push and pull-request workflows pass.
+- Build and distribute a new unsigned IPA only after CI passes.
+- Verify no repeat current-frost alert after multiple app launches/forecast refreshes, while future forecast frost alerts remain scheduled.
+- Keep PR #1 open; do not merge without approval.
