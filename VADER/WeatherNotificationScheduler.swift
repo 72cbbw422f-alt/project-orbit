@@ -311,6 +311,23 @@ enum WeatherNotificationScheduler {
             guard isCurrentBatch(), let request = requestsByID[identifier] else { return }
             do {
                 try await center.add(request)
+                // Persist the current-frost daily deduplication as soon as iOS
+                // accepts the immediate request. Relying only on delivered
+                // notifications allows a foreground refresh to re-arm the same
+                // alert if iOS has already cleared it from Notification Center.
+                let info = request.content.userInfo
+                if (info["immediate"] as? Bool) == true,
+                   (info["watch"] as? String) == "frost",
+                   let alertDay = info["alertDay"] as? Date,
+                   let locationID = registry.values.first(where: { request.identifier.hasPrefix(
+                       prefix + $0.locationID.replacingOccurrences(of: ",", with: "_") + "."
+                   ) })?.locationID {
+                    let key = currentFrostAlertDayKey + "." + locationID.replacingOccurrences(of: ",", with: "_")
+                    let previous = defaults.object(forKey: key) as? Date
+                    if previous.map({ $0 < alertDay }) ?? true {
+                        defaults.set(alertDay, forKey: key)
+                    }
+                }
             } catch {
                 guard isCurrentBatch() else { return }
                 schedulingFailureCount += 1
