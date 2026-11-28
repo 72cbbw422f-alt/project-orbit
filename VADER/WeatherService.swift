@@ -124,13 +124,28 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                     latitude: place.latitude,
                     longitude: place.longitude
                 )
-                // Re-read persisted selection after suspension: a place may have
-                // been disabled or removed while the network request was running.
+                // An iOS expiration can cancel this task while URLSession is
+                // suspended. Never schedule from a response that arrived after
+                // the background execution budget was revoked.
+                guard !Task.isCancelled else {
+                    skippedCount += 1
+                    break
+                }
+
+                // Re-read both persisted collections after suspension: a place
+                // may have been disabled, removed, or edited while fetching.
                 let latestIDs = Set(
                     (defaults.array(forKey: "Regnvakt.monitoredPlaces.v1") as? [String] ?? [])
                         .compactMap(UUID.init(uuidString:))
                 )
-                guard latestIDs.contains(place.id) else {
+                let latestPlaces = (try? JSONDecoder().decode(
+                    [SavedWeatherPlace].self,
+                    from: defaults.data(forKey: "Regnvakt.savedPlaces.v1") ?? Data()
+                )) ?? []
+                guard latestIDs.contains(place.id),
+                      let latestPlace = latestPlaces.first(where: { $0.id == place.id }),
+                      abs(latestPlace.latitude - place.latitude) < 0.000001,
+                      abs(latestPlace.longitude - place.longitude) < 0.000001 else {
                     skippedCount += 1
                     continue
                 }
