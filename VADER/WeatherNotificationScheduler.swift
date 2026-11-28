@@ -311,6 +311,14 @@ enum WeatherNotificationScheduler {
             guard isCurrentBatch(), let request = requestsByID[identifier] else { return }
             do {
                 try await center.add(request)
+                // A newer reconciliation may have taken its pending snapshot
+                // while this add was suspended. If this batch became obsolete,
+                // immediately reconcile the latest registry again so this late
+                // add cannot remain as an orphan outside the newer snapshot.
+                guard isCurrentBatch() else {
+                    refreshFromStoredForecast()
+                    return
+                }
                 // Persist the current-frost daily deduplication as soon as iOS
                 // accepts the immediate request. Relying only on delivered
                 // notifications allows a foreground refresh to re-arm the same
