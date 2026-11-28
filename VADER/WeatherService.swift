@@ -32,6 +32,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
     private let savedPlacesKey = "Regnvakt.savedPlaces.v1"
     private let monitoredPlacesKey = "Regnvakt.monitoredPlaces.v1"
     private let cachedForecastKey = "Regnvakt.cachedForecast.v1"
+    private static let monitoringGenerationKey = "Regnvakt.monitoringRequestTokens.v1"
 
     private struct CachedForecast: Codable {
         let snapshot: WeatherSnapshot
@@ -98,6 +99,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
             return false
         }
         let monitoredIDs = Set(storedIDs.compactMap(UUID.init(uuidString:)))
+        let initialGenerationTokens = defaults.dictionary(forKey: monitoringGenerationKey) as? [String: String] ?? [:]
         let monitoredPlaces = places.filter { monitoredIDs.contains($0.id) }
         guard !monitoredPlaces.isEmpty else {
             saveDiagnostic("placeCount", 0)
@@ -118,6 +120,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
         var lastFailure = ""
 
         for place in monitoredPlaces {
+            let expectedGeneration = initialGenerationTokens[place.id.uuidString]
             guard !Task.isCancelled else {
                 skippedCount += 1
                 break
@@ -145,7 +148,12 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                     [SavedWeatherPlace].self,
                     from: defaults.data(forKey: "Regnvakt.savedPlaces.v1") ?? Data()
                 )) ?? []
-                guard latestIDs.contains(place.id),
+                let latestGenerationTokens = defaults.dictionary(forKey: monitoringGenerationKey) as? [String: String] ?? [:]
+                guard WeatherWatchRules.isCurrentMonitoringGeneration(
+                          expected: expectedGeneration,
+                          current: latestGenerationTokens[place.id.uuidString]
+                      ),
+                      latestIDs.contains(place.id),
                       let latestPlace = latestPlaces.first(where: { $0.id == place.id }),
                       abs(latestPlace.latitude - place.latitude) < 0.000001,
                       abs(latestPlace.longitude - place.longitude) < 0.000001 else {
@@ -294,6 +302,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
         // Every toggle supersedes any fetch started by the previous state.
         let requestID = UUID()
         monitoringRequestIDs[place.id] = requestID
+        persistMonitoringGeneration(requestID, for: place.id)
 
         if enabled {
             monitoredPlaceIDs.insert(place.id)
@@ -333,6 +342,12 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
 
     private func persistMonitoredPlaces() {
         UserDefaults.standard.set(monitoredPlaceIDs.map(\.uuidString), forKey: monitoredPlacesKey)
+    }
+
+    private func persistMonitoringGeneration(_ generation: UUID, for placeID: UUID) {
+        var generations = UserDefaults.standard.dictionary(forKey: Self.monitoringGenerationKey) as? [String: String] ?? [:]
+        generations[placeID.uuidString] = generation.uuidString
+        UserDefaults.standard.set(generations, forKey: Self.monitoringGenerationKey)
     }
 
     func removePlace(_ place: SavedWeatherPlace) {
@@ -496,6 +511,8 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                 // Every place the user explicitly enabled must receive a fresh
                 // forecast and notification schedule; there is no UI limit of five.
                 for savedPlace in otherPlaces {
+                    let expectedGeneration = UserDefaults.standard.dictionary(forKey: Self.monitoringGenerationKey) as? [String: String] ?? [:]
+                    let expectedPlaceGeneration = expectedGeneration[savedPlace.id.uuidString]
                     do {
                         let placeForecast = try await OpenMeteoService.fetch(
                             latitude: savedPlace.latitude,
@@ -504,7 +521,12 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                         // The user may disable or remove this watch while the
                         // network request is suspended. Never restore its forecast
                         // registry from an obsolete snapshot of otherPlaces.
+                        let latestGeneration = UserDefaults.standard.dictionary(forKey: Self.monitoringGenerationKey) as? [String: String] ?? [:]
                         guard requestID == weatherRequestID,
+                              WeatherWatchRules.isCurrentMonitoringGeneration(
+                                  expected: expectedPlaceGeneration,
+                                  current: latestGeneration[savedPlace.id.uuidString]
+                              ),
                               monitoredPlaceIDs.contains(savedPlace.id),
                               let activePlace = savedPlaces.first(where: { $0.id == savedPlace.id }),
                               abs(activePlace.latitude - savedPlace.latitude) < 0.000001,
