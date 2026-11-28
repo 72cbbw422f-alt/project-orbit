@@ -69,6 +69,23 @@ final class RegnvaktNotificationDelegate: NSObject, UNUserNotificationCenterDele
 
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let userInfo = response.notification.request.content.userInfo
+        if let locationID = userInfo["locationID"] as? String,
+           let place = userInfo["place"] as? String {
+            NotificationCenter.default.post(
+                name: .regnvaktOpenWeatherPlace,
+                object: nil,
+                userInfo: ["locationID": locationID, "place": place]
+            )
+        }
+        completionHandler()
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
@@ -102,4 +119,9 @@ struct VADERApp: App {
             ContentView().preferredColorScheme(.dark)
         }
     }
+}
+
+
+extension Notification.Name {
+    static let regnvaktOpenWeatherPlace = Notification.Name("Regnvakt.openWeatherPlace")
 }
