@@ -247,7 +247,6 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
     }
 
     func openWeatherPlaceFromNotification(locationID: String, placeName: String) {
-        prefersExplicitPlaceSelection = true
         let coordinates = locationID.split(separator: ",")
         guard coordinates.count == 2,
               let latitude = Double(coordinates[0]),
@@ -255,6 +254,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
               (-90.0...90.0).contains(latitude),
               (-180.0...180.0).contains(longitude) else { return }
 
+        prefersExplicitPlaceSelection = true
         lastFetch = nil
         loadWeather(latitude: latitude, longitude: longitude, placeName: placeName)
     }
