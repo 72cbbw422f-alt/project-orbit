@@ -536,3 +536,31 @@
 - Build and distribute a new unsigned IPA only after CI passes.
 - Verify no repeat current-frost alert after multiple app launches/forecast refreshes, while future forecast frost alerts remain scheduled.
 - Keep PR #1 open; do not merge without approval.
+
+
+## 2026-11-28 — discard expired background forecast responses
+
+### Findings
+- The BGAppRefresh expiration handler cancels the Swift task, but a forecast request may be suspended in network I/O when cancellation occurs.
+- The background refresh loop previously checked cancellation before starting each request, but not immediately after the awaited fetch. A response arriving after iOS revoked the execution budget could therefore still update the notification scheduler.
+- The post-fetch validation checked only the monitored UUID list. It did not revalidate that the saved place still existed with the same coordinates.
+
+### Changes
+- Added a cancellation check immediately after each awaited Open-Meteo fetch. Expired tasks now stop before scheduling notifications from late responses.
+- Re-read the saved-place registry after the network suspension and verify the monitored UUID still exists with unchanged coordinates before refreshing the scheduler.
+- This remains limited to ordinary weather watches; no SMHI background work was added.
+
+### Files
+- `VADER/WeatherService.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source change committed; GitHub Actions validation is pending.
+- No physical-device test of BGAppRefresh expiration has been performed.
+- The change prevents late responses from being applied after cancellation; it does not make iOS background execution more frequent or guaranteed.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Code commit: `87024b435ff57784d3f2a1b627bb1778959175eb`
+- Documentation commit: pending
+- PR #1 remains open and unmerged.
