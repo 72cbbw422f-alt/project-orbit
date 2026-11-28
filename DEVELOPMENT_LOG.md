@@ -761,3 +761,26 @@
 - GitHub Actions run #985 was queued for the preceding documentation commit; a fresh successful run for this code change is still required.
 - XCTest, Release device build, unsigned IPA packaging, and physical iPhone background/rename/removal checks are not yet verified.
 - No IPA was distributed. PR #1 remains open and unmerged.
+
+
+## 2026-11-28 — audit deactivation and removal notification lifecycle
+
+### Scope reviewed
+- `WeatherViewModel.setMonitoring(_:enabled:)`
+- `WeatherViewModel.removePlace(_:)`
+- `WeatherNotificationScheduler.removeNotifications(latitude:longitude:)`
+- Global forecast reconciliation and pending-request preservation
+- Pure notification identifier and reconciliation tests in `Tests/WeatherNotificationBudgetTests.swift`
+
+### Findings
+- Disabling a place removes its ID from the persisted monitored-place set before starting notification cleanup.
+- The scheduler removes that exact coordinate entry from the stored forecast registry and invalidates an in-flight global scheduling batch.
+- Pending and delivered cleanup is restricted to the exact `regnvakt.weather.<coordinate>.` namespace; SMHI and unrelated notifications are not selected.
+- A replacement global reconciliation only preserves pending current-frost or stale-forecast alerts for locations still present in the registry. Disabled watch types are excluded from stale-forecast preservation.
+- Existing unit tests cover exact coordinate-prefix matching, removed/unregistered locations, disabled frost preservation, stale forecast metadata/expiry, and reconciliation namespace isolation.
+
+### Outcome
+- No additional source change was justified by this pass; the reviewed removal path already performs the required registry, pending, and delivered cleanup.
+- The remaining risk is platform execution timing: the actual iOS notification-center callbacks and rapid disable/re-enable behavior still require device verification.
+- GitHub Actions run #987 remains queued; no XCTest or device build result is claimed from this audit.
+- No IPA was distributed. PR #1 remains open and unmerged.
