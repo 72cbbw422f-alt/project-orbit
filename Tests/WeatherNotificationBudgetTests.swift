@@ -24,6 +24,16 @@ final class WeatherNotificationBudgetTests: XCTestCase {
         XCTAssertEqual(WeatherWatchRules.notificationForecastHorizon(from: now), now.addingTimeInterval(24 * 60 * 60))
     }
 
+    func testMonitoringGenerationAcceptsUnchangedGenerationIncludingLegacyNil() {
+        XCTAssertTrue(WeatherWatchRules.isCurrentMonitoringGeneration(expected: "generation-a", current: "generation-a"))
+        XCTAssertTrue(WeatherWatchRules.isCurrentMonitoringGeneration(expected: nil, current: nil))
+    }
+
+    func testMonitoringGenerationRejectsResponseAfterRapidDisableAndReenable() {
+        XCTAssertFalse(WeatherWatchRules.isCurrentMonitoringGeneration(expected: "generation-before-toggle", current: "generation-after-toggle"))
+        XCTAssertFalse(WeatherWatchRules.isCurrentMonitoringGeneration(expected: nil, current: "generation-after-first-toggle"))
+    }
+
     func testRoutineEventTooCloseToScheduleDoesNotConsumeRiskType() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         XCTAssertFalse(WeatherWatchRules.canScheduleForecastEvent(
