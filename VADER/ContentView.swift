@@ -74,6 +74,14 @@ struct ContentView: View {
                 weatherModel.refreshSMHIWarnings()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .regnvaktOpenWeatherPlace)) { notification in
+            guard let locationID = notification.userInfo?["locationID"] as? String,
+                  let place = notification.userInfo?["place"] as? String else { return }
+            selectedTab = .weather
+            showingNotifications = false
+            showingNationalWarnings = false
+            weatherModel.openWeatherPlaceFromNotification(locationID: locationID, placeName: place)
+        }
         // Keep interactive content inside the iPhone safe area. Only the
         // background paints edge-to-edge; system status and home areas stay usable.
         .safeAreaInset(edge: .bottom, spacing: 0) {
