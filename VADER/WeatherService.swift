@@ -28,8 +28,11 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
     @Published var placeSearchStatus = ""
     @Published var isSearchingPlaces = false
     @Published private(set) var savedPlaces: [SavedWeatherPlace] = []
+    @Published private(set) var monitoredPlaceIDs: Set<UUID> = []
     private let savedPlacesKey = "Regnvakt.savedPlaces.v1"
+    private let monitoredPlacesKey = "Regnvakt.monitoredPlaces.v1"
     private let cachedForecastKey = "Regnvakt.cachedForecast.v1"
+    private static let monitoringGenerationKey = "Regnvakt.monitoringRequestTokens.v1"
 
     private struct CachedForecast: Codable {
         let snapshot: WeatherSnapshot
@@ -40,12 +43,21 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
     private let manager = CLLocationManager()
     private let geocoder = CLGeocoder()
     private var lastFetch: Date?
+    private var weatherRequestID = UUID()
+    // A manually selected or notification-targeted place must not be replaced
+    // by the delayed startup GPS callback. Explicit refresh re-enables GPS.
+    private var prefersExplicitPlaceSelection = false
+    // Invalidates forecast fetches started by an older monitoring toggle.
+    private var monitoringRequestIDs: [UUID: UUID] = [:]
 
     override init() {
         super.init()
         if let data = UserDefaults.standard.data(forKey: savedPlacesKey),
            let places = try? JSONDecoder().decode([SavedWeatherPlace].self, from: data) {
             savedPlaces = places
+        }
+        if let ids = UserDefaults.standard.array(forKey: monitoredPlacesKey) as? [String] {
+            monitoredPlaceIDs = Set(ids.compactMap(UUID.init(uuidString:)))
         }
         if let data = UserDefaults.standard.data(forKey: cachedForecastKey),
            let cached = try? JSONDecoder().decode(CachedForecast.self, from: data) {
@@ -55,10 +67,148 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
             lastUpdated = cached.savedAt
             status = "Senast visade prognos • uppdaterar…"
         }
+        WeatherNotificationScheduler.clearLegacyWeatherNotificationsOnce()
+        // Reconcile persisted notification schedules at launch. This removes
+        // alerts backed by cached forecasts that have aged beyond the freshness
+        // window, even when the app starts offline and cannot fetch new data.
+        WeatherNotificationScheduler.refreshFromStoredForecast()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyKilometer
         manager.distanceFilter = 1500
         requestLocation()
+    }
+
+    /// Opportunistic background refresh for explicitly monitored places.
+    /// iOS controls when this runs; it is not guaranteed after a user force-quits the app.
+    static func refreshMonitoredForecastsInBackground() async -> Bool {
+        let defaults = UserDefaults.standard
+        let startedAt = Date()
+        let diagnosticPrefix = "Regnvakt.backgroundRefresh."
+        func saveDiagnostic(_ key: String, _ value: Any) {
+            defaults.set(value, forKey: diagnosticPrefix + key)
+        }
+
+        guard let placesData = defaults.data(forKey: "Regnvakt.savedPlaces.v1"),
+              let places = try? JSONDecoder().decode([SavedWeatherPlace].self, from: placesData),
+              let storedIDs = defaults.array(forKey: "Regnvakt.monitoredPlaces.v1") as? [String] else {
+            saveDiagnostic("placeCount", 0)
+            saveDiagnostic("successCount", 0)
+            saveDiagnostic("failureCount", 0)
+            saveDiagnostic("skippedCount", 0)
+            saveDiagnostic("diagnostic", "Inga sparade bevakningsdata kunde läsas")
+            return false
+        }
+        let monitoredIDs = Set(storedIDs.compactMap(UUID.init(uuidString:)))
+        let initialGenerationTokens = defaults.dictionary(forKey: monitoringGenerationKey) as? [String: String] ?? [:]
+        let monitoredPlaces = places.filter { monitoredIDs.contains($0.id) }
+        guard !monitoredPlaces.isEmpty else {
+            saveDiagnostic("placeCount", 0)
+            saveDiagnostic("successCount", 0)
+            saveDiagnostic("failureCount", 0)
+            saveDiagnostic("skippedCount", 0)
+            saveDiagnostic("diagnostic", "Inga aktiva vädervakter")
+            return false
+        }
+
+        // This background task is dedicated to ordinary forecast watches.
+        // SMHI detection is intentionally excluded: its network/geometry work
+        // must not consume the limited BGAppRefresh window needed by Open-Meteo.
+        // SMHI remains on its existing foreground flow until server push is approved.
+        var refreshedCount = 0
+        var failedCount = 0
+        var skippedCount = 0
+        var lastFailure = ""
+
+        for place in monitoredPlaces {
+            let expectedGeneration = initialGenerationTokens[place.id.uuidString]
+            guard !Task.isCancelled else {
+                skippedCount += 1
+                break
+            }
+            do {
+                let forecast = try await OpenMeteoService.fetch(
+                    latitude: place.latitude,
+                    longitude: place.longitude
+                )
+                // An iOS expiration can cancel this task while URLSession is
+                // suspended. Never schedule from a response that arrived after
+                // the background execution budget was revoked.
+                guard !Task.isCancelled else {
+                    skippedCount += 1
+                    break
+                }
+
+                // Re-read both persisted collections after suspension: a place
+                // may have been disabled, removed, or edited while fetching.
+                let latestIDs = Set(
+                    (defaults.array(forKey: "Regnvakt.monitoredPlaces.v1") as? [String] ?? [])
+                        .compactMap(UUID.init(uuidString:))
+                )
+                let latestPlaces = (try? JSONDecoder().decode(
+                    [SavedWeatherPlace].self,
+                    from: defaults.data(forKey: "Regnvakt.savedPlaces.v1") ?? Data()
+                )) ?? []
+                let latestGenerationTokens = defaults.dictionary(forKey: monitoringGenerationKey) as? [String: String] ?? [:]
+                guard WeatherWatchRules.isCurrentMonitoringGeneration(
+                          expected: expectedGeneration,
+                          current: latestGenerationTokens[place.id.uuidString]
+                      ),
+                      latestIDs.contains(place.id),
+                      let latestPlace = latestPlaces.first(where: { $0.id == place.id }),
+                      abs(latestPlace.latitude - place.latitude) < 0.000001,
+                      abs(latestPlace.longitude - place.longitude) < 0.000001 else {
+                    skippedCount += 1
+                    continue
+                }
+                // Use the latest persisted display name after the network
+                // suspension. A rename during the fetch must not restore an
+                // obsolete city label in the notification payload or registry.
+                let reconciliationCompleted = await WeatherNotificationScheduler.refreshAndWait(
+                    place: latestPlace.name,
+                    latitude: latestPlace.latitude,
+                    longitude: latestPlace.longitude,
+                    hours: forecast.hours,
+                    currentTemperature: forecast.current.temperature
+                )
+                if reconciliationCompleted {
+                    refreshedCount += 1
+                } else {
+                    skippedCount += 1
+                    if Task.isCancelled { break }
+                }
+            } catch {
+                // URLSession commonly throws CancellationError when iOS expires
+                // the BGAppRefresh task. Count that as skipped work, not as a
+                // network failure, and do not continue the location loop.
+                if Task.isCancelled {
+                    skippedCount += 1
+                    break
+                }
+                failedCount += 1
+                // Store only the error type and numeric code, never a URL,
+                // coordinates, or place name.
+                let nsError = error as NSError
+                lastFailure = "\(nsError.domain) (kod \(nsError.code))"
+            }
+        }
+
+        // If every network fetch failed, still reconcile the last stored forecasts.
+        // This removes expired pending alerts after the two-hour freshness window
+        // instead of leaving them armed indefinitely merely because no new forecast arrived.
+        if failedCount > 0 && refreshedCount == 0 && !Task.isCancelled {
+            _ = await WeatherNotificationScheduler.reconcileStoredForecastsAndWait()
+        }
+
+        saveDiagnostic("placeCount", monitoredPlaces.count)
+        saveDiagnostic("successCount", refreshedCount)
+        saveDiagnostic("failureCount", failedCount)
+        saveDiagnostic("skippedCount", skippedCount)
+        saveDiagnostic("diagnostic", lastFailure.isEmpty ? "Inga hämtfel registrerade" : "Senaste hämtfel: \(lastFailure)")
+        saveDiagnostic("durationSeconds", Date().timeIntervalSince(startedAt))
+        if refreshedCount > 0 {
+            saveDiagnostic("lastSuccessAt", Date().timeIntervalSince1970)
+        }
+        return refreshedCount > 0 && !Task.isCancelled
     }
 
     func requestLocation() {
@@ -77,6 +227,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
     }
 
     func refresh() {
+        prefersExplicitPlaceSelection = false
         lastFetch = nil
         requestLocation()
     }
@@ -112,6 +263,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
     }
 
     func selectPlace(_ place: PlaceSearchResult) {
+        prefersExplicitPlaceSelection = true
         savePlace(place)
         lastFetch = nil
         status = "Hämtar prognos för \(place.name)…"
@@ -119,8 +271,22 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
     }
 
     func selectSavedPlace(_ place: SavedWeatherPlace) {
+        prefersExplicitPlaceSelection = true
         lastFetch = nil
         loadWeather(latitude: place.latitude, longitude: place.longitude, placeName: place.name)
+    }
+
+    func openWeatherPlaceFromNotification(locationID: String, placeName: String) {
+        let coordinates = locationID.split(separator: ",")
+        guard coordinates.count == 2,
+              let latitude = Double(coordinates[0]),
+              let longitude = Double(coordinates[1]),
+              (-90.0...90.0).contains(latitude),
+              (-180.0...180.0).contains(longitude) else { return }
+
+        prefersExplicitPlaceSelection = true
+        lastFetch = nil
+        loadWeather(latitude: latitude, longitude: longitude, placeName: placeName)
     }
 
     func savePlace(_ place: PlaceSearchResult) {
@@ -147,13 +313,78 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
         persistSavedPlaces()
     }
 
+    func isMonitored(_ place: SavedWeatherPlace) -> Bool {
+        monitoredPlaceIDs.contains(place.id)
+    }
+
+    func setMonitoring(_ place: SavedWeatherPlace, enabled: Bool) {
+        // Every toggle supersedes any fetch started by the previous state.
+        let requestID = UUID()
+        monitoringRequestIDs[place.id] = requestID
+        persistMonitoringGeneration(requestID, for: place.id)
+
+        if enabled {
+            monitoredPlaceIDs.insert(place.id)
+            persistMonitoredPlaces()
+            refreshSMHIWarnings()
+            Task {
+                do {
+                    let forecast = try await OpenMeteoService.fetch(latitude: place.latitude, longitude: place.longitude)
+                    guard monitoringRequestIDs[place.id] == requestID,
+                          monitoredPlaceIDs.contains(place.id),
+                          let activePlace = savedPlaces.first(where: { $0.id == place.id }),
+                          abs(activePlace.latitude - place.latitude) < 0.000001,
+                          abs(activePlace.longitude - place.longitude) < 0.000001 else { return }
+
+                    WeatherNotificationScheduler.refresh(
+                        place: activePlace.name,
+                        latitude: activePlace.latitude,
+                        longitude: activePlace.longitude,
+                        hours: forecast.hours,
+                        currentTemperature: forecast.current.temperature
+                    )
+                    // refresh(place:) reconciles the complete monitored registry.
+                } catch {
+                    guard monitoringRequestIDs[place.id] == requestID,
+                          monitoredPlaceIDs.contains(place.id),
+                          savedPlaces.contains(where: { $0.id == place.id }) else { return }
+                    status = "Kunde inte uppdatera bevakningen för \(place.name)."
+                }
+            }
+        } else {
+            monitoredPlaceIDs.remove(place.id)
+            persistMonitoredPlaces()
+            WeatherNotificationScheduler.removeNotifications(latitude: place.latitude, longitude: place.longitude)
+            refreshSMHIWarnings()
+        }
+    }
+
+    private func persistMonitoredPlaces() {
+        UserDefaults.standard.set(monitoredPlaceIDs.map(\.uuidString), forKey: monitoredPlacesKey)
+    }
+
+    private func persistMonitoringGeneration(_ generation: UUID, for placeID: UUID) {
+        var generations = UserDefaults.standard.dictionary(forKey: Self.monitoringGenerationKey) as? [String: String] ?? [:]
+        generations[placeID.uuidString] = generation.uuidString
+        UserDefaults.standard.set(generations, forKey: Self.monitoringGenerationKey)
+    }
+
     func removePlace(_ place: SavedWeatherPlace) {
+        let removalGeneration = UUID()
+        monitoringRequestIDs[place.id] = removalGeneration
+        persistMonitoringGeneration(removalGeneration, for: place.id)
+        monitoredPlaceIDs.remove(place.id)
+        persistMonitoredPlaces()
+        WeatherNotificationScheduler.removeNotifications(latitude: place.latitude, longitude: place.longitude)
         savedPlaces.removeAll { $0.id == place.id }
         if !savedPlaces.contains(where: \.isFavorite), let first = savedPlaces.first,
            let index = savedPlaces.firstIndex(where: { $0.id == first.id }) {
             savedPlaces[index].isFavorite = true
         }
         persistSavedPlaces()
+        // Notification cleanup triggers one global reconciliation after the
+        // removed location's pending and delivered requests have been cleared.
+        refreshSMHIWarnings()
     }
 
     private func persistSavedPlaces() {
@@ -162,25 +393,44 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
         }
     }
 
-    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        if manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse {
-            requestLocation()
-        } else if manager.authorizationStatus == .denied || manager.authorizationStatus == .restricted {
-            status = "Platsåtkomst avstängd – sök efter ort eller stad"
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let status = manager.authorizationStatus
+        let isAuthorized = status == .authorizedAlways || status == .authorizedWhenInUse
+        let isDenied = status == .denied || status == .restricted
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if isAuthorized {
+                requestLocation()
+            } else if isDenied {
+                self.status = "Platsåtkomst avstängd – sök efter ort eller stad"
+            }
         }
     }
 
-    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        status = "Kunde inte hämta position – sök efter ort eller stad."
+    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        let message = error.localizedDescription
+        Task { @MainActor [weak self] in
+            self?.status = message.isEmpty
+                ? "Kunde inte hämta position – sök efter ort eller stad."
+                : "Kunde inte hämta position – sök efter ort eller stad. (\(message))"
+        }
     }
 
-    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
-        if let lastFetch, Date().timeIntervalSince(lastFetch) < 300 { return }
-        lastFetch = Date()
-        currentCoordinate = location.coordinate
-        status = "Hämtar prognos för din position…"
-        Task {
+        let latitude = location.coordinate.latitude
+        let longitude = location.coordinate.longitude
+        Task { @MainActor [weak self] in
+            guard let self, !self.prefersExplicitPlaceSelection else { return }
+            if let lastFetch, Date().timeIntervalSince(lastFetch) < 300 { return }
+            lastFetch = Date()
+            // Claim the request before reverse geocoding. Otherwise a slow
+            // location lookup can finish after a manual place selection and
+            // unexpectedly replace the user's chosen town with GPS weather.
+            let locationRequestID = UUID()
+            weatherRequestID = locationRequestID
+            status = "Hämtar prognos för din position…"
+            let location = CLLocation(latitude: latitude, longitude: longitude)
             let placeName: String
             do {
                 let marks = try await geocoder.reverseGeocodeLocation(location, preferredLocale: Locale(identifier: "sv_SE"))
@@ -196,16 +446,63 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
             } catch {
                 placeName = "Min position"
             }
-            loadWeather(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude, placeName: placeName)
+            guard weatherRequestID == locationRequestID else { return }
+            currentCoordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+            loadWeather(latitude: latitude, longitude: longitude, placeName: placeName)
+        }
+    }
+
+    func refreshSMHIWarnings() {
+        // Check the currently selected place plus every explicitly monitored
+        // saved place. This keeps SMHI coverage nationwide rather than tying
+        // alerts only to the phone's current GPS position.
+        var coordinates: [CLLocationCoordinate2D] = []
+        if let currentCoordinate { coordinates.append(currentCoordinate) }
+        let monitoredPlaces = savedPlaces.filter { monitoredPlaceIDs.contains($0.id) }
+        for place in monitoredPlaces {
+            let coordinate = CLLocationCoordinate2D(latitude: place.latitude, longitude: place.longitude)
+            let isDuplicate = coordinates.contains {
+                abs($0.latitude - coordinate.latitude) < 0.015 &&
+                abs($0.longitude - coordinate.longitude) < 0.015
+            }
+            if !isDuplicate { coordinates.append(coordinate) }
+        }
+        guard !coordinates.isEmpty else {
+            // Invalidate an older network response before clearing its notifications.
+            // Otherwise a request for the previous location snapshot could still
+            // finish later and overwrite the empty-location status.
+            _ = SMHIWarningService.beginCheck()
+            UserDefaults.standard.set(false, forKey: "Regnvakt.smhi.active")
+            UserDefaults.standard.set("Välj en plats för att visa lokala SMHI-varningar", forKey: "Regnvakt.smhi.summary")
+            UserDefaults.standard.set("", forKey: "Regnvakt.smhi.level")
+            SMHIWarningService.clearPendingNotifications()
+            return
+        }
+        let checkGeneration = SMHIWarningService.beginCheck()
+        Task {
+            await SMHIWarningService.checkAndNotify(at: coordinates, generation: checkGeneration)
         }
     }
 
     private func loadWeather(latitude: Double, longitude: Double, placeName: String) {
+        weatherRequestID = UUID()
+        let requestID = weatherRequestID
         currentCoordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        // Check official warnings independently from the forecast request so a
+        // failed Open-Meteo response can never prevent an SMHI warning check.
+        refreshSMHIWarnings()
+        let requestedMonitoredPlace = savedPlaces.first {
+            monitoredPlaceIDs.contains($0.id) &&
+            abs($0.latitude - latitude) < 0.015 &&
+            abs($0.longitude - longitude) < 0.015
+        }
+        let generationSnapshot = UserDefaults.standard.dictionary(forKey: Self.monitoringGenerationKey) as? [String: String] ?? [:]
+        let expectedSelectedGeneration = requestedMonitoredPlace.flatMap { generationSnapshot[$0.id.uuidString] }
         status = "Hämtar prognos för \(placeName)…"
         Task {
             do {
                 let result = try await OpenMeteoService.fetch(latitude: latitude, longitude: longitude)
+                guard requestID == weatherRequestID else { return }
                 let updatedSnapshot = result.current.replacingPlace(placeName)
                 let updateTime = Date()
                 // Persist the last complete forecast so launch never starts in demo mode
@@ -218,10 +515,76 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                 lastUpdated = updateTime
                 days = result.days
                 hours = result.hours
-                WeatherNotificationScheduler.refresh(place: placeName, hours: result.hours)
-                Task { await SMHIWarningService.checkAndNotify(at: CLLocationCoordinate2D(latitude: latitude, longitude: longitude)) }
+                if let requestedMonitoredPlace,
+                   let activePlace = savedPlaces.first(where: { $0.id == requestedMonitoredPlace.id }),
+                   monitoredPlaceIDs.contains(activePlace.id) {
+                    let latestGeneration = UserDefaults.standard.dictionary(forKey: Self.monitoringGenerationKey) as? [String: String] ?? [:]
+                    // A selected-place response is subject to the same generation
+                    // check as secondary monitored places. Enabling a watch while
+                    // this request is already in flight must not let an old result
+                    // overwrite the dedicated fetch started by that activation.
+                    if WeatherWatchRules.isCurrentMonitoringGeneration(
+                        expected: expectedSelectedGeneration,
+                        current: latestGeneration[activePlace.id.uuidString]
+                    ) {
+                        // A GPS fix can drift slightly between refreshes. Use the
+                        // saved place's stable coordinates for notification identity
+                        // so one monitored town cannot accumulate several location IDs.
+                        WeatherNotificationScheduler.refresh(
+                            place: activePlace.name,
+                            latitude: activePlace.latitude,
+                            longitude: activePlace.longitude,
+                            hours: result.hours,
+                            currentTemperature: updatedSnapshot.temperature
+                        )
+                    }
+                }
+
+                // Only explicitly enabled places receive notifications.
+                let otherPlaces = savedPlaces.filter {
+                    monitoredPlaceIDs.contains($0.id) &&
+                    (abs($0.latitude - latitude) > 0.015 || abs($0.longitude - longitude) > 0.015)
+                }
+                // Every place the user explicitly enabled must receive a fresh
+                // forecast and notification schedule; there is no UI limit of five.
+                for savedPlace in otherPlaces {
+                    let expectedGeneration = UserDefaults.standard.dictionary(forKey: Self.monitoringGenerationKey) as? [String: String] ?? [:]
+                    let expectedPlaceGeneration = expectedGeneration[savedPlace.id.uuidString]
+                    do {
+                        let placeForecast = try await OpenMeteoService.fetch(
+                            latitude: savedPlace.latitude,
+                            longitude: savedPlace.longitude
+                        )
+                        // The user may disable or remove this watch while the
+                        // network request is suspended. Never restore its forecast
+                        // registry from an obsolete snapshot of otherPlaces.
+                        let latestGeneration = UserDefaults.standard.dictionary(forKey: Self.monitoringGenerationKey) as? [String: String] ?? [:]
+                        guard requestID == weatherRequestID,
+                              WeatherWatchRules.isCurrentMonitoringGeneration(
+                                  expected: expectedPlaceGeneration,
+                                  current: latestGeneration[savedPlace.id.uuidString]
+                              ),
+                              monitoredPlaceIDs.contains(savedPlace.id),
+                              let activePlace = savedPlaces.first(where: { $0.id == savedPlace.id }),
+                              abs(activePlace.latitude - savedPlace.latitude) < 0.000001,
+                              abs(activePlace.longitude - savedPlace.longitude) < 0.000001 else {
+                            continue
+                        }
+                        WeatherNotificationScheduler.refresh(
+                            place: activePlace.name,
+                            latitude: activePlace.latitude,
+                            longitude: activePlace.longitude,
+                            hours: placeForecast.hours,
+                            currentTemperature: placeForecast.current.temperature
+                        )
+                    } catch {
+                        // Keep the last valid schedule for this place if a refresh fails.
+                    }
+                }
+
                 status = "Liveprognos • Open-Meteo"
             } catch {
+                guard requestID == weatherRequestID else { return }
                 status = "Kunde inte hämta väderdata. Försök igen."
             }
         }
@@ -241,6 +604,7 @@ private enum OpenMeteoService {
             URLQueryItem(name: "past_days", value: "1"),
             URLQueryItem(name: "forecast_days", value: "7"),
             URLQueryItem(name: "timezone", value: "auto"),
+            URLQueryItem(name: "timeformat", value: "unixtime"),
             URLQueryItem(name: "wind_speed_unit", value: "ms")
         ]
         guard let url = components.url else { throw URLError(.badURL) }
@@ -250,8 +614,22 @@ private enum OpenMeteoService {
         guard let current = root["current"] as? [String: Any],
               let daily = root["daily"] as? [String: Any],
               let hourly = root["hourly"] as? [String: Any],
-              let dates = daily["time"] as? [String],
-              let hourlyTimes = hourly["time"] as? [String] else { throw URLError(.cannotParseResponse) }
+              let dailyTimestamps = daily["time"] as? [NSNumber],
+              let hourlyTimestamps = hourly["time"] as? [NSNumber],
+              let utcOffset = root["utc_offset_seconds"] as? NSNumber else { throw URLError(.cannotParseResponse) }
+        // Required values must be present and finite. A missing API field is
+        // unknown weather, never a safe zero (especially for wind and temperature).
+        let requiredCurrentKeys = [
+            "temperature_2m", "relative_humidity_2m", "apparent_temperature",
+            "precipitation", "weather_code", "wind_speed_10m",
+            "wind_direction_10m", "wind_gusts_10m", "pressure_msl",
+            "cloud_cover", "dew_point_2m", "visibility"
+        ]
+        guard requiredCurrentKeys.allSatisfy({ key in
+            guard let value = current[key] as? NSNumber else { return false }
+            return value.doubleValue.isFinite
+        }) else { throw URLError(.cannotParseResponse) }
+
         func number(_ dict: [String: Any], _ key: String) -> Double {
             (dict[key] as? NSNumber)?.doubleValue ?? 0
         }
@@ -263,35 +641,65 @@ private enum OpenMeteoService {
         let winds = daily["wind_speed_10m_max"] as? [NSNumber] ?? []
         let gusts = daily["wind_gusts_10m_max"] as? [NSNumber] ?? []
         let uv = daily["uv_index_max"] as? [NSNumber] ?? []
-        let sunrises = daily["sunrise"] as? [String] ?? []
-        let sunsets = daily["sunset"] as? [String] ?? []
+        let sunrises = daily["sunrise"] as? [NSNumber] ?? []
+        let sunsets = daily["sunset"] as? [NSNumber] ?? []
+        let dailyNumericArrays = [lows, highs, codes, chances, amounts, winds, gusts, uv]
+        guard !dailyTimestamps.isEmpty,
+              dailyNumericArrays.allSatisfy({ $0.count >= dailyTimestamps.count }),
+              sunrises.count >= dailyTimestamps.count,
+              sunsets.count >= dailyTimestamps.count,
+              dailyTimestamps.allSatisfy({ $0.doubleValue.isFinite }),
+              sunrises.prefix(dailyTimestamps.count).allSatisfy({ $0.doubleValue.isFinite }),
+              sunsets.prefix(dailyTimestamps.count).allSatisfy({ $0.doubleValue.isFinite }),
+              dailyNumericArrays.allSatisfy({ values in values.prefix(dailyTimestamps.count).allSatisfy { $0.doubleValue.isFinite } }) else {
+            throw URLError(.cannotParseResponse)
+        }
         let hourlyTemps = hourly["temperature_2m"] as? [NSNumber] ?? []
         let hourlyChances = hourly["precipitation_probability"] as? [NSNumber] ?? []
         let hourlyAmounts = hourly["precipitation"] as? [NSNumber] ?? []
         let hourlyCodes = hourly["weather_code"] as? [NSNumber] ?? []
         let hourlyWinds = hourly["wind_speed_10m"] as? [NSNumber] ?? []
         let hourlyGusts = hourly["wind_gusts_10m"] as? [NSNumber] ?? []
+
+        // Risk evaluation depends on every hourly field. Reject an incomplete
+        // forecast rather than silently replacing missing precipitation/wind
+        // values with zero and reporting false "no risk".
+        let hourlyArrays = [hourlyTemps, hourlyChances, hourlyAmounts, hourlyCodes, hourlyWinds, hourlyGusts]
+        guard !hourlyTimestamps.isEmpty,
+              hourlyArrays.allSatisfy({ $0.count >= hourlyTimestamps.count }),
+              hourlyTimestamps.allSatisfy({ $0.doubleValue.isFinite && $0.doubleValue > 0 }),
+              hourlyArrays.allSatisfy({ values in values.prefix(hourlyTimestamps.count).allSatisfy { $0.doubleValue.isFinite } }) else {
+            throw URLError(.cannotParseResponse)
+        }
         let apiTimeZone = TimeZone(identifier: root["timezone"] as? String ?? "") ?? .current
-        let hourFormatter = DateFormatter()
-        hourFormatter.locale = Locale(identifier: "en_US_POSIX")
-        hourFormatter.timeZone = apiTimeZone
-        hourFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        let dailyDateFormatter = DateFormatter()
+        dailyDateFormatter.locale = Locale(identifier: "en_US_POSIX")
+        dailyDateFormatter.timeZone = apiTimeZone
+        dailyDateFormatter.dateFormat = "yyyy-MM-dd"
+        let localDates = dailyTimestamps.map {
+            dailyDateFormatter.string(from: Date(timeIntervalSince1970: $0.doubleValue + utcOffset.doubleValue))
+        }
+        let hourlyDates = hourlyTimestamps.map { Date(timeIntervalSince1970: $0.doubleValue) }
         let displayHour = DateFormatter()
         displayHour.locale = Locale(identifier: "sv_SE")
         displayHour.timeZone = apiTimeZone
         displayHour.dateFormat = "HH"
         let now = Date()
-        let currentHour = Calendar.current.date(bySetting: .minute, value: 0, of: now) ?? now
-        let startIndex = hourlyTimes.firstIndex { (hourFormatter.date(from: $0) ?? .distantPast) >= currentHour } ?? 0
-        let hours: [HourForecast] = hourlyTimes.indices
+        // Start at the first actual future hourly timestamp. Using the start
+        // of the current clock hour can label a timestamp already in the past as "Nu".
+        // Never fall back to index zero when the API returns only past hours.
+        guard let startIndex = hourlyDates.firstIndex(where: { $0 >= now }) else {
+            throw URLError(.cannotParseResponse)
+        }
+        let hours: [HourForecast] = hourlyTimestamps.indices
             .filter { $0 >= startIndex && $0 < startIndex + 168 }
             .compactMap { i in
                 guard i < hourlyTemps.count, i < hourlyCodes.count else { return nil }
                 let code = hourlyCodes[i].intValue
-                let date = hourFormatter.date(from: hourlyTimes[i])
-                let label = i == startIndex ? "Nu" : date.map { displayHour.string(from: $0) } ?? "--"
+                let date = hourlyDates[i]
+                let label = i == startIndex ? "Nu" : displayHour.string(from: date)
                 return HourForecast(
-                    id: hourlyTimes[i], time: label, symbol: weatherSymbol(code),
+                    id: "@\(Int64(hourlyTimestamps[i].doubleValue.rounded()))", time: label, symbol: weatherSymbol(code),
                     condition: conditionText(code),
                     precipitationChance: i < hourlyChances.count ? hourlyChances[i].intValue : 0,
                     temperature: hourlyTemps[i].intValue,
@@ -300,20 +708,20 @@ private enum OpenMeteoService {
                     gust: i < hourlyGusts.count ? hourlyGusts[i].doubleValue : 0)
             }
         let direction = number(current, "wind_direction_10m")
-        let localDateFormatter = DateFormatter()
-        localDateFormatter.locale = Locale(identifier: "en_US_POSIX")
-        localDateFormatter.timeZone = apiTimeZone
-        localDateFormatter.dateFormat = "yyyy-MM-dd"
-        let todayKey = localDateFormatter.string(from: Date())
-        guard let todayIndex = dates.firstIndex(of: todayKey) else { throw URLError(.cannotParseResponse) }
-        func clockTime(_ values: [String], _ index: Int) -> String {
+        let todayKey = dailyDateFormatter.string(from: Date())
+        guard let todayIndex = localDates.firstIndex(of: todayKey) else { throw URLError(.cannotParseResponse) }
+        let clockFormatter = DateFormatter()
+        clockFormatter.locale = Locale(identifier: "sv_SE")
+        clockFormatter.timeZone = apiTimeZone
+        clockFormatter.dateFormat = "HH:mm"
+        func clockTime(_ values: [NSNumber], _ index: Int) -> String {
             guard values.indices.contains(index) else { return "—:—" }
-            return String(values[index].suffix(5))
+            return clockFormatter.string(from: Date(timeIntervalSince1970: values[index].doubleValue))
         }
         func daylight(_ index: Int) -> Int {
-            guard sunrises.indices.contains(index), sunsets.indices.contains(index),
-                  let rise = hourFormatter.date(from: sunrises[index]),
-                  let set = hourFormatter.date(from: sunsets[index]) else { return 0 }
+            guard sunrises.indices.contains(index), sunsets.indices.contains(index) else { return 0 }
+            let rise = Date(timeIntervalSince1970: sunrises[index].doubleValue)
+            let set = Date(timeIntervalSince1970: sunsets[index].doubleValue)
             return max(0, Int(set.timeIntervalSince(rise) / 60))
         }
         let todayDaylight = daylight(todayIndex)
@@ -335,14 +743,11 @@ private enum OpenMeteoService {
             sunsetTime: clockTime(sunsets, todayIndex),
             daylightMinutes: todayDaylight,
             daylightChangeMinutes: todayDaylight - yesterdayDaylight)
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        dateFormatter.timeZone = apiTimeZone
         let weekday = DateFormatter()
         weekday.locale = Locale(identifier: "sv_SE")
         weekday.dateFormat = "EEEE"
-        let days = dates.indices.filter { dates[$0] >= todayKey }.map { i -> DayForecast in
-            let date = dateFormatter.date(from: dates[i]) ?? Date()
+        let days = localDates.indices.filter { localDates[$0] >= todayKey }.map { i -> DayForecast in
+            let date = dailyDateFormatter.date(from: localDates[i]) ?? Date(timeIntervalSince1970: dailyTimestamps[i].doubleValue + utcOffset.doubleValue)
             let code = i < codes.count ? codes[i].intValue : 0
             return DayForecast(date: date, day: i == todayIndex ? "Idag" : weekday.string(from: date).capitalized,
                 symbol: weatherSymbol(code), condition: conditionText(code),

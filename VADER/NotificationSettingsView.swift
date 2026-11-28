@@ -2,6 +2,7 @@ import SwiftUI
 import UserNotifications
 
 struct NotificationSettingsView: View {
+    var refreshSMHIWarnings: () -> Void = {}
     @AppStorage("Regnvakt.notifications.enabled") private var notificationsEnabled = true
     @AppStorage("Regnvakt.notifications.rain") private var rainEnabled = true
     @AppStorage("Regnvakt.notifications.snow") private var snowEnabled = true
@@ -14,6 +15,21 @@ struct NotificationSettingsView: View {
     @State private var permissionStatus = "Kontrollerar behörighet…"
     @State private var requestingPermission = false
     @State private var testNotificationMessage = ""
+    @State private var pendingWeatherSummary = ""
+    @AppStorage("Regnvakt.notifications.scheduleStatus") private var scheduleStatus = "Kontrollerar schemaläggning…"
+    @AppStorage("Regnvakt.notifications.scheduledCount") private var scheduledCount = 0
+    @AppStorage("Regnvakt.notifications.scheduleUpdated") private var scheduleUpdatedTimestamp = 0.0
+    @AppStorage("Regnvakt.backgroundRefresh.status") private var backgroundRefreshStatus = "Ingen bakgrundskörning registrerad"
+    @AppStorage("Regnvakt.backgroundRefresh.startedAt") private var backgroundRefreshStartedAt = 0.0
+    @AppStorage("Regnvakt.backgroundRefresh.completedAt") private var backgroundRefreshCompletedAt = 0.0
+    @AppStorage("Regnvakt.backgroundRefresh.earliestAt") private var backgroundRefreshEarliestAt = 0.0
+    @AppStorage("Regnvakt.backgroundRefresh.placeCount") private var backgroundRefreshPlaceCount = 0
+    @AppStorage("Regnvakt.backgroundRefresh.successCount") private var backgroundRefreshSuccessCount = 0
+    @AppStorage("Regnvakt.backgroundRefresh.failureCount") private var backgroundRefreshFailureCount = 0
+    @AppStorage("Regnvakt.backgroundRefresh.skippedCount") private var backgroundRefreshSkippedCount = 0
+    @AppStorage("Regnvakt.backgroundRefresh.lastSuccessAt") private var backgroundRefreshLastSuccessAt = 0.0
+    @AppStorage("Regnvakt.backgroundRefresh.diagnostic") private var backgroundRefreshDiagnostic = ""
+    @AppStorage("Regnvakt.backgroundRefresh.durationSeconds") private var backgroundRefreshDuration = 0.0
 
     private let cyan = Color(red: 0.04, green: 0.78, blue: 0.98)
     private let muted = Color(red: 0.69, green: 0.78, blue: 0.88)
@@ -112,9 +128,72 @@ struct NotificationSettingsView: View {
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(muted)
                     }
+                    Divider().overlay(line)
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: scheduledCount > 0 ? "bell.badge.fill" : "bell.slash")
+                            .foregroundStyle(scheduledCount > 0 ? cyan : muted)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("SCHEMALAGDA VÄDERAVISERINGAR")
+                                .font(.system(size: 11, weight: .heavy)).tracking(0.7).foregroundStyle(cyan)
+                            Text(scheduleStatus)
+                                .font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text("\(scheduledCount) väntande i iPhone" + (scheduleUpdatedTimestamp <= 0 ? "" : " • Kontrollerat \(Date(timeIntervalSince1970: scheduleUpdatedTimestamp).formatted(date: .omitted, time: .shortened))"))
+                                .font(.system(size: 11, weight: .medium)).foregroundStyle(muted)
+                            if !pendingWeatherSummary.isEmpty {
+                                Text(pendingWeatherSummary)
+                                    .font(.system(size: 11, weight: .medium)).foregroundStyle(muted)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+
+                    Divider().overlay(line)
+                    VStack(alignment: .leading, spacing: 5) {
+                        Label("BAKGRUNDSUPPDATERING", systemImage: "arrow.clockwise.circle")
+                            .font(.system(size: 11, weight: .heavy)).tracking(0.7).foregroundStyle(cyan)
+                        Text(backgroundRefreshStatus)
+                            .font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if backgroundRefreshStartedAt > 0 {
+                            Text("Senast startad: \(Date(timeIntervalSince1970: backgroundRefreshStartedAt).formatted(date: .abbreviated, time: .shortened))")
+                                .font(.system(size: 11, weight: .medium)).foregroundStyle(muted)
+                        } else {
+                            Text("Ingen körning har registrerats ännu.")
+                                .font(.system(size: 11, weight: .medium)).foregroundStyle(muted)
+                        }
+                        if backgroundRefreshCompletedAt > 0 {
+                            Text("Senast avslutad: \(Date(timeIntervalSince1970: backgroundRefreshCompletedAt).formatted(date: .omitted, time: .shortened))")
+                                .font(.system(size: 11, weight: .medium)).foregroundStyle(muted)
+                        }
+                        if backgroundRefreshEarliestAt > 0 {
+                            Text("Nästa begärda tidigaste körning: \(Date(timeIntervalSince1970: backgroundRefreshEarliestAt).formatted(date: .abbreviated, time: .shortened))")
+                                .font(.system(size: 11, weight: .medium)).foregroundStyle(muted)
+                        }
+                        Text("\(backgroundRefreshSuccessCount) av \(backgroundRefreshPlaceCount) platser uppdaterade • \(backgroundRefreshFailureCount) fel • \(backgroundRefreshSkippedCount) överhoppade")
+                            .font(.system(size: 11, weight: .medium)).foregroundStyle(muted)
+                        if backgroundRefreshLastSuccessAt > 0 {
+                            Text("Senaste lyckade hämtning: \(Date(timeIntervalSince1970: backgroundRefreshLastSuccessAt).formatted(date: .abbreviated, time: .shortened))")
+                                .font(.system(size: 11, weight: .medium)).foregroundStyle(muted)
+                        }
+                        if !backgroundRefreshDiagnostic.isEmpty {
+                            Text(backgroundRefreshDiagnostic)
+                                .font(.system(size: 10, weight: .medium)).foregroundStyle(muted.opacity(0.9))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        if backgroundRefreshDuration > 0 {
+                            Text("Körtid: \(backgroundRefreshDuration, specifier: "%.1f") sekunder")
+                                .font(.system(size: 10, weight: .medium)).foregroundStyle(muted)
+                        }
+                        Text("iOS bestämmer när begäran faktiskt körs. Den angivna tiden är inte en garanti.")
+                            .font(.system(size: 10, weight: .medium)).foregroundStyle(muted.opacity(0.85))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
                 .padding(14).background(panel, in: RoundedRectangle(cornerRadius: 18))
                 .overlay(RoundedRectangle(cornerRadius: 18).stroke(line, lineWidth: 1))
+
+                LocationPermissionTestView()
 
                 Text("Inställningarna sparas på den här enheten. Ändringar schemalägger om kommande lokala aviseringar från senast hämtade prognos. Frost- och halkvarningar kan skickas även under tysta timmar. iOS kan begränsa bakgrundsuppdateringar, så öppna appen regelbundet för att hålla prognosen aktuell.")
                     .font(.system(size: 12, weight: .medium)).foregroundStyle(muted.opacity(0.85))
@@ -126,8 +205,19 @@ struct NotificationSettingsView: View {
             .padding(.top, 22)
         }
         .background(Color(red: 0.008, green: 0.025, blue: 0.055).ignoresSafeArea())
-        .task { await refreshPermissionStatus() }
-        .onChange(of: notificationsEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
+        .task {
+            await refreshPermissionStatus()
+            await refreshPendingWeatherNotifications()
+        }
+        .onChange(of: notificationsEnabled) { _, enabled in
+            if !enabled {
+                SMHIWarningService.clearPendingNotifications()
+            } else {
+                SMHIWarningService.notificationsReenabled()
+                refreshSMHIWarnings()
+            }
+            WeatherNotificationScheduler.refreshFromStoredForecast()
+        }
         .onChange(of: rainEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
         .onChange(of: snowEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
         .onChange(of: windEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
@@ -135,21 +225,83 @@ struct NotificationSettingsView: View {
         .onChange(of: frostEnabled) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
         .onChange(of: smhiEnabled) { _, enabled in
             if !enabled { SMHIWarningService.clearPendingNotifications() }
-            else { WeatherNotificationScheduler.refreshFromStoredForecast() }
+            else {
+                SMHIWarningService.notificationsReenabled()
+                WeatherNotificationScheduler.refreshFromStoredForecast()
+                refreshSMHIWarnings()
+            }
         }
         .onChange(of: leadMinutes) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
         .onChange(of: quietHours) { _, _ in WeatherNotificationScheduler.refreshFromStoredForecast() }
     }
 
     private func watchToggle(_ title: String, subtitle: String, icon: String, value: Binding<Bool>) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: icon).font(.system(size: 17, weight: .semibold)).foregroundStyle(cyan).frame(width: 25)
+        let isEnabled = notificationsEnabled && value.wrappedValue
+        let activeGreen = Color(red: 0.24, green: 0.66, blue: 0.43)
+        return HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(isEnabled ? activeGreen : cyan)
+                .frame(width: 25)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
                 Text(subtitle).font(.system(size: 12, weight: .medium)).foregroundStyle(muted)
             }
             Spacer(minLength: 4)
-            Toggle(title, isOn: value).labelsHidden().tint(cyan)
+            Circle()
+                .fill(isEnabled ? activeGreen : muted.opacity(0.35))
+                .frame(width: 6, height: 6)
+                .accessibilityHidden(true)
+            Toggle(title, isOn: value).labelsHidden().tint(isEnabled ? activeGreen : cyan)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+        .background(
+            isEnabled ? Color(red: 0.035, green: 0.105, blue: 0.078) : .clear,
+            in: RoundedRectangle(cornerRadius: 12)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(isEnabled ? activeGreen.opacity(0.34) : .clear, lineWidth: 1)
+        )
+    }
+
+    @MainActor
+    private func refreshPendingWeatherNotifications() async {
+        let requests = await UNUserNotificationCenter.current().pendingNotificationRequests()
+        let weatherRequests = requests.filter { $0.identifier.hasPrefix("regnvakt.weather.") }
+        let upcomingWeatherRequests = weatherRequests.compactMap { request -> (Date, String)? in
+            let fireDate: Date?
+            if let calendarTrigger = request.trigger as? UNCalendarNotificationTrigger {
+                fireDate = calendarTrigger.nextTriggerDate()
+            } else if let intervalTrigger = request.trigger as? UNTimeIntervalNotificationTrigger {
+                fireDate = intervalTrigger.nextTriggerDate()
+            } else {
+                fireDate = nil
+            }
+            guard let fireDate else { return nil }
+            return (fireDate, request.content.title)
+        }
+        .sorted { $0.0 < $1.0 }
+
+        // Keep the real request count separate from the subset whose trigger
+        // date can be rendered. Most importantly, do not overwrite the
+        // scheduler's diagnostic outcome with a generic UI status on view load.
+        scheduledCount = weatherRequests.count
+        scheduleUpdatedTimestamp = Date().timeIntervalSince1970
+        if upcomingWeatherRequests.isEmpty {
+            pendingWeatherSummary = weatherRequests.isEmpty
+                ? ""
+                : "Det finns väntande vädernotiser, men iOS gav inget visningsbart nästa klockslag."
+        } else {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "sv_SE")
+            formatter.timeZone = TimeZone(identifier: "Europe/Stockholm")
+            formatter.dateStyle = .none
+            formatter.timeStyle = .short
+            pendingWeatherSummary = upcomingWeatherRequests.prefix(5).map { item in
+                "\(formatter.string(from: item.0)) • \(item.1)"
+            }.joined(separator: "\n")
         }
     }
 
@@ -178,15 +330,18 @@ struct NotificationSettingsView: View {
             content.title = "Regnvakt fungerar"
             content.body = "Det här är en testavisering. Om du ser den fungerar iPhones lokala notiskanal."
             content.sound = .default
+            // The test must be visible even while Regnvakt is foregrounded.
+            // Routine weather alerts remain intentionally suppressed in the foreground.
+            content.userInfo = ["watch": "test", "safetyCritical": true]
             let request = UNNotificationRequest(
                 identifier: "regnvakt.test.\(UUID().uuidString)",
                 content: content,
-                trigger: UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
+                trigger: UNTimeIntervalNotificationTrigger(timeInterval: 15, repeats: false)
             )
             UNUserNotificationCenter.current().add(request) { error in
                 Task { @MainActor in
                     testNotificationMessage = error == nil
-                        ? "Testavisering schemalagd. Den ska visas inom cirka 5 sekunder."
+                        ? "Testavisering schemalagd om 15 sekunder. Gå till hemskärmen direkt för att testa leverans när appen är i bakgrunden."
                         : "Kunde inte schemalägga testaviseringen: \(error!.localizedDescription)"
                 }
             }

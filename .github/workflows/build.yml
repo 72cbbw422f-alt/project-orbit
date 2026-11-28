@@ -1,8 +1,13 @@
 name: Build Regnvakt iOS
 
 on:
+  # Feature branches are validated by the pull_request event below. Running
+  # both push and pull_request for every PR commit doubles expensive macOS
+  # simulator/build jobs and can starve the queue.
   push:
-    branches: [main, feature/wind-radar]
+    branches: [main]
+  pull_request:
+    branches: [feature/wind-radar]
   workflow_dispatch:
 
 permissions:
@@ -33,6 +38,34 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
+      - name: Select available iPhone simulator
+        run: |
+          DEVICE_ID="$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          data = json.load(sys.stdin)
+          devices = [
+              device
+              for runtime_devices in data.get("devices", {}).values()
+              for device in runtime_devices
+              if device.get("isAvailable") and device.get("name", "").startswith("iPhone")
+          ]
+          if not devices:
+              raise SystemExit("No available iPhone simulator is installed on this runner")
+          print(devices[0]["udid"])
+          ')"
+          echo "SIMULATOR_ID=$DEVICE_ID" >> "$GITHUB_ENV"
+          echo "Selected simulator: $DEVICE_ID"
+
+      - name: Run frost risk unit tests
+        run: |
+          xcodebuild \
+            -project VADER.xcodeproj \
+            -scheme VADERTests \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,id=${SIMULATOR_ID}" \
+            CODE_SIGNING_ALLOWED=NO \
+            test
+
       - name: Build for iOS device
         run: |
           xcodebuild \
@@ -57,6 +90,29 @@ jobs:
             APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/VADER.app"
           fi
           test -d "$APP_PATH"
+          python3 - "$APP_PATH/Info.plist" <<'PY'
+          import plistlib
+          import sys
+          from pathlib import Path
+
+          plist_path = Path(sys.argv[1])
+          if not plist_path.is_file():
+              raise SystemExit(f"Built app Info.plist is missing: {plist_path}")
+          with plist_path.open("rb") as plist_file:
+              info = plistlib.load(plist_file)
+
+          expected_identifier = "app.walnut8211.vadra.weather-refresh"
+          identifiers = info.get("BGTaskSchedulerPermittedIdentifiers", [])
+          background_modes = info.get("UIBackgroundModes", [])
+          if expected_identifier not in identifiers:
+              raise SystemExit(f"Missing BGTaskScheduler identifier: {expected_identifier}")
+          if "fetch" not in background_modes:
+              raise SystemExit("Built app is missing UIBackgroundModes: fetch")
+          if info.get("CFBundleIdentifier") != "app.walnut8211.vadra":
+              raise SystemExit(f"Unexpected bundle identifier: {info.get('CFBundleIdentifier')}")
+
+          print("Validated built Info.plist: bundle ID, BGTaskScheduler identifier and fetch background mode")
+          PY
           mkdir -p build/ipa/Payload
           cp -R "$APP_PATH" build/ipa/Payload/
           cd build/ipa

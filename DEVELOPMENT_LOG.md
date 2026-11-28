@@ -1,0 +1,1019 @@
+## 2026-11-28 – rensa utgångna vädernotiser även när alla bakgrundshämtningar misslyckas
+
+### Fynd
+- Bakgrundsloopen behöll tidigare pending-notiser när en Open-Meteo-hämtning misslyckades, vilket är rimligt för ett kortvarigt nätverksfel.
+- Om samtliga bevakade platser misslyckades startades däremot ingen global reconciliation alls. En gammal prognos kunde då lämna redan schemalagda notiser kvar längre än Regnvakts tvåtimmarsgräns för färsk prognos, tills nästa lyckade hämtning eller appstart.
+
+### Ändring
+- Lade till `WeatherNotificationScheduler.reconcileStoredForecastsAndWait()`, som avstämmer det senast sparade prognosregistret utan att tillåta en ny omedelbar aktuell-frostnotis.
+- När alla bakgrundshämtningar misslyckas och uppgiften inte har avbrutits körs denna avstämning ändå.
+- Prognoser inom färskhetsfönstret kan fortsätta bära giltiga framtida notiser; prognoser äldre än två timmar används inte för nya kandidater och gamla pending-notiser bevaras endast om deras metadata, händelsetid och trigger fortfarande klarar de befintliga giltighetskontrollerna.
+- Bakgrundsuppgiften rapporterar fortfarande inte en lyckad prognoshämtning när samtliga nätverksanrop misslyckas. Städningen är underhåll, inte en falsk väderuppdatering.
+
+### Filer
+- `VADER/WeatherNotificationScheduler.swift`
+- `VADER/WeatherService.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verifiering
+- Föregående HEAD `03efc166d87061ce5594f2418b4f7565596efe67` passerade GitHub Actions workflow #1014: XCTest, iOS Release-bygge, Info.plist-validering, osignerad IPA-paketering och artefaktuppladdning.
+- Denna ändring kräver en ny CI-körning.
+- Enhetstest av scenariot där samtliga nätverksanrop misslyckas och fysisk iPhone-verifiering av gammal pending-notis återstår.
+
+### Git
+- Scheduler-commit: `b17beef813169f52d70afeec5c571a558a7f6c58`
+- Bakgrundsflöde: `992957d0ca9d887bdb8a97ff5d4e41f3a597b732`
+- Branch: `feature/frost-notification-audit`
+- PR #1 hålls öppen och mergas inte.
+
+---
+
+## 2026-11-28 – behåll korrekt status under aktiv bakgrundsuppdatering
+
+### Fynd
+- `handle(...)` skrev först statusen `Bakgrundsuppdatering körs` och anropade därefter `scheduleNextWeatherRefresh()`.
+- Schemaläggningsfunktionen skriver själv statusen för nästa begäran. Det innebar att den aktiva körningens status omedelbart kunde ersättas med `Begäran registrerad hos iOS`, trots att hämtningen fortfarande pågick.
+
+### Ändring
+- Flyttade schemaläggningen av nästa BGAppRefresh-begäran före skrivningen av statusen för den aktiva körningen.
+- Den pågående körningen behåller därmed sin status tills dess vinnande completion-väg skriver slutresultatet.
+- Apple dokumenterar att en ny submission för samma ännu ej körda task identifier ersätter den tidigare begäran. De befintliga schemaläggningsanropen vid start, bakgrundsövergång och task-start skapar därför inte flera parallella refresh-begäranden för samma identifierare.
+
+### Filer
+- `VADER/VADERApp.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verifiering
+- Kodändringen är committad på `feature/frost-notification-audit`.
+- Apple dokumenterar även att `earliestBeginDate` är en tidigaste starttid, inte en garanti för när iOS kör uppgiften.
+- GitHub Actions måste verifiera den nya HEAD-versionen. Enhetstest av statussekvens och verklig iOS-bakgrundskörning återstår.
+
+### Git
+- Kodcommit: `2682134c2a1c213d7fc4bad32f29985518d0f5a4`
+- Föregående race-säkring: `06919c3a25556e096ae5c10d52a2e48a1a0f077d`
+- Branch: `feature/frost-notification-audit`
+- PR #1 hålls öppen och mergas inte.
+
+---
+
+## 2026-11-28 – synkronisera BGAppRefresh-diagnostik med faktisk completion-vinnare
+
+### Fynd
+- Den låsskyddade completion-grinden förhindrade redan dubbla anrop till `setTaskCompleted(...)`.
+- Diagnostikstatus skrevs däremot före eller oberoende av att completion-grinden avgjort vilken väg som vann. Vid en mycket snäv race mellan normal avslutning och iOS-expiration kunde den förlorande vägen därför skriva över statusen från den vinnande vägen.
+
+### Ändring
+- `BackgroundRefreshCompletion.finish(...)` returnerar nu `true` endast för den väg som först tar completion-grinden.
+- Normal avslutning skriver `completedAt` och slutstatus endast om den vann.
+- Expiration skriver motsvarande tidsstämpel och avbrottsstatus endast om expiration-vägen vann.
+- Detta håller den sparade diagnostiken konsekvent med det enda completion-resultat som skickas till iOS.
+
+### Filer
+- `VADER/VADERApp.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verifiering
+- Kodändringen är committad på `feature/frost-notification-audit`.
+- Föregående HEAD `8d5ccc6b8ac7a90b354b803eceb6697591be31ce` har passerat GitHub Actions workflow #1010: XCTest, iOS Release-bygge, Info.plist-validering och osignerad IPA-paketering.
+- Denna nya race-fix måste verifieras i en ny GitHub Actions-körning.
+- Verklig iOS-expiration och completion-race kräver fortfarande enhetstest på iPhone; CI kan inte simulera iOS schemaläggarens exakta timing.
+
+### Git
+- Kodcommit: `06919c3a25556e096ae5c10d52a2e48a1a0f077d`
+- Branch: `feature/frost-notification-audit`
+- PR #1 hålls öppen och mergas inte.
+
+---
+
+## 2026-11-28 – avsluta BGAppRefresh direkt vid iOS-expiration
+
+### Ändring
+- Lade till `BackgroundRefreshCompletion`, som gör `BGAppRefreshTask.setTaskCompleted(...)` idempotent med en lås-skyddad engångsgrind.
+- När iOS anropar `expirationHandler` avbryts arbetet och bakgrundsuppgiften markeras omedelbart som misslyckad. Appen väntar inte längre på att pågående URLSession- eller UserNotifications-anrop först ska återvända innan uppgiften avslutas.
+- Om den normala async-vägen senare återkommer kan den inte rapportera completion en andra gång eller skriva över completion-resultatet.
+- Detta skiljer tydligt på att avbryta själva arbetet och att meddela iOS att bakgrundstiden är slut.
+
+### Filer
+- `VADER/VADERApp.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verifiering
+- Kodändringen är incheckad på `feature/frost-notification-audit`.
+- GitHub Actions ska verifiera kompilering, XCTest och iOS Release-bygge på denna HEAD.
+- Simulator-/enhetstest av faktisk BGTask-expiration återstår; GitHub-build kan inte simulera iOS schemaläggarens verkliga tidsgräns.
+
+### Git
+- Kodcommit: `03fa07ff19d52e09c8b7e0b2a7fe82a5a50caa62`
+- Dokumentationscommit: `8d5ccc6b8ac7a90b354b803eceb6697591be31ce`
+
+---
+
+## 2026-11-28 – korrekt diagnostik för slutförd bakgrundsschemaläggning
+
+### Ändring
+- `WeatherNotificationScheduler.refreshAndWait(...)` returnerar nu `true` endast när den globala avstämningen har nått slutet och fortfarande äger aktuell generation/register-snapshot.
+- Avbrutna, ersatta eller ofullständiga avstämningar returnerar `false`.
+- `WeatherService.refreshMonitoredForecastsInBackground()` räknar bara en plats som lyckad när schemaläggningen faktiskt slutförts. Avstämningar som inte slutförs räknas som `skipped`, inte som lyckade prognosuppdateringar.
+- Detta korrigerar diagnostiken: tidigare kunde en prognoshämtning räknas som lyckad trots att notisavstämningen avbröts eller ersattes innan den blev klar.
+
+### Filer
+- `VADER/WeatherNotificationScheduler.swift`
+- `VADER/WeatherService.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verifiering
+- Ändringen är incheckad på `feature/frost-notification-audit`.
+- GitHub Actions med XCTest och iOS Release-build måste köras på den nya HEAD-versionen.
+- Fysisk iPhone-verifiering av bakgrundsleverans återstår. iOS styr fortfarande när BGAppRefresh körs.
+
+### Git
+- Scheduler: `98890d06f97072cf4d4506decd9c3f1bb906d287`
+- Bakgrundsdiagnostik: `0c4cb291bb4816ee5d336f56fbb1720cfb3382e7`
+- Tidig-retur-korrigering: `1d73b116e0245ebe676d5c667afdc191759ff7b6`
+
+---
+
+## 2026-11-28 – bevara levererade notiser vid snabb återaktivering av ort
+
+### Ändring
+- `removeNotifications(...)` kontrollerar nu det senaste prognosregistret efter den asynkrona hämtningen av levererade notiser.
+- Om samma koordinater har lagts till igen avbryts den gamla borttagningens städning av levererade notiser. Det bevarar historiken som den globala avstämningen använder för att återställa daglig deduplicering av omedelbar frost.
+- Städningen av väntande notiser är fortsatt generationsskyddad och hanteras separat.
+
+### Filer
+- `VADER/WeatherNotificationScheduler.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verifiering
+- Källkod uppdaterad på `feature/frost-notification-audit`.
+- GitHub Actions och XCTest måste verifiera ändringen; inga lokala iOS-byggverktyg finns här.
+- Snabb borttagning/återaktivering och levererad frostnotis behöver dessutom testas på fysisk iPhone.
+
+### Git
+- Kodcommit: `8aa11edd440aebb416e687f108f443aec71a867e`
+- Dokumentationscommit: pending
+
+---
+
+## 2026-11-28 – stoppa notisavstämning efter utgången bakgrundstid
+
+### Ändring
+- `WeatherNotificationScheduler.refreshAndWait(...)` avbryter innan prognosen sparas om bakgrundsuppgiften redan har avbrutits.
+- `reconcileGlobally(...)` behandlar nu en avbruten Task som en ogiltig batch vid varje befintlig generationskontroll.
+- Om en notis läggs till precis när batchen blir ogiltig startas en ny avstämning endast när batchen ersatts av en nyare körning. En utgången bakgrundsuppgift startar inte själv nytt arbete.
+- Detta begränsar risken att en BGAppRefresh som iOS har avslutat fortsätter lägga till notiser eller återstartar schemaläggning utanför sin tilldelade körtid.
+
+### Filer
+- `VADER/WeatherNotificationScheduler.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verifiering
+- Källändringen är incheckad på `feature/frost-notification-audit`.
+- XCTest och iOS Release-build ska verifieras i GitHub Actions.
+- Fysisk iPhone-verifiering krävs fortfarande. iOS styr när BGAppRefresh körs och kan skjuta upp eller utelämna den.
+
+### Git
+- Scheduler-commit: `394a2cf8f326a8efbec8e1562f1e81b0ae124064`
+- Uppföljande kodcommit för sen accepterad request: `05f719634f17515da8ae9be48fcf3eee075b671e`
+- Dokumentationscommit för uppföljningen: `5f54be183b959858785e93017862bd75e086e808`
+- Ytterligare avbrottsskydd: om iOS avbryter uppgiften efter att Notification Center har accepterat en request tas just den requesten bort, men endast om den avbrutna batchen fortfarande äger samma globala generations-token och register-snapshot. Om en nyare batch har tagit över lämnas städningen till den batchen.
+- Bakgrundshämtningens felhantering skiljer nu även på nätverksfel och avbrott från iOS: en avbruten URLSession-hämtning räknas som `skipped` och avbryter ortloopen i stället för att felaktigt öka `failureCount`.
+- Ytterligare kodcommit: `f25d723df6ddfa3b389af70b1e418b7c2629a80e`.
+
+---
+
+## 2026-11-28 – await notification scheduling before background task completion
+
+### Change
+- Added `WeatherNotificationScheduler.refreshAndWait(...)` for the background weather-watch path.
+- Background forecast refresh now awaits the global notification reconciliation after each successful monitored-place fetch instead of launching an unstructured scheduling `Task` and immediately reporting the BGAppRefresh task complete.
+- Extracted forecast persistence into `storeForecast(...)` so foreground and background paths share the same registry update logic.
+- This closes a lifecycle gap where iOS could suspend the app after the background task reported completion but before pending weather notifications had been added.
+
+### Files
+- `VADER/WeatherNotificationScheduler.swift`
+- `VADER/WeatherService.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source updated on `feature/frost-notification-audit`.
+- GitHub Actions iOS build and XCTest are required; local Xcode is unavailable in this environment.
+- Physical iPhone verification remains required to confirm background delivery. iOS still controls when BGAppRefresh runs and may defer or omit it.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Commit: pending
+
+---
+
+## 2026-11-28 – Prioriteringsbeslut: vanliga vädervakter
+
+- Beslut: SMHI-notiser ska inte vidareutvecklas i denna arbetsström. SMHI-varningar ligger kvar i appens vyer och kan läsas manuellt.
+- All fortsatt utveckling och verifiering prioriterar vanliga vädervakter: korrekt händelsedetektering, schemaläggning, leverans i bakgrund/efter force-quit, borttagning av inaktuella notiser, samtliga bevakade orter samt korrekt destinationsnavigering vid notistryck.
+- Ingen SMHI-ortkoppling eller serverlösning ska byggas som del av detta arbete.
+- Senaste kod-HEAD vid beslutet: `4145a9556427918b5934aac13aa078ba9d7ffbd2`. CI #962 och #963 är köade för denna HEAD; tidigare CI #956 och #957 lyckades på föregående HEAD `5008c520`.
+- PR #1 hålls öppen och mergas inte. Ingen IPA distribueras innan senaste HEAD har grön build och användaren ber om testversion.
+
+## 2026-11-28 – Säker notisnavigering vid kallstart
+
+- `VADER/VADERApp.swift`: notisens ortdestination sparas nu i `UserDefaults` innan appen publicerar navigeringseventet. Det skyddar mot att SwiftUI-vyn ännu inte hunnit registrera sin prenumeration när iOS startar appen efter ett notistryck.
+- `VADER/ContentView.swift`: konsumerar en väntande destination vid `onAppear` och använder samma navigeringsfunktion för event som kommer när vyn redan är aktiv. Favoritorten ändras inte.
+- SMHI-notiser är ännu inte kopplade till ortnavigering. Granskningen visar att deras nuvarande `userInfo` innehåller `watch`, `warningID`, `area` och varningsmetadata, men ingen koordinat eller `locationID`. Att gissa ort utifrån varningstexten vore osäkert; nästa steg är att koppla varje varning till den bevakade koordinat som faktiskt matchade dess geografiska område.
+- Verifiering: tidigare CI #956 lyckades på föregående HEAD `5008c520`. Den här ändringen är committad men ännu inte build-verifierad. Fysisk iPhone-testning av bakgrunds- och kallstartsnavigering återstår.
+- Berörda filer: `VADER/VADERApp.swift`, `VADER/ContentView.swift`, `DEVELOPMENT_LOG.md`.
+- Branch: `feature/frost-notification-audit`. PR #1 hålls öppen och mergas inte.
+
+## 2026-11-28 — open the correct city from weather notifications
+
+### Changes
+- Weather forecast notification payloads now include the monitored location identifier (latitude/longitude) in addition to the display name.
+- Tapping a notification is handled by the notification delegate and forwarded to the app through a dedicated notification-center event.
+- The weather view model validates the coordinates and loads the forecast for the notification's city.
+- The root view switches to the Weather tab and closes notification-related sheets before navigating.
+- The saved favorite is not changed; notification navigation is a temporary view selection.
+
+### Files
+- `VADER/VADERApp.swift`
+- `VADER/WeatherNotificationScheduler.swift`
+- `VADER/WeatherService.swift`
+- `VADER/ContentView.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source changes committed to the existing feature branch.
+- GitHub Actions build and XCTest results are pending for this commit.
+- Physical-device verification is still required: tap a notification for a non-favorite monitored city while the app is backgrounded and while it is terminated; confirm the correct city opens and the favorite remains unchanged.
+- Legacy already-scheduled notifications without `locationID` will not use this new routing until regenerated by the scheduler.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Commit: pending
+
+---
+
+## 2026-11-24 — per-run background forecast diagnostics
+
+### Changes
+- Background refresh now records the number of monitored places, successful updates, failed fetches and places skipped because monitoring changed during a request or the task was cancelled.
+- Stores the last successful fetch timestamp, run duration and a sanitized latest error domain/code.
+- Does not persist place names, coordinates, request URLs or raw error descriptions.
+- Exposes the counters and sanitized diagnostic in Notification Settings.
+
+### Files
+- `VADER/WeatherService.swift`
+- `VADER/NotificationSettingsView.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source changes committed; GitHub Actions XCTest, Release build and unsigned IPA packaging must pass before device distribution.
+- Physical iPhone execution and SwiftUI refresh of the diagnostic values remain unverified.
+- Background refresh remains opportunistic and controlled by iOS; this change does not guarantee execution.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Commit: pending
+
+---
+
+## 2026-11-24 — background notification diagnostic
+
+### Changes
+- Extended the in-app local test notification delay from 5 to 15 seconds so the user has time to leave Regnvakt before delivery.
+- Updated the confirmation text to explicitly instruct the user to return to the Home Screen, making the test distinguish iOS background delivery from foreground presentation.
+
+### Files
+- `VADER/NotificationSettingsView.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source change committed; CI must compile and run the full XCTest suite before this diagnostic build is distributed.
+- The test notification is a local UserNotifications request; it does not prove that weather-watch candidate generation or forecast scheduling is correct. Those require separate device validation.
+- Physical iPhone background delivery remains unverified until the new IPA is installed and tested.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Code commit: `feb9fbe1c55ba5c050d34648378804285dfad5a8`
+
+---
+
+## 2026-11-24 — conservative trigger-date validation
+
+### Changes
+- Tightened stale pending-forecast preservation to accept only calendar triggers with a concrete next trigger date.
+- Removed the interval-trigger fallback: its configured interval is the original delay, not a reliable remaining fire time for an already-pending request. Inferring a future date from it could preserve an alert incorrectly.
+
+### Verification
+- The preceding commit `47e6f734b691fa798607849bf311b591050c4758` passed the complete GitHub Actions workflow: frost-risk XCTest step, iOS device build, unsigned IPA packaging and artifact upload.
+- This follow-up hardening change requires a new CI run. Physical iPhone delivery remains unverified.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Code commit: `154d7369f92e7d8e0bbc0d1511a8406944af3574`
+
+---
+
+## 2026-11-24 — follow-up compile correction
+
+### Changes
+- CI exposed a Swift syntax issue in the first trigger-type correction: a local declaration had been placed inside a multi-condition `guard` before its `else` clause.
+- Moved trigger-date extraction after the metadata guard. The code now validates metadata first, then resolves the next fire date from the concrete calendar or interval trigger type.
+
+### Verification
+- Both CI attempts for commit `5656ab4d62af8a88c8cdb4bb0bc12ca668cbf56e` failed at compile time on this guard syntax; no tests executed and no IPA was packaged.
+- Corrected in commit `40a94bfe43d5bbd9b9357fc9bbff9c4fecf1b758`. New CI result pending.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+
+---
+
+## 2026-11-24 — correct notification trigger date extraction
+
+### Changes
+- Fixed the compile error in stale pending-alert inspection: `nextTriggerDate()` is called only on supported concrete trigger types (`UNCalendarNotificationTrigger` and `UNTimeIntervalNotificationTrigger`).
+- Calendar triggers use their next matching date; interval triggers derive the next fire time from the stored interval. Unknown trigger types are not preserved.
+
+### Verification
+- Previous CI run #872 failed during Swift compilation because `UNNotificationTrigger` itself does not expose `nextTriggerDate()`.
+- The failure was corrected in the scheduler. A fresh CI run is required; XCTest, Release build and IPA packaging are not yet verified.
+- Physical iPhone notification delivery remains unverified.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Fix commit: `5656ab4d62af8a88c8cdb4bb0bc12ca668cbf56e`
+
+---
+
+## 2026-11-24 — bounded preservation of scheduled forecast alerts
+
+### Changes
+- Added forecast snapshot timestamps to newly scheduled local weather notifications.
+- Added a pure validation rule for preserving already-pending forecast alerts while a monitored location only has a stale cached forecast.
+- Preservation requires a registered location, an enabled watch, a snapshot no older than four hours, and both the weather event and notification trigger still being in the future.
+- Legacy requests without snapshot metadata, expired requests, and requests for disabled/removed watches are not preserved. Stale forecasts still never generate new candidates.
+- Included preserved stale requests in global pending-capacity accounting.
+
+### Files
+- `VADER/WeatherNotificationScheduler.swift`
+- `VADER/WeatherNotificationBudget.swift`
+- `Tests/WeatherNotificationBudgetTests.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Added deterministic unit tests for valid preservation, expired snapshots, passed event/trigger times, removed locations, disabled watches, future-dated metadata, and the maximum-age boundary.
+- GitHub Actions build and XCTest results pending.
+- Physical iPhone delivery in background/terminated states remains unverified.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Commit: pending
+
+---
+
+# Development log — frost notification audit
+
+## 2026-11-24 — radar nowcast parser hardening
+
+### Changes
+- Extracted MET Norway nowcast JSON decoding into `VADER/RadarNowcastParser.swift` so the API response handling is deterministic and independently testable.
+- The parser sorts time-series points chronologically, classifies radar coverage explicitly, keeps missing/non-numeric measurements unknown, and clamps negative precipitation values to zero.
+- Updated `VADER/RadarMapView.swift` to consume the typed parser result instead of decoding nested JSON inline.
+- Added four XCTest cases for chronological ordering, radar coverage, unknown measurements, negative-value handling and malformed payloads.
+- Included the parser source in the XCTest target through `project.yml`.
+
+### Files
+- `VADER/RadarNowcastParser.swift` (new)
+- `VADER/RadarMapView.swift`
+- `Tests/RadarNowcastParserTests.swift` (new)
+- `project.yml`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source changes and test coverage are committed to `feature/frost-notification-audit`.
+- CI has not yet been observed for this parser change; compilation and the four new tests remain unverified until the GitHub Actions run completes.
+- No physical-device radar test has been performed.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Parser commit: `4ffd0cae00b024663baa26e1507a0c7b02700ca2`
+- Parser tests commit: `f424124f8e03e71c5c906974d60b8129406aa7ce`
+- Radar integration commit: `b4338e1c0e4fc10eb07337300d54ef54bcd75b56`
+- XCTest target commit: `f30a932b7a2acb6aafe14e3c8820eaf41cae8258`
+- Validation cleanup commit: `27a6f8be127f26c0996a77b3dbe2d1304c5de74a`
+
+---
+
+## 2026-11-23
+
+### Changes
+- Fixed the in-app test notification: it now carries an explicit test/safety-critical marker so the notification delegate presents it while Regnvakt is foregrounded. Ordinary forecast notices remain suppressed in the foreground by design.
+- Updated `.github/workflows/build.yml` so pushes to `feature/frost-notification-audit` also run the iOS CI workflow; feature commits are no longer dependent on opening/updating a PR against `feature/wind-radar` to receive CI coverage.
+- Added `testLatestDeliveredCurrentFrostDaysUsesNewestImmediateAlertPerRegisteredLocation` to `Tests/WeatherNotificationBudgetTests.swift`.
+- The test covers the global delivered-alert recovery path: newest immediate frost day wins per registered location; non-immediate forecast frost, removed locations, foreign SMHI identifiers, and alerts without an alert day are ignored.
+
+### Files
+- `VADER/NotificationSettingsView.swift`
+- `.github/workflows/build.yml`
+- `Tests/WeatherNotificationBudgetTests.swift`
+
+### Verification
+- Reviewed the implementation in `VADER/WeatherNotificationBudget.swift` and its call site in `VADER/WeatherNotificationScheduler.swift`.
+- GitHub Actions run #845 completed successfully on commit `5a3cabfb738ee264a928af5b4b4b0d6050784c22`.
+- All 91 XCTest cases passed (0 failures), including the newly added delivered-frost recovery test.
+- Release device build succeeded; the workflow packaged and uploaded the unsigned IPA artifact.
+- The built Info.plist was checked for bundle ID `app.walnut8211.vadra`, background task identifier `app.walnut8211.vadra.weather-refresh`, and `UIBackgroundModes: fetch`.
+
+### CI note
+- `.github/workflows/build.yml` runs on pushes to `main`, pull requests targeting `feature/wind-radar`, and manual dispatch.
+- The successful run was a pull-request-triggered run for head branch `feature/frost-notification-audit`; the configured base-branch filter therefore did not block this PR.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Code commit: `afd55a44f8d2a30d46b54d48fda67673f0f3588d`
+- Earlier documentation commits: `232014de2f6bcd200577a920dec52bdf45e930ac`, `5a3cabfb738ee264a928af5b4b4b0d6050784c22`
+- Earlier documentation commit: `8af6e6da7959d7f2886dbb3df3861be82be824e5`
+- CI trigger commit: `dec59b78dd9f208da9f66ba771c97683e88e08aa`
+- CI run: [#845](https://github.com/72cbbw422f-alt/project-orbit/actions/runs/45272385945)
+- IPA artifact: `Regnvakt-unsigned-IPA` (artifact ID `14866702664`, expires 2026-12-07)
+- Artifact ZIP SHA-256: `d236fd0373579ec1102837e30d1406407f4bc2d3d489336831bc70bf5cd95a79`
+
+### Remaining
+- Install/sign the unsigned IPA with the user's authorized FlareStore signing workflow and test on the physical iPhone.
+- Confirm the push-triggered CI run after commits `dec59b78dd9f208da9f66ba771c97683e88e08aa` and `383c25d243b8d0229fafa66c56f05b3ae688c6ec` completes successfully.
+- Install/sign the unsigned IPA with FlareStore and test local notifications on a physical iPhone while foregrounded, backgrounded, and terminated; CI/unit tests cannot establish real iOS delivery behavior.
+
+
+## 2026-11-24 — prevent late forecast safety alerts from firing on app launch
+
+### Findings
+- Physical iPhone test confirmed the local test notification is delivered while the app is backgrounded.
+- The user observed a frost forecast notification with the same 11:56 timestamp as opening Regnvakt. Notification history showed no remaining pending weather alerts.
+- The forecast scheduler promoted any safety-critical forecast whose configured lead-time trigger had passed into an immediate notification. This could make an upcoming forecast frost/ice alert appear only when a fresh forecast was fetched on app launch.
+
+### Changes
+- Forecast-derived frost/ice alerts whose lead-time point has passed are now scheduled for the forecast event time, not emitted immediately at app launch.
+- Explicitly detected current-frost alerts retain their immediate path.
+- Updated the unit test to assert that a future safety-critical forecast event is not promoted to an immediate alert.
+
+### Files
+- `VADER/WeatherNotificationScheduler.swift`
+- `VADER/WeatherNotificationBudget.swift`
+- `Tests/WeatherNotificationBudgetTests.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source and test changes committed; GitHub Actions validation is pending.
+- Physical iPhone verification of this revised scheduling behavior is pending.
+- The successful background test proves iOS local-notification delivery, not that forecast refreshes execute reliably while the app is closed.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Scheduler commit: `aa6f596e9ec4abc22c09018e80a70fba529f6374`
+- Policy commit: `822c3527eb4c43e33464f46891d56bef6f8e5fe8`
+- Test commit: `028659774ad09d9efd03a5735e9e9f45660f9a5a`
+
+### Remaining
+- Confirm CI passes all tests and Release build.
+- Install the new IPA and verify that upcoming frost/ice events are pending before the event and are not delivered merely on app launch.
+- Verify explicit current-frost alerts still deliver promptly.
+
+
+## 2026-11-24 — clarify safety forecast eligibility semantics
+
+### Findings
+- A follow-up audit found that `WeatherWatchRules.canScheduleForecastEvent` still used the local name and documentation “immediate safety alert” for a safety-critical forecast whose lead-time point had passed.
+- That helper only decides whether a forecast event may claim the first-alert slot; it does not create or schedule the notification. Actual delivery timing is handled in `WeatherNotificationScheduler`.
+
+### Changes
+- Renamed the internal decision flag to `safetyEventPastLeadTime`.
+- Updated documentation to state that the event may claim the alert slot after lead time, while the scheduler arms it for the forecast event time.
+- Renamed the corresponding XCTest to describe slot eligibility during quiet hours, not immediate delivery.
+
+### Files
+- `VADER/WeatherWatchRules.swift`
+- `Tests/WeatherNotificationBudgetTests.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source/test changes committed. CI validation is pending.
+- No new physical-device test has been performed for this clarification; the prior IPA's physical-device result remains the user's reported background delivery of the test notification only.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Rules commit: `75c3d02fbc5ffcb6059ab86c3584347eb71045eb`
+- Test commit: `4631fe8fb6b7553051f1c166603b1c03b075cf26`
+
+
+## 2026-11-24 — background refresh diagnostics
+
+### Changes
+- Added persisted timestamps and status for BGAppRefreshTask submission, start, completion and expiration.
+- The notification settings screen now shows the latest background refresh status, last start/completion, and the earliest requested run time.
+- The UI explicitly explains that iOS controls actual execution and the requested time is not a guarantee.
+- Submission errors are recorded instead of being silently swallowed.
+
+### Files
+- `VADER/VADERApp.swift`
+- `VADER/NotificationSettingsView.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source changes committed; GitHub Actions XCTest and Release build pending.
+- This diagnostic records task lifecycle when iOS invokes the task. It does not force iOS to run background refreshes or guarantee a cadence.
+- Physical iPhone verification of the new diagnostic UI and actual BGAppRefreshTask invocation remains pending.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- App delegate commit: `d1121c77d2e194ffae6b3594f8a05e690fe9c38e`
+- Settings UI commit: `c74355a31718074ba15e304bf07646e2ed06dc40`
+
+
+## 2026-11-25 — expand notification look-ahead and report the live iOS queue
+
+### Findings
+- The Open-Meteo request already retrieves 48 hourly forecast entries, but the notification scheduler only considered the next 8 hours.
+- The app's notification settings screen displayed a persisted count from the last scheduler reconciliation. It did not query UserNotifications when the screen appeared, so the displayed count could be stale after iOS delivered an alert.
+- The dashboard risk horizon remains 8 hours; only the local notification planning horizon is extended.
+
+### Changes
+- Extended `WeatherWatchRules.notificationHorizonHours` from 8 to 24 hours. The scheduler can now arm the first eligible alert of each enabled risk type further ahead, using the existing lead-time, quiet-hour, safety-priority, deduplication, and global pending-budget rules.
+- Added an XCTest asserting that the notification horizon is 24 hours while the dashboard forecast horizon remains 8 hours.
+- Updated notification settings to query iOS pending notification requests when the screen loads, replace the persisted count with the live Regnvakt-owned pending count, and display up to five upcoming trigger times and titles.
+
+### Files
+- `VADER/WeatherWatchRules.swift`
+- `Tests/WeatherNotificationBudgetTests.swift`
+- `VADER/NotificationSettingsView.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Changes committed to `feature/frost-notification-audit`.
+- CI/XCTest and Release device build have not yet been checked for these commits.
+- The updated queue display has not been verified on a physical iPhone.
+- The 24-hour horizon increases planning lead time; it does not guarantee background forecast refreshes or delivery of alerts when a forecast is stale.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Rules commit: `6b806fa79a9fea8ddb0dcf2647b3caa1574fed6b`
+- Tests commit: `29d2a4fbde8cb5969d33f4d4e60534940a37aea8`
+- Settings commit: `f787cf976e6c6f6d324ed351159c165181d9ceb5`
+
+### Remaining
+- Confirm GitHub Actions tests and Release build.
+- Verify the live pending count and upcoming notification list on the user's iPhone.
+- Confirm that 24-hour scheduling yields useful advance alerts without duplicates or excessive notifications.
+
+
+## 2026-11-25 — notification queue visibility and planning horizon
+
+### Changes on `feature/frost-notification-audit`
+- Extended `WeatherWatchRules.notificationHorizonHours` to 24 hours. The dashboard's `forecastHorizonHours` remains 8 hours.
+- Added an XCTest asserting the separate 8-hour dashboard and 24-hour notification horizons.
+- Notification Settings now queries `UNUserNotificationCenter.pendingNotificationRequests()` on view task, filters Regnvakt-owned identifiers, calculates actual next trigger dates and displays up to five upcoming alerts.
+- Follow-up correction: mark the async UI refresh method `@MainActor` and use actual newline separators in the upcoming-alert list.
+
+### Files
+- `VADER/WeatherWatchRules.swift`
+- `Tests/WeatherNotificationBudgetTests.swift`
+- `VADER/NotificationSettingsView.swift`
+
+### Verification
+- Source files were fetched again from the development branch after the earlier commit/branch discrepancy. The 24-hour constant, horizon test, and live pending-queue implementation are present on the branch.
+- The line-break and actor-isolation correction is committed as `c96627aba7137e02d6f180fef9c592f61f2a2117`.
+- No GitHub Actions run has yet been confirmed for the latest commit.
+- No new IPA has been built or tested on a physical iPhone.
+- The live queue display refreshes when Notification Settings' SwiftUI task runs; it is not a background observer.
+
+### Next
+- Confirm workflow execution and XCTest/Release build.
+- Verify the live pending queue on device.
+- Evaluate whether a 24-hour horizon produces useful future alerts under existing thresholds and budget.
+
+
+## 2026-11-25 — verify independent future risk notifications after delivery
+
+### Findings
+- The global selector excludes identifiers already present in iOS delivered notifications, but selection is identifier-specific. A delivered current-frost alert must not suppress distinct future ice, rain, or snow alerts.
+- The scheduler selects at most the first schedulable event per risk type and monitored location. Different risk types and different locations can coexist in the global candidate pool.
+
+### Changes
+- Added a test proving that a delivered current-frost identifier does not block later ice and rain candidates for the same location.
+- Added an end-to-end pure selection/reconciliation test covering safety-priority ice, ordinary rain, snow at another location, removal of stale Regnvakt requests, and preservation of foreign SMHI requests.
+
+### Files
+- `Tests/WeatherNotificationBudgetTests.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Tests are committed to the development branch. GitHub Actions XCTest and Release build have not yet been confirmed for this commit.
+- The tests exercise the pure selection and reconciliation policies; they do not simulate the iOS notification daemon or prove physical-device delivery.
+- No new IPA has been built or distributed.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Test commit: `e2ce9a776e66eb5e420661ab78e2f5990acd2afc`
+- Documentation commit: pending
+
+### Remaining
+- Confirm the push-triggered GitHub Actions workflow runs and passes the complete XCTest suite and Release device build.
+- If CI passes, install the resulting unsigned IPA through the user's normal FlareStore workflow and verify multiple future alerts on the physical iPhone.
+- Keep PR #1 open; do not merge without approval.
+
+
+
+## 2026-11-25 — CI compile correction for notification settings
+
+### Findings
+- GitHub Actions run #928 (push) and run #929 (pull request) both failed before XCTest execution.
+- The compiler error was exact and reproducible in `VADER/NotificationSettingsView.swift:271`: duplicate global actor annotation, `@MainActor` applied twice to `refreshPendingWeatherNotifications()`.
+- This was a Swift compile failure, not a failure of the newly added multi-risk regression assertions. XCTest was cancelled because the app target did not compile.
+
+### Changes
+- Removed the duplicate `@MainActor` annotation while retaining the method's required actor isolation.
+
+### Files
+- `VADER/NotificationSettingsView.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- The correction is committed. A fresh GitHub Actions run is required to verify compilation, XCTest, Release build and IPA packaging.
+- The failed runs did not reach XCTest, Release build or IPA packaging.
+- No new IPA has been built or distributed.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Fix commit: `36d844a24e194105ea3de59056843939b7b14b2b`
+- Documentation commit: pending
+
+### Remaining
+- Verify the fresh push and PR workflow runs.
+- If all steps pass, inspect the IPA artifact before distribution.
+- Keep PR #1 open; do not merge without approval.
+
+
+
+## 2026-11-25 — correct pending notification trigger date lookup
+
+### Findings
+- The next CI run exposed a second compile error in the live pending-notification list: `UNNotificationTrigger` does not declare `nextTriggerDate()`.
+- The API is available on concrete calendar and time-interval trigger subclasses, not on the base trigger type.
+- The compiler reached Swift compilation of the app target; XCTest execution was cancelled because this compile error stopped the build.
+
+### Changes
+- Updated the pending weather queue reader to branch on `UNCalendarNotificationTrigger` and `UNTimeIntervalNotificationTrigger`, calling each concrete type's `nextTriggerDate()` implementation.
+- Unknown trigger types are safely omitted from the upcoming-date list rather than causing a compile-time API misuse.
+
+### Files
+- `VADER/NotificationSettingsView.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source correction committed; a new GitHub Actions run must verify the API usage, full XCTest suite, Release device build and IPA packaging.
+- No IPA was produced by the failed runs. No physical-device verification has been performed for this correction.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Code fix: `03b1962e54fc45ab84f4f249f964722daf6d5173`
+- Documentation commit: pending
+
+### Remaining
+- Check the new push and PR runs and inspect any failing step logs.
+- Only distribute an IPA after the complete workflow passes and the artifact is confirmed.
+- Keep PR #1 open; do not merge without approval.
+
+
+## 2026-11-25 — update legacy horizon regression assertion
+
+### Findings
+- The notification-trigger API correction compiled successfully in GitHub Actions and the XCTest suite started.
+- The suite exposed one stale assertion in `Tests/FrostRiskRulesTests.swift`: it still expected the notification planning horizon to be 8 hours, although the intended change separates the 8-hour dashboard horizon from the 24-hour notification horizon.
+- CI reported 100 tests executed in the relevant suite group with one assertion failure; the failing assertion compared 86,400 seconds against 28,800 seconds. Other tests in the reported groups passed.
+
+### Changes
+- Renamed the outdated test to describe both horizons explicitly.
+- Kept the dashboard forecast expectation at 8 hours and corrected the notification planning expectation to 24 hours.
+
+### Files
+- `Tests/FrostRiskRulesTests.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- The correction is committed. A fresh GitHub Actions run must verify the full suite and Release/IPA stages.
+- The prior run did not reach the Release build or IPA packaging because XCTest failed.
+- No physical-device verification has been performed for this change.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Test correction: `721d10066fdb2ce4b134a8b4baad0b814f6150c4`
+- Documentation commit: pending
+
+### Remaining
+- Confirm the fresh push/PR workflows pass all tests.
+- Verify Release device build, Info.plist validation, IPA packaging and artifact upload.
+- Keep PR #1 open; do not merge without approval.
+
+
+## 2026-11-27 — prevent repeated immediate current-frost alerts on app refresh
+
+### Findings
+- Physical-device testing confirmed that future frost notifications can be delivered while the app is closed.
+- The user then observed that opening Regnvakt, refreshing the forecast, or reopening the app could produce the same immediate current-frost notifications again.
+- The global scheduler previously persisted the current-frost day only after finding the alert in iOS delivered notifications. If iOS no longer exposed a delivered alert to the reconciliation snapshot, a fresh forecast could re-arm the same immediate alert.
+
+### Changes
+- After iOS successfully accepts an immediate current-frost request, persist its alert day for that monitored location.
+- Keep the existing delivered-notification reconciliation as a recovery path.
+- This makes the per-location/day deduplication durable across app launches and forecast refreshes; a failed add does not mark the alert as scheduled.
+
+### Files
+- `VADER/WeatherNotificationScheduler.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source change committed; GitHub Actions validation is pending.
+- No physical-device verification has yet been performed for the fix.
+- Expected device test: one immediate current-frost alert per location/day; reopening or refreshing the app must not produce it again. A new alert on a later local calendar day remains eligible if frost risk continues.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Code commit: `9e0b4cbc464f018f6e7db84d3facc94ea617a087`
+- PR #1 remains open and unmerged.
+
+### Remaining
+- Confirm push and pull-request workflows pass.
+- Build and distribute a new unsigned IPA only after CI passes.
+- Verify no repeat current-frost alert after multiple app launches/forecast refreshes, while future forecast frost alerts remain scheduled.
+- Keep PR #1 open; do not merge without approval.
+
+
+## 2026-11-28 — discard expired background forecast responses
+
+### Findings
+- The BGAppRefresh expiration handler cancels the Swift task, but a forecast request may be suspended in network I/O when cancellation occurs.
+- The background refresh loop previously checked cancellation before starting each request, but not immediately after the awaited fetch. A response arriving after iOS revoked the execution budget could therefore still update the notification scheduler.
+- The post-fetch validation checked only the monitored UUID list. It did not revalidate that the saved place still existed with the same coordinates.
+
+### Changes
+- Added a cancellation check immediately after each awaited Open-Meteo fetch. Expired tasks now stop before scheduling notifications from late responses.
+- Re-read the saved-place registry after the network suspension and verify the monitored UUID still exists with unchanged coordinates before refreshing the scheduler.
+- This remains limited to ordinary weather watches; no SMHI background work was added.
+
+### Files
+- `VADER/WeatherService.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source change committed; GitHub Actions validation is pending.
+- No physical-device test of BGAppRefresh expiration has been performed.
+- The change prevents late responses from being applied after cancellation; it does not make iOS background execution more frequent or guaranteed.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Code commit: `87024b435ff57784d3f2a1b627bb1778959175eb`
+- Documentation commit: pending
+- PR #1 remains open and unmerged.
+
+
+## 2026-11-28 — reconcile late notification additions from superseded batches
+
+### Findings
+- Global reconciliation correctly checks its generation token before each asynchronous notification-center add and again after the add.
+- However, `center.add(request)` suspends. A newer reconciliation can take its pending-request snapshot while the older add is still in flight. If the older add completes afterward, the old batch exits as superseded, but the newer batch's snapshot may not include the late request.
+- This creates a narrow race where an obsolete request can remain pending until the next refresh.
+
+### Changes
+- After a successful notification-center add, the scheduler now rechecks whether its reconciliation batch is still current.
+- If superseded during the await, it immediately starts a fresh reconciliation from the latest stored forecast registry before returning.
+- The replacement reconciliation does not enable immediate current-frost replay.
+
+### Files
+- `VADER/WeatherNotificationScheduler.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source change committed; GitHub Actions validation is pending.
+- No physical-device concurrency test has been performed.
+- The change closes the late-add snapshot gap by forcing a fresh reconciliation; it does not change iOS delivery guarantees.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Scheduler commit: `3088abd2435958d9eefd8936da2ec0534c0101fc`
+- Documentation commit: pending
+- PR #1 remains open and unmerged.
+
+
+## 2026-11-28 — protect newly monitored places from legacy notification cleanup
+
+### Findings
+- The one-time legacy cleanup reads the current forecast registry, derives valid location prefixes, then asynchronously asks iOS for pending notifications.
+- A new location could be registered and scheduled while that notification-center read was suspended.
+- Without revalidation, the old cleanup snapshot could classify the new location's requests as legacy orphans and delete them.
+
+### Changes
+- Capture the exact forecast-registry data snapshot before starting the asynchronous pending-request read.
+- Revalidate that the registry is unchanged in the callback before removing any notification identifiers.
+- If the registry changed, the stale cleanup exits without touching the notification queue.
+
+### Files
+- `VADER/WeatherNotificationScheduler.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source change committed; GitHub Actions validation is pending.
+- No physical-device rapid add/remove test has been performed.
+- The guard prevents stale legacy cleanup from applying an obsolete location-prefix snapshot.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Scheduler commit: `74cb4e168fdcba6a7e32333cfedc217221d5288e`
+- Documentation commit: pending
+- PR #1 remains open and unmerged.
+
+
+## 2026-11-28 — audit global notification disable / re-enable lifecycle
+
+### Review
+- The global notification preference is observed by the settings view and triggers a new global reconciliation for both disable and re-enable transitions.
+- Each reconciliation writes a new global generation token before its asynchronous work. Older batches revalidate that token after notification-center awaits and cannot continue as current work.
+- The global reconciliation checks the preference again after reading notification settings and before applying the pending-queue plan.
+- When globally disabled, it removes only Regnvakt forecast pending requests, preserves unrelated notification namespaces, and records a zero scheduled count plus an explicit disabled status.
+- Re-enabling starts reconciliation from the persisted forecast registry. Fresh stored forecasts can be scheduled again; stale forecasts are not treated as fresh.
+- No additional code change was justified by this audit. Delivered notifications remain in Notification Center when the global switch is turned off; this is intentional separation from cancelling future pending alerts, and no requirement was found to clear the user's already-delivered notification history.
+
+### Files reviewed
+- `VADER/NotificationSettingsView.swift`
+- `VADER/WeatherNotificationScheduler.swift`
+- `VADER/WeatherNotificationBudget.swift`
+- `Tests/WeatherNotificationBudgetTests.swift`
+
+### Verification and limitations
+- Source-level lifecycle review completed.
+- Existing CI runs #970–973 remain in progress at the frost unit-test step; runs #974–977 are queued. No fresh test result is claimed.
+- No physical-device disable/re-enable race test has been performed.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- No code commit created in this audit.
+- PR #1 remains open and unmerged.
+
+
+## 2026-11-28 — prevent duplicate macOS CI runs for pull-request commits
+
+### Finding
+- The build workflow was triggered by both `push` to `feature/frost-notification-audit` and `pull_request` targeting `feature/wind-radar`.
+- Each commit pushed to the PR branch therefore started two identical macOS simulator/test/device-build jobs.
+- The Actions queue showed paired runs for the same commit, consuming runner capacity and delaying later validation.
+
+### Change
+- Restrict automatic `push` validation to `main`.
+- Keep `pull_request` validation for PRs targeting `feature/wind-radar`.
+- Keep `workflow_dispatch` for deliberate manual runs.
+- Feature-branch commits continue to be validated through the open PR, but no longer launch a duplicate push run.
+
+### Files
+- `.github/workflows/build.yml`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Workflow trigger change committed; its new PR-triggered run is pending.
+- Existing runs #970–979 were created before this change and are not retroactively cancelled.
+- No build or test result is claimed for this workflow edit.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Workflow commit: `2a5ff681c220f356c7f5d2d2eb645f66d02c5014`
+- Documentation commit: pending
+- PR #1 remains open and unmerged.
+
+
+## 2026-11-28 — audit monitored-place background refresh lifecycle
+
+### Review
+- Rechecked the background refresh path in `WeatherService.swift` and the BGAppRefresh lifecycle in `VADERApp.swift`.
+- Background refresh reads the persisted saved-place and monitored-ID collections, then fetches each monitored place sequentially. A failure for one place is counted and does not stop attempts for later places.
+- After each network await, the task checks cancellation and re-reads both persisted collections. A place is scheduled only if it remains monitored, still exists, and retains the same coordinates.
+- iOS expiration cancels the Swift task. The refresh loop checks cancellation before each fetch and immediately after each fetch, preventing a late network response from updating the scheduler after expiration.
+- The scheduler is invoked only for ordinary Open-Meteo weather watches. No SMHI background notification work was added.
+- BGAppRefresh is submitted with a 30-minute earliest begin date and resubmitted at launch, background entry, and task start. This is a request to iOS, not a delivery/execution guarantee.
+- The foreground multi-place refresh path also revalidates the active place after network suspension before updating its schedule.
+
+### Findings and limitations
+- No additional correctness defect was confirmed in this review, so no speculative code change was made.
+- The current implementation does not guarantee that iOS runs BGAppRefresh every 30 minutes or after the user force-quits the app.
+- A failed background fetch leaves the last accepted schedule in place until normal reconciliation/freshness rules invalidate it.
+- No physical-device expiration or multi-place network-failure test was performed during this review.
+
+### CI status at review
+- Runs #970–973 completed successfully. #971 and #973 each passed frost unit tests, iOS device Release build, unsigned IPA packaging, and artifact upload.
+- Run #974 remains in progress at frost unit tests.
+- Runs #975–981 remain queued or awaiting runner capacity; run #981 is the PR validation for HEAD `b1ff43c3c06dac31afc64ff1c37f6fc2e21fa4ca`.
+- The successful runs above validate earlier commits, not the current HEAD. No green result is claimed for `b1ff43c` yet.
+
+### Files reviewed
+- `VADER/WeatherService.swift`
+- `VADER/VADERApp.swift`
+- `VADER/WeatherNotificationScheduler.swift`
+- `.github/workflows/build.yml`
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Documentation-only change; no application code changed in this review.
+- PR #1 remains open and unmerged.
+- No IPA was distributed.
+
+### Remaining
+- Confirm a complete successful workflow run for the current HEAD, including tests, device build, package validation and artifact upload.
+- Perform physical-device tests for multiple monitored locations, background expiration, app force-quit limitations, and notification tap routing.
+- Keep PR #1 open; do not merge without approval.
+
+
+## 2026-11-28 — preserve notification destination against delayed startup GPS
+
+### Finding
+- A notification tap can arrive while the app's initial Core Location request is still in flight.
+- The existing request UUID prevented a GPS lookup that had already started from overriding a manual selection, but did not prevent a GPS callback arriving after the notification route from starting a newer request and replacing the target city.
+
+### Change
+- Added an explicit-place selection guard to `WeatherViewModel`.
+- Manual place selection, saved-place selection, and notification navigation now keep their selected destination stable against delayed startup GPS callbacks.
+- Notification navigation enables the guard only after the destination coordinates pass validation, so malformed payloads cannot suppress normal GPS startup.
+- The normal explicit refresh action clears the guard and requests the device's current location again.
+
+### Files
+- `VADER/WeatherService.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source change committed to `feature/frost-notification-audit`.
+- GitHub Actions validation is required for XCTest, Release device build, and unsigned IPA packaging.
+- Physical iPhone verification remains required: launch Regnvakt from a notification for a non-favorite monitored place while the initial GPS callback is delayed; confirm the notification destination remains selected. Then use explicit refresh and confirm GPS selection works again.
+- No IPA was distributed. PR #1 remains open and unmerged.
+
+
+## 2026-11-28 — use latest saved place metadata after background fetch
+
+### Finding
+- Background refresh correctly re-read the monitored-place registry after each network suspension and rejected disabled, removed, or coordinate-edited places.
+- It nevertheless scheduled the accepted forecast using the old loop snapshot's place name. If a user renamed a saved place while Open-Meteo was responding, the next notification payload and forecast registry could restore the old name.
+
+### Change
+- The background refresh now schedules with the revalidated `latestPlace` name and coordinates.
+- The existing monitored-ID and coordinate equality checks remain in place; no response for a removed or edited place is allowed to update its schedule.
+
+### Files
+- `VADER/WeatherService.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Committed on `feature/frost-notification-audit`.
+- GitHub Actions run #985 was queued for the preceding documentation commit; a fresh successful run for this code change is still required.
+- XCTest, Release device build, unsigned IPA packaging, and physical iPhone background/rename/removal checks are not yet verified.
+- No IPA was distributed. PR #1 remains open and unmerged.
+
+
+## 2026-11-28 — audit deactivation and removal notification lifecycle
+
+### Scope reviewed
+- `WeatherViewModel.setMonitoring(_:enabled:)`
+- `WeatherViewModel.removePlace(_:)`
+- `WeatherNotificationScheduler.removeNotifications(latitude:longitude:)`
+- Global forecast reconciliation and pending-request preservation
+- Pure notification identifier and reconciliation tests in `Tests/WeatherNotificationBudgetTests.swift`
+
+### Findings
+- Disabling a place removes its ID from the persisted monitored-place set before starting notification cleanup.
+- The scheduler removes that exact coordinate entry from the stored forecast registry and invalidates an in-flight global scheduling batch.
+- Pending and delivered cleanup is restricted to the exact `regnvakt.weather.<coordinate>.` namespace; SMHI and unrelated notifications are not selected.
+- A replacement global reconciliation only preserves pending current-frost or stale-forecast alerts for locations still present in the registry. Disabled watch types are excluded from stale-forecast preservation.
+- Existing unit tests cover exact coordinate-prefix matching, removed/unregistered locations, disabled frost preservation, stale forecast metadata/expiry, and reconciliation namespace isolation.
+
+### Outcome
+- No additional source change was justified by this pass; the reviewed removal path already performs the required registry, pending, and delivered cleanup.
+- The remaining risk is platform execution timing: the actual iOS notification-center callbacks and rapid disable/re-enable behavior still require device verification.
+- GitHub Actions run #987 remains queued; no XCTest or device build result is claimed from this audit.
+- No IPA was distributed. PR #1 remains open and unmerged.
+
+
+## 2026-11-28 — reject stale forecast responses after rapid watch toggles
+
+### Finding
+- A foreground refresh of other monitored places captured only the monitored-place list. If a watch was disabled and quickly re-enabled while an older request was suspended, the old response could pass the boolean monitored check and overwrite a newer forecast.
+- The background refresh had the same disable/re-enable gap because it re-read the enabled IDs but had no persisted generation marker to distinguish the new activation from the old one.
+
+### Change
+- Persist a per-place monitoring generation token whenever a watch is enabled, disabled, or its place is removed.
+- Foreground selected-place and multi-place refreshes capture the token before fetching and compare it after the network suspension before writing a forecast.
+- Background refresh captures the persisted token snapshot and revalidates it together with the latest monitored IDs, coordinates, and display name.
+- Added pure rule tests for unchanged generations, legacy nil tokens, and stale responses invalidated by a later toggle.
+
+### Files
+- `VADER/WeatherService.swift`
+- `VADER/WeatherWatchRules.swift`
+- `Tests/WeatherNotificationBudgetTests.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source changes committed on `feature/frost-notification-audit`.
+- GitHub Actions XCTest, Release device build, and unsigned IPA packaging are required; no successful run is claimed yet.
+- Rapid toggle behavior still requires physical iPhone verification.
+- No IPA was distributed. PR #1 remains open and unmerged.

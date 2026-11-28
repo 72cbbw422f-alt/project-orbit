@@ -21,6 +21,13 @@ targets:
   VADER:
     type: application
     platform: iOS
+    info:
+      path: VADER/Info.plist
+      properties:
+        BGTaskSchedulerPermittedIdentifiers:
+          - app.walnut8211.vadra.weather-refresh
+        UIBackgroundModes:
+          - fetch
     sources:
       - path: VADER
     dependencies:
@@ -39,3 +46,23 @@ targets:
         INFOPLIST_KEY_UIRequiresFullScreen: YES
         INFOPLIST_KEY_UIStatusBarHidden: YES
         INFOPLIST_KEY_CFBundleIconName: AppIcon
+
+  VADERTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+      - path: VADER/FrostRiskRules.swift
+      - path: VADER/WeatherWatchRules.swift
+      - path: VADER/WeatherNotificationBudget.swift
+      - path: VADER/SMHIWarningNotificationPolicy.swift
+      - path: VADER/WeatherModels.swift
+      - path: VADER/RadarNowcastParser.swift
+    dependencies:
+      - target: VADER
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.vader.VADERTests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Regnvakt.app/VADRA"
+        BUNDLE_LOADER: "$(TEST_HOST)"

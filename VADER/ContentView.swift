@@ -10,6 +10,7 @@ private enum RTheme {
 }
 
 struct ContentView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab: WeatherTab = .weather
     @State private var showingSevenDayForecast = false
     @State private var showingWeatherDetails = false
@@ -20,7 +21,19 @@ struct ContentView: View {
     @State private var showingNationalWarnings = false
     @AppStorage("Regnvakt.notifications.hasUnread") private var hasUnreadNotifications = false
     @AppStorage("Regnvakt.smhi.hasNewNationalWarnings") private var hasNewNationalWarnings = false
+    @AppStorage("Regnvakt.notifications.rain") private var rainWatchEnabled = true
+    @AppStorage("Regnvakt.notifications.snow") private var snowWatchEnabled = true
+    @AppStorage("Regnvakt.notifications.wind") private var windWatchEnabled = true
+    @AppStorage("Regnvakt.notifications.thunder") private var thunderWatchEnabled = true
+    @AppStorage("Regnvakt.notifications.frost") private var frostWatchEnabled = true
     @StateObject private var weatherModel = WeatherViewModel()
+
+    private func openNotificationPlace(locationID: String, place: String) {
+        selectedTab = .weather
+        showingNotifications = false
+        showingNationalWarnings = false
+        weatherModel.openWeatherPlaceFromNotification(locationID: locationID, placeName: place)
+    }
 
     var body: some View {
         ZStack {
@@ -47,21 +60,39 @@ struct ContentView: View {
                         showNationalWarnings: { hasNewNationalWarnings = false; showingNationalWarnings = true },
                         showHourlyForecast: { showingHourlyForecast = true },
                         showPlaceSearch: { showingPlaceSearch = true },
+                        showWatches: { selectedTab = .watch },
                         selectForecastDay: { selectedForecastDay = $0 }
                     )
                     } else {
                         WeatherLoadingHome(status: weatherModel.status)
                     }
                 case .radar: RadarMapView(coordinate: weatherModel.currentCoordinate, place: weatherModel.snapshot?.place ?? "Hudiksvall")
-                case .watch: if let snapshot = weatherModel.snapshot { VaktDashboard(weather: snapshot, days: weatherModel.days, hours: weatherModel.hours) } else { RPlaceholder(title: "Vädervakter", subtitle: "Inväntar riktiga väderdata", icon: "bell.badge") }
+                case .watch: if let snapshot = weatherModel.snapshot { VaktDashboard(weather: snapshot, days: weatherModel.days, hours: weatherModel.hours, refreshSMHIWarnings: { weatherModel.refreshSMHIWarnings() }) } else { RPlaceholder(title: "Vädervakter", subtitle: "Inväntar riktiga väderdata", icon: "bell.badge") }
                 case .places: SavedPlacesView(model: weatherModel, onAddPlace: { showingPlaceSearch = true }, onSelectPlace: { selectedTab = .weather })
-                case .more: NotificationSettingsView()
+                case .more: NotificationSettingsView(refreshSMHIWarnings: { weatherModel.refreshSMHIWarnings() })
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(RTheme.bg.ignoresSafeArea())
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                weatherModel.refreshSMHIWarnings()
+            }
+        }
+        .onAppear {
+            // Recover a tap received before the SwiftUI view subscribed.
+            if let route = NotificationRouteStore.consume() {
+                openNotificationPlace(locationID: route.locationID, place: route.place)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .regnvaktOpenWeatherPlace)) { notification in
+            guard let locationID = notification.userInfo?["locationID"] as? String,
+                  let place = notification.userInfo?["place"] as? String else { return }
+            NotificationRouteStore.clear()
+            openNotificationPlace(locationID: locationID, place: place)
+        }
         // Keep interactive content inside the iPhone safe area. Only the
         // background paints edge-to-edge; system status and home areas stay usable.
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -71,7 +102,7 @@ struct ContentView: View {
                 .background(LinearGradient(colors: [RTheme.bg.opacity(0), RTheme.bg.opacity(0.96)], startPoint: .top, endPoint: .bottom))
         }
         .sheet(isPresented: $showingSevenDayForecast) {
-            SevenDayForecastDetail(days: weatherModel.days, place: weatherModel.snapshot?.place ?? "Din plats")
+            SevenDayForecastDetail(days: weatherModel.days, hours: weatherModel.hours, place: weatherModel.snapshot?.place ?? "Din plats")
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(RTheme.bg)
@@ -178,9 +209,17 @@ private struct ReferenceWeatherHome: View {
     let showNationalWarnings: () -> Void
     let showHourlyForecast: () -> Void
     let showPlaceSearch: () -> Void
+    let showWatches: () -> Void
     let selectForecastDay: (DayForecast) -> Void
     @AppStorage("Regnvakt.notifications.hasUnread") private var hasUnreadNotifications = false
     @AppStorage("Regnvakt.smhi.hasNewNationalWarnings") private var hasNewNationalWarnings = false
+    @AppStorage("Regnvakt.notifications.rain") private var rainWatchEnabled = true
+    @AppStorage("Regnvakt.notifications.snow") private var snowWatchEnabled = true
+    @AppStorage("Regnvakt.notifications.wind") private var windWatchEnabled = true
+    @AppStorage("Regnvakt.notifications.thunder") private var thunderWatchEnabled = true
+    @AppStorage("Regnvakt.notifications.frost") private var frostWatchEnabled = true
+    @AppStorage("Regnvakt.smhi.active") private var smhiWarningActive = false
+    @AppStorage("Regnvakt.smhi.level") private var smhiWarningLevel = ""
     private let bars: [CGFloat] = [0.08,0.12,0.16,0.22,0.30,0.38,0.48,0.58,0.70,0.83,0.96,1.0,0.86,0.72,0.64,0.57,0.48,0.36,0.26,0.19,0.16,0.14,0.12,0.10]
     private var watchTitle: String {
         let condition = weather.condition.lowercased()
@@ -204,8 +243,10 @@ private struct ReferenceWeatherHome: View {
                 VStack(spacing: 11) {
                     brandHeader
                     locationHeader
+                    homeRiskIndicator
                     currentConditions
                     mainCards(width: geo.size.width - 28)
+                    ActiveWatchSummary(weather: weather, days: days, hours: hours)
                     precipitationCard
                     todayDetailsButton
                     moonMetric
@@ -219,6 +260,7 @@ private struct ReferenceWeatherHome: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.top, 5)
+                .padding(.bottom, 112)
             }
             .frame(maxWidth: .infinity, minHeight: geo.size.height, alignment: .top)
             .frame(maxWidth: .infinity)
@@ -257,14 +299,15 @@ private struct ReferenceWeatherHome: View {
             Spacer(minLength: 2)
             Button(action: showNationalWarnings) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Color.orange)
-                    .frame(width: 34, height: 34)
-                    .background(Color.orange.opacity(0.12), in: Circle())
-                    .overlay(Circle().stroke(Color.orange.opacity(0.45), lineWidth: 1))
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(hasNewNationalWarnings ? Color.red : Color.orange)
+                    .frame(width: 40, height: 40)
+                    .background((hasNewNationalWarnings ? Color.red : Color.orange).opacity(0.16), in: Circle())
+                    .overlay(Circle().stroke((hasNewNationalWarnings ? Color.red : Color.orange).opacity(0.72), lineWidth: 1.4))
+                    .shadow(color: hasNewNationalWarnings ? Color.red.opacity(0.55) : .clear, radius: 9)
                     .overlay(alignment: .topTrailing) {
                         if hasNewNationalWarnings {
-                            Circle().fill(Color.orange).frame(width: 9, height: 9)
+                            Circle().fill(Color.red).frame(width: 11, height: 11)
                                 .overlay(Circle().stroke(RTheme.bg, lineWidth: 1.5))
                                 .offset(x: 1, y: -1)
                         }
@@ -273,15 +316,16 @@ private struct ReferenceWeatherHome: View {
             .buttonStyle(.plain)
             .accessibilityLabel(hasNewNationalWarnings ? "Nya SMHI-varningar i Sverige" : "Sveriges SMHI-varningar")
             Button(action: showNotifications) {
-                Image(systemName: "bell.badge")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 34, height: 34)
-                    .background(.white.opacity(0.08), in: Circle())
-                    .overlay(Circle().stroke(.white.opacity(0.18), lineWidth: 1))
+                Image(systemName: hasUnreadNotifications ? "bell.badge.fill" : "bell")
+                    .font(.system(size: 19, weight: .bold))
+                    .foregroundStyle(hasUnreadNotifications ? RTheme.cyan : .white)
+                    .frame(width: 40, height: 40)
+                    .background(hasUnreadNotifications ? RTheme.cyan.opacity(0.18) : .white.opacity(0.09), in: Circle())
+                    .overlay(Circle().stroke(hasUnreadNotifications ? RTheme.cyan.opacity(0.78) : .white.opacity(0.22), lineWidth: 1.3))
+                    .shadow(color: hasUnreadNotifications ? RTheme.cyan.opacity(0.48) : .clear, radius: 8)
                     .overlay(alignment: .topTrailing) {
                         if hasUnreadNotifications {
-                            Circle().fill(RTheme.cyan).frame(width: 9, height: 9)
+                            Circle().fill(Color.red).frame(width: 11, height: 11)
                                 .overlay(Circle().stroke(RTheme.bg, lineWidth: 1.5))
                                 .offset(x: 1, y: -1)
                         }
@@ -333,6 +377,54 @@ private struct ReferenceWeatherHome: View {
         }
     }
 
+    private var homeRiskStatus: (color: Color, label: String)? {
+        let assessment = WeatherRiskAssessment.evaluate(
+            weather: weather,
+            hours: hours,
+            smhiActive: smhiWarningActive,
+            smhiLevel: smhiWarningLevel
+        )
+        guard assessment.hasForecastData else { return nil }
+
+        if assessment.isRed {
+            return (Color(red: 0.96, green: 0.29, blue: 0.27), "RÖD SMHI-VARNING")
+        }
+        if assessment.anyRisk {
+            return (Color(red: 0.98, green: 0.60, blue: 0.22), "RISK I PROGNOS")
+        }
+        return (Color(red: 0.24, green: 0.66, blue: 0.43), "INGA RISKER UPPTÄCKTA")
+    }
+
+    private var homeRiskIndicator: some View {
+        Group {
+            if let status = homeRiskStatus {
+                Button(action: showWatches) {
+                    HStack(spacing: 8) {
+                        Circle().fill(status.color).frame(width: 8, height: 8)
+                        Text(status.label)
+                            .font(.system(size: 11, weight: .heavy))
+                            .tracking(0.55)
+                            .foregroundStyle(status.color)
+                        Spacer()
+                        Text("VÄDERVAKTER")
+                            .font(.system(size: 10, weight: .bold))
+                            .tracking(0.5)
+                            .foregroundStyle(RTheme.muted)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(RTheme.muted)
+                    }
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 9)
+                    .background(.white.opacity(0.045), in: Capsule())
+                    .overlay(Capsule().stroke(.white.opacity(0.10), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\\(status.label). Öppna vädervakter")
+            }
+        }
+    }
+
     private var currentWeatherSymbol: String {
         let condition = weather.condition.lowercased()
         if condition.contains("snö") { return "cloud.snow.fill" }
@@ -378,24 +470,58 @@ private struct ReferenceWeatherHome: View {
     }
 
     private var watchEvent: (title: String, detail: String, symbol: String, level: String, tint: Color) {
-        guard !hours.isEmpty else {
+        let now = Date()
+        let nearTermHorizon = now.addingTimeInterval(6 * 60 * 60)
+        let nearTermHours = hours.filter { hour in
+            guard let date = hour.date else { return false }
+            return date >= now && date <= nearTermHorizon
+        }
+        let currentHour = Calendar.current.component(.hour, from: now)
+        let currentThreshold = (currentHour >= 18 || currentHour < 9) ? 1 : 0
+        if frostWatchEnabled && weather.temperature <= currentThreshold {
+            return ("Risk för frost", "Frostrisk just nu vid cirka \(weather.temperature)°. Frost kan bildas även utan nederbörd.", "thermometer.snowflake", "FROSTRISK", Color.cyan)
+        }
+        guard !nearTermHours.isEmpty else {
             return ("Inväntar prognos", "Vädervakten analyserar kommande timmar när prognosen har hämtats.", "hourglass", "AVVAKTAR", RTheme.muted)
         }
-        let precipitation = hours.first { $0.precipitationChance >= 40 || $0.precipitation >= 0.2 }
-        let maxGust = max(weather.windGust, hours.map(\.gust).max() ?? 0)
-        let coldest = hours.min { $0.temperature < $1.temperature }
+
+        let precipitation = nearTermHours.first { hour in
+            let condition = hour.condition.lowercased()
+            let isSnow = condition.contains("snö")
+            let isRain = condition.contains("regn") || condition.contains("dugg") || condition.contains("skur")
+            let snowRisk = isSnow && (hour.precipitationChance >= 40 || hour.precipitation >= 0.2)
+            let rainRisk = isRain && (hour.precipitationChance >= 40 || hour.precipitation >= 0.3)
+            return (snowRisk && snowWatchEnabled) || (rainRisk && rainWatchEnabled)
+        }
         if let precipitation {
             let snow = precipitation.condition.localizedCaseInsensitiveContains("snö")
             let kind = snow ? "Snöfall" : "Regn"
-            return ("\(kind) kan komma", "\(precipitation.condition) omkring kl. \(precipitation.time). Nederbördsrisk \(precipitation.precipitationChance)% enligt timprognosen.", snow ? "cloud.snow.fill" : "cloud.rain.fill", "HÅLL KOLL", Color.orange)
+            return ("\(kind) kan komma", "\(precipitation.condition) omkring kl. \(precipitation.time). Nederbördsrisk \(precipitation.precipitationChance)% enligt timprognosen.", snow ? "cloud.snow.fill" : "cloud.rain.fill", "RISK I PROGNOS", Color.orange)
         }
-        if maxGust >= 14 {
-            return ("Kraftiga vindbyar", String(format: "Byvindar kan nå %.1f m/s under prognosperioden.", maxGust), "wind", "VINDRISK", Color.orange)
+
+        if thunderWatchEnabled, let storm = nearTermHours.first(where: { $0.condition.localizedCaseInsensitiveContains("åska") }) {
+            return ("Åskrisk", "Åska finns i prognosen omkring kl. \(storm.time). Följ SMHI:s varningar och sök skydd vid åska.", "cloud.bolt.rain.fill", "ÅSKRISK", Color.orange)
         }
-        if let coldest, coldest.temperature <= 0 {
-            return ("Risk för frost", "Temperaturen väntas nå \(coldest.temperature)° omkring kl. \(coldest.time).", "thermometer.snowflake", "FROSTRISK", Color.cyan)
+
+        let maxGust = max(weather.windGust, nearTermHours.map(\.gust).max() ?? 0)
+        let maxWind = max(weather.wind, nearTermHours.map(\.wind).max() ?? 0)
+        if windWatchEnabled && (maxGust >= 15 || maxWind >= 11) {
+            return ("Kraftiga vindar", String(format: "Vind upp till %.1f m/s och byar upp till %.1f m/s i prognosen.", maxWind, maxGust), "wind", "VINDRISK", Color.orange)
         }
-        return ("Inget särskilt väntas", "Ingen tydlig nederbörds- eller vindrisk identifierad de kommande timmarna.", "checkmark.shield.fill", "LUGNT JUST NU", Color.green)
+
+        if frostWatchEnabled, let frost = nearTermHours.first(where: { hour in
+            guard let date = hour.date else { return false }
+            let hourOfDay = Calendar.current.component(.hour, from: date)
+            return hour.temperature <= ((hourOfDay >= 18 || hourOfDay < 9) ? 1 : 0)
+        }) {
+            return ("Risk för frost", "Temperaturen väntas nå \(frost.temperature)° omkring kl. \(frost.time).", "thermometer.snowflake", "FROSTRISK", Color.cyan)
+        }
+
+        let anyWatchEnabled = rainWatchEnabled || snowWatchEnabled || thunderWatchEnabled || windWatchEnabled || frostWatchEnabled
+        if !anyWatchEnabled {
+            return ("Ingen bevakning aktiverad", "Väderprognosen visas som vanligt, men inga vädervakter är påslagna.", "bell.slash", "BEVAKNING AV", RTheme.muted)
+        }
+        return ("Inget särskilt väntas", "Inga förhöjda risker identifierade bland de aktiverade vädervakterna kommande timmar.", "checkmark.shield.fill", "LUGNT JUST NU", Color.green)
     }
 
     private var rainAlertCard: some View {
@@ -410,7 +536,7 @@ private struct ReferenceWeatherHome: View {
                 Spacer(minLength: 1)
                 HStack(spacing: 3) {
                     Circle().fill(isLive ? .green : .orange).frame(width:6,height:6)
-                    Text(isLive ? "LIVE" : "DEMO").font(.system(size:12,weight:.heavy))
+                    Text(isLive ? "LIVE" : "INVÄNTAR").font(.system(size:12,weight:.heavy))
                 }.foregroundStyle(isLive ? .green : .orange)
             }
             Text("Nästa väderhändelse")
@@ -438,13 +564,13 @@ private struct ReferenceWeatherHome: View {
                     .minimumScaleFactor(0.72)
                     .layoutPriority(1)
                 Spacer(minLength: 4)
-                Text("KOMMANDE TIMMAR")
+                Text("PROGNOS")
                     .font(.system(size: 10, weight: .bold))
                     .tracking(0.2)
                     .foregroundStyle(RTheme.muted)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .layoutPriority(1)
             }
         }
         .padding(11)
@@ -567,27 +693,37 @@ private struct ReferenceWeatherHome: View {
             } else {
                 let forecast = Array(hours.prefix(8))
                 let maximum = max(forecast.map(\.precipitation).max() ?? 0.1, 0.1)
-                HStack(alignment: .bottom, spacing: 5) {
-                    ForEach(forecast) { hour in
-                        VStack(spacing: 5) {
-                            Text(String(format: "%.1f", hour.precipitation))
-                                .font(.system(size: 12, weight: .semibold)).foregroundStyle(RTheme.muted)
-                                .lineLimit(1).minimumScaleFactor(0.7)
-                            GeometryReader { proxy in
-                                VStack {
-                                    Spacer(minLength: 0)
-                                    RoundedRectangle(cornerRadius: 4)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .bottom, spacing: 8) {
+                        ForEach(forecast) { hour in
+                            VStack(spacing: 6) {
+                                Text(String(format: "%.1f", hour.precipitation))
+                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(.white)
+                                    .monospacedDigit()
+                                ZStack(alignment: .bottom) {
+                                    Capsule().fill(RTheme.line.opacity(0.35))
+                                    Capsule()
                                         .fill(LinearGradient(colors: [RTheme.cyan, RTheme.blue], startPoint: .top, endPoint: .bottom))
-                                        .frame(height: max(3, proxy.size.height * CGFloat(hour.precipitation / maximum)))
+                                        .frame(height: max(4, 58 * CGFloat(hour.precipitation / maximum)))
+                                        .opacity(hour.precipitation > 0 ? 1 : 0.28)
                                 }
+                                .frame(width: 22, height: 58)
+                                Text(hour.time)
+                                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(RTheme.muted)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
                             }
-                            .frame(height: 66)
-                            Text(hour.time)
-                                .font(.system(size: 12, weight: .medium)).foregroundStyle(RTheme.muted)
+                            .frame(width: 42)
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel("\(hour.time), \(String(format: "%.1f", hour.precipitation)) millimeter nederbörd")
                         }
-                        .frame(maxWidth: .infinity)
                     }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 3)
                 }
+                .scrollIndicators(.hidden)
                 Text("Prognostiserad nederbörd per timme, mm.")
                     .font(.system(size: 12)).foregroundStyle(RTheme.muted.opacity(0.85))
             }
@@ -933,14 +1069,14 @@ private struct TodayWeatherDetails: View {
                             summaryTile(title:"NEDERBÖRD",value:String(format:"%.1f mm",weather.precipitationToday),subtitle:"Just nu",symbol:"drop.fill",tint:RTheme.cyan)
                             summaryTile(title:"VIND",value:String(format:"%.1f m/s",weather.wind),subtitle:"Byvind \(String(format:"%.1f",weather.windGust)) m/s",symbol:"wind",tint:Color(red:0.78,green:0.86,blue:1))
                         }
-                        Text("VINDRIKTNING OCH STYRKA").font(.system(size:12,weight:.heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
+                        Text("VINDRIKTNING").font(.system(size:12,weight:.heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
                         HStack(spacing:10) {
                             Image(systemName:"location.north.circle.fill")
                                 .font(.system(size:32)).rotationEffect(.degrees(weather.windDirectionDegrees))
                                 .foregroundStyle(RTheme.cyan)
                             VStack(alignment:.leading,spacing:3) {
                                 Text(weather.windDirectionText).font(.system(size:19,weight:.bold)).foregroundStyle(.white)
-                                Text(String(format:"%.0f° • Medelvind %.1f m/s • Byvind %.1f m/s",weather.windDirectionDegrees,weather.wind,weather.windGust))
+                                Text(String(format:"%.0f°",weather.windDirectionDegrees))
                                     .font(.system(size:12,weight:.medium)).foregroundStyle(RTheme.muted)
                             }
                             Spacer()
@@ -1084,96 +1220,162 @@ private struct ForecastDayDetails: View {
     @Environment(\.dismiss) private var dismiss
 
     private var dayHours: [HourForecast] {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier:"en_US_POSIX")
-        formatter.timeZone = .current
-        formatter.dateFormat = "yyyy-MM-dd"
-        let key = formatter.string(from:day.date)
-        return hours.filter { $0.id.hasPrefix(key) }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
+        return hours.filter { hour in
+            guard let date = hour.date else { return false }
+            return calendar.isDate(date, inSameDayAs: day.date)
+        }
     }
 
     var body: some View {
         NavigationStack {
             ZStack {
-                LinearGradient(colors:[Color(red:0.10,green:0.10,blue:0.18),RTheme.bg,RTheme.bg],startPoint:.topLeading,endPoint:.bottomTrailing)
+                LinearGradient(colors: [Color(red:0.10,green:0.10,blue:0.18), RTheme.bg, RTheme.bg], startPoint: .topLeading, endPoint: .bottomTrailing)
                     .ignoresSafeArea()
-                ScrollView(showsIndicators:false) {
-                    VStack(alignment:.leading,spacing:15) {
-                        VStack(alignment:.leading,spacing:4) {
-                            Text(place).font(.system(size:13,weight:.semibold)).foregroundStyle(RTheme.cyan)
-                            Text(day.day).font(.system(size:25,weight:.bold,design:.rounded)).foregroundStyle(.white)
-                            Text(day.condition).font(.system(size:13,weight:.medium)).foregroundStyle(RTheme.muted)
-                        }
-                        HStack(spacing:14) {
-                            Image(systemName:day.symbol).symbolRenderingMode(.palette)
-                                .foregroundStyle(Color(red:0.88,green:0.91,blue:1),RTheme.cyan).font(.system(size:58))
-                            VStack(alignment:.leading,spacing:3) {
-                                Text("\(day.high)°").font(.system(size:48,weight:.bold,design:.rounded)).foregroundStyle(.white)
-                                Text("HÖGSTA TEMPERATUR").font(.system(size:12,weight:.heavy)).tracking(1).foregroundStyle(RTheme.cyan)
-                                Text("Lägsta \(day.low)°").font(.system(size:14,weight:.medium)).foregroundStyle(RTheme.muted)
-                            }
-                            Spacer()
-                        }.padding(17)
-                            .background(LinearGradient(colors:[Color(red:0.13,green:0.19,blue:0.29),RTheme.panel],startPoint:.topLeading,endPoint:.bottomTrailing),in:RoundedRectangle(cornerRadius:22))
-                            .overlay(RoundedRectangle(cornerRadius:22).stroke(RTheme.line,lineWidth:1))
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 15) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(place).font(.system(size: 22, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                            Text("Väderförhållanden • \(day.day.lowercased())").font(.system(size: 12, weight: .medium)).foregroundStyle(RTheme.muted)
+                        }.frame(maxWidth: .infinity, alignment: .leading)
 
-                        Text("DAGENS PROGNOS").font(.system(size:12,weight:.heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
-                        LazyVGrid(columns:[GridItem(.flexible()),GridItem(.flexible())],spacing:9) {
-                            dayMetric("Nederbördsrisk","\(day.precipitationChance)%","drop.fill")
-                            dayMetric("Nederbörd",String(format:"%.1f mm",day.precipitation),"cloud.rain.fill")
-                            dayMetric("Medelvind",String(format:"%.1f m/s",day.wind),"wind")
-                            dayMetric("Byvind",String(format:"%.1f m/s",day.gust),"wind")
-                            dayMetric("UV-index",String(format:"%.0f",day.uv),"sun.max.fill")
+                        HStack(spacing: 14) {
+                            Image(systemName: day.symbol)
+                                .symbolRenderingMode(.palette)
+                                .foregroundStyle(Color(red:0.88,green:0.91,blue:1), RTheme.cyan)
+                                .font(.system(size: 58))
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("\(day.high)°").font(.system(size: 48, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                                Text("HÖGSTA TEMPERATUR").font(.system(size: 12, weight: .heavy)).tracking(1).foregroundStyle(RTheme.cyan)
+                                Text("Lägsta \(day.low)°").font(.system(size: 14, weight: .medium)).foregroundStyle(RTheme.muted)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(17)
+                        .background(LinearGradient(colors: [Color(red:0.13,green:0.19,blue:0.29), RTheme.panel], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 22))
+                        .overlay(RoundedRectangle(cornerRadius: 22).stroke(RTheme.line, lineWidth: 1))
+
+                        Text("PROGNOS FÖR DAGEN").font(.system(size: 12, weight: .heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 9) {
+                            dayMetric("Nederbördsrisk", "\(day.precipitationChance)%", "drop.fill")
+                            dayMetric("Nederbörd", String(format: "%.1f mm", day.precipitation), "cloud.rain.fill")
+                            dayMetric("Medelvind", String(format: "%.1f m/s", day.wind), "wind")
+                            dayMetric("Byvind", String(format: "%.1f m/s", day.gust), "wind")
+                            dayMetric("UV-index", String(format: "%.0f", day.uv), "sun.max.fill")
                         }
 
                         if !dayHours.isEmpty {
-                            Text("TIMME FÖR TIMME").font(.system(size:12,weight:.heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
-                            VStack(spacing:0) {
+                            Text("TEMPERATUR UNDER DAGEN").font(.system(size: 12, weight: .heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
+                            temperatureChart
+                        }
+
+                        Text("VÄDER TIMME FÖR TIMME").font(.system(size: 12, weight: .heavy)).tracking(1.1).foregroundStyle(RTheme.cyan)
+                        if dayHours.isEmpty {
+                            Text("Timprognosen för den här dagen är inte tillgänglig ännu. Dygnsvärdena ovan bygger på prognosdata för hela dagen.")
+                                .font(.system(size: 12, weight: .medium)).foregroundStyle(RTheme.muted)
+                                .referencePanel()
+                        } else {
+                            VStack(spacing: 0) {
                                 ForEach(dayHours) { hour in
-                                    HStack(spacing:9) {
-                                        Text(hour.time).font(.system(size:12,weight:.bold)).foregroundStyle(.white).frame(width:38,alignment:.leading)
-                                        Image(systemName:hour.symbol).font(.system(size:19)).foregroundStyle(RTheme.cyan).frame(width:26)
-                                        Text("\(hour.temperature)°").font(.system(size:14,weight:.bold,design:.rounded)).foregroundStyle(.white).frame(width:36)
-                                        VStack(alignment:.leading,spacing:2) {
-                                            Text("Nederbördsrisk \(hour.precipitationChance)%").font(.system(size:12,weight:.semibold)).foregroundStyle(RTheme.cyan)
-                                            Text(String(format:"Vind %.1f • By %.1f m/s",hour.wind,hour.gust)).font(.system(size:12)).foregroundStyle(RTheme.muted)
+                                    HStack(spacing: 9) {
+                                        Text(hour.time).font(.system(size: 12, weight: .bold)).foregroundStyle(.white).frame(width: 38, alignment: .leading)
+                                        Image(systemName: hour.symbol).symbolRenderingMode(.palette)
+                                            .foregroundStyle(Color(red:0.82,green:0.90,blue:1), RTheme.cyan)
+                                            .font(.system(size: 18)).frame(width: 25)
+                                        Text("\(hour.temperature)°").font(.system(size: 13, weight: .bold, design: .rounded)).foregroundStyle(.white).frame(width: 34)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("Nederbördsrisk \(hour.precipitationChance)%").font(.system(size: 12, weight: .semibold)).foregroundStyle(RTheme.cyan)
+                                            Text(String(format: "Vind %.1f • By %.1f m/s", hour.wind, hour.gust)).font(.system(size: 12)).foregroundStyle(RTheme.muted)
                                         }
-                                        Spacer(minLength:2)
-                                        Text(String(format:"%.1f mm",hour.precipitation)).font(.system(size:12,weight:.medium)).foregroundStyle(.white)
-                                    }.padding(.vertical,8)
+                                        Spacer(minLength: 2)
+                                        Text(String(format: "%.1f mm", hour.precipitation)).font(.system(size: 12, weight: .medium)).foregroundStyle(.white)
+                                    }.padding(.vertical, 8)
                                     if hour.id != dayHours.last?.id { Divider().overlay(RTheme.line) }
                                 }
-                            }.padding(.horizontal,12).referencePanel()
-                        } else {
-                            Text("Timprognosen för den här dagen är inte tillgänglig ännu. Dygnsprognosen ovan bygger på väderdata för hela dagen.")
-                                .font(.system(size:12,weight:.medium)).foregroundStyle(RTheme.muted)
-                                .referencePanel()
+                            }.padding(.horizontal, 12).referencePanel()
                         }
                     }.padding(16)
                 }
             }
-            .navigationTitle("Dagens prognos")
+            .navigationTitle("Dagens väder")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark,for:.navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
-                ToolbarItem(placement:.topBarTrailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("Stäng") { dismiss() }.foregroundStyle(RTheme.cyan)
                 }
             }
         }.preferredColorScheme(.dark)
     }
 
-    private func dayMetric(_ title:String,_ value:String,_ symbol:String) -> some View {
-        HStack(spacing:9) {
-            Image(systemName:symbol).font(.system(size:17,weight:.semibold)).foregroundStyle(RTheme.cyan).frame(width:23)
-            VStack(alignment:.leading,spacing:2) {
-                Text(value).font(.system(size:17,weight:.bold,design:.rounded)).foregroundStyle(.white)
-                Text(title).font(.system(size:12,weight:.medium)).foregroundStyle(RTheme.muted)
+    private var temperatureChart: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label("Temperatur", systemImage: "thermometer").font(.system(size: 12, weight: .semibold)).foregroundStyle(RTheme.muted)
+                Spacer()
+                Text("Dagens timmar • °C").font(.system(size: 12, weight: .medium)).foregroundStyle(RTheme.muted)
             }
-            Spacer(minLength:0)
-        }.frame(maxWidth:.infinity,minHeight:58,alignment:.leading).padding(.horizontal,11).padding(.vertical,7)
-            .background(RTheme.panel,in:RoundedRectangle(cornerRadius:13))
-            .overlay(RoundedRectangle(cornerRadius:13).stroke(RTheme.line.opacity(0.7),lineWidth:1))
+            let values = Array(dayHours.prefix(24)).map { Double($0.temperature) }
+            let low = floor((values.min() ?? 0) / 2) * 2
+            let high = max(ceil((values.max() ?? 2) / 2) * 2, low + 2)
+            HStack(spacing: 7) {
+                VStack {
+                    ForEach((0...2).reversed(), id: \.self) { step in
+                        Text(String(format: "%.0f°", low + (high - low) * Double(step) / 2))
+                            .font(.system(size: 12, weight: .medium, design: .rounded)).foregroundStyle(RTheme.muted)
+                        if step > 0 { Spacer(minLength: 0) }
+                    }
+                }.frame(width: 27)
+                GeometryReader { proxy in
+                    ZStack {
+                        ForEach(0...2, id: \.self) { step in
+                            let y = proxy.size.height * CGFloat(step) / 2
+                            Path { path in
+                                path.move(to: CGPoint(x: 0, y: y))
+                                path.addLine(to: CGPoint(x: proxy.size.width, y: y))
+                            }.stroke(RTheme.line.opacity(0.7), style: StrokeStyle(lineWidth: 0.8, dash: [3, 3]))
+                        }
+                        Path { path in
+                            for (index, value) in values.enumerated() {
+                                let x = proxy.size.width * CGFloat(index) / CGFloat(max(values.count - 1, 1))
+                                let y = proxy.size.height - CGFloat((value - low) / (high - low)) * (proxy.size.height - 10) - 5
+                                if index == 0 { path.move(to: CGPoint(x: x, y: y)) } else { path.addLine(to: CGPoint(x: x, y: y)) }
+                            }
+                        }.stroke(RTheme.cyan, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                        ForEach(Array(values.enumerated()), id: \.offset) { index, value in
+                            let x = proxy.size.width * CGFloat(index) / CGFloat(max(values.count - 1, 1))
+                            let y = proxy.size.height - CGFloat((value - low) / (high - low)) * (proxy.size.height - 10) - 5
+                            Circle().fill(.white).frame(width: 5, height: 5).position(x: x, y: y)
+                        }
+                    }
+                }.frame(height: 112)
+            }
+            HStack {
+                Text(dayHours.first?.time ?? "00")
+                Spacer()
+                Text("+6 h")
+                Spacer()
+                Text("+12 h")
+                Spacer()
+                Text("+18 h")
+                Spacer()
+                Text("+24 h")
+            }.font(.system(size: 12, weight: .medium)).foregroundStyle(RTheme.muted).padding(.leading, 34)
+        }.referencePanel()
+    }
+
+    private func dayMetric(_ title: String, _ value: String, _ symbol: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: symbol).font(.system(size: 17, weight: .semibold)).foregroundStyle(RTheme.cyan).frame(width: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(value).font(.system(size: 17, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                Text(title).font(.system(size: 12, weight: .medium)).foregroundStyle(RTheme.muted)
+            }
+            Spacer(minLength: 0)
+        }.frame(maxWidth: .infinity, minHeight: 58, alignment: .leading).padding(.horizontal, 11).padding(.vertical, 7)
+            .background(RTheme.panel, in: RoundedRectangle(cornerRadius: 13))
+            .overlay(RoundedRectangle(cornerRadius: 13).stroke(RTheme.line.opacity(0.7), lineWidth: 1))
     }
 }
 
@@ -1396,8 +1598,10 @@ private struct PlaceSearchSheet: View {
 
 private struct SevenDayForecastDetail: View {
     let days: [DayForecast]
+    let hours: [HourForecast]
     let place: String
     @Environment(\.dismiss) private var dismiss
+    @State private var selectedDay: DayForecast?
 
     var body: some View {
         NavigationStack {
@@ -1426,7 +1630,10 @@ private struct SevenDayForecastDetail: View {
                         } else {
                             LazyVStack(spacing: 10) {
                                 ForEach(days) { day in
-                                    VStack(alignment: .leading, spacing: 10) {
+                                    Button {
+                                        selectedDay = day
+                                    } label: {
+                                        VStack(alignment: .leading, spacing: 10) {
                                         HStack(spacing: 12) {
                                             Image(systemName: day.symbol)
                                                 .symbolRenderingMode(.palette)
@@ -1458,7 +1665,18 @@ private struct SevenDayForecastDetail: View {
                                             forecastMetricColumn(icon: "wind", label: "Vind", value: String(format: "%.1f m/s", day.wind))
                                             forecastMetricColumn(icon: "sun.max.fill", label: "UV", value: String(format: "%.0f", day.uv))
                                         }
+                                        }
+                                        HStack {
+                                            Text("Tryck för dagens detaljer")
+                                                .font(.system(size: 11, weight: .semibold))
+                                                .foregroundStyle(RTheme.cyan)
+                                            Spacer()
+                                            Image(systemName: "chevron.right")
+                                                .font(.system(size: 11, weight: .bold))
+                                                .foregroundStyle(RTheme.cyan)
+                                        }
                                     }
+                                    .buttonStyle(.plain)
                                     .padding(12)
                                     .background(RTheme.panel, in: RoundedRectangle(cornerRadius: 17))
                                     .overlay(RoundedRectangle(cornerRadius: 17).stroke(RTheme.line.opacity(0.75), lineWidth: 1))
@@ -1478,6 +1696,13 @@ private struct SevenDayForecastDetail: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Stäng") { dismiss() }.foregroundStyle(RTheme.cyan)
                 }
+            }
+            .sheet(item: $selectedDay) { day in
+                ForecastDayDetails(day: day, hours: hours, place: place)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+                    .presentationBackground(RTheme.bg)
+                    .preferredColorScheme(.dark)
             }
         }
     }
