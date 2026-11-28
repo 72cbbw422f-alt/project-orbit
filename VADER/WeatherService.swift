@@ -172,6 +172,13 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                 )
                 refreshedCount += 1
             } catch {
+                // URLSession commonly throws CancellationError when iOS expires
+                // the BGAppRefresh task. Count that as skipped work, not as a
+                // network failure, and do not continue the location loop.
+                if Task.isCancelled {
+                    skippedCount += 1
+                    break
+                }
                 failedCount += 1
                 // Store only the error type and numeric code, never a URL,
                 // coordinates, or place name.
