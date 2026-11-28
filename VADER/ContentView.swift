@@ -28,6 +28,13 @@ struct ContentView: View {
     @AppStorage("Regnvakt.notifications.frost") private var frostWatchEnabled = true
     @StateObject private var weatherModel = WeatherViewModel()
 
+    private func openNotificationPlace(locationID: String, place: String) {
+        selectedTab = .weather
+        showingNotifications = false
+        showingNationalWarnings = false
+        weatherModel.openWeatherPlaceFromNotification(locationID: locationID, placeName: place)
+    }
+
     var body: some View {
         ZStack {
             // The root canvas and both background layers must occupy the complete
@@ -74,13 +81,17 @@ struct ContentView: View {
                 weatherModel.refreshSMHIWarnings()
             }
         }
+        .onAppear {
+            // Recover a tap received before the SwiftUI view subscribed.
+            if let route = NotificationRouteStore.consume() {
+                openNotificationPlace(locationID: route.locationID, place: route.place)
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .regnvaktOpenWeatherPlace)) { notification in
             guard let locationID = notification.userInfo?["locationID"] as? String,
                   let place = notification.userInfo?["place"] as? String else { return }
-            selectedTab = .weather
-            showingNotifications = false
-            showingNationalWarnings = false
-            weatherModel.openWeatherPlaceFromNotification(locationID: locationID, placeName: place)
+            NotificationRouteStore.clear()
+            openNotificationPlace(locationID: locationID, place: place)
         }
         // Keep interactive content inside the iPhone safe area. Only the
         // background paints edge-to-edge; system status and home areas stay usable.
