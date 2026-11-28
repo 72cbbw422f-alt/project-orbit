@@ -676,3 +676,44 @@
 - Workflow commit: `2a5ff681c220f356c7f5d2d2eb645f66d02c5014`
 - Documentation commit: pending
 - PR #1 remains open and unmerged.
+
+
+## 2026-11-28 — audit monitored-place background refresh lifecycle
+
+### Review
+- Rechecked the background refresh path in `WeatherService.swift` and the BGAppRefresh lifecycle in `VADERApp.swift`.
+- Background refresh reads the persisted saved-place and monitored-ID collections, then fetches each monitored place sequentially. A failure for one place is counted and does not stop attempts for later places.
+- After each network await, the task checks cancellation and re-reads both persisted collections. A place is scheduled only if it remains monitored, still exists, and retains the same coordinates.
+- iOS expiration cancels the Swift task. The refresh loop checks cancellation before each fetch and immediately after each fetch, preventing a late network response from updating the scheduler after expiration.
+- The scheduler is invoked only for ordinary Open-Meteo weather watches. No SMHI background notification work was added.
+- BGAppRefresh is submitted with a 30-minute earliest begin date and resubmitted at launch, background entry, and task start. This is a request to iOS, not a delivery/execution guarantee.
+- The foreground multi-place refresh path also revalidates the active place after network suspension before updating its schedule.
+
+### Findings and limitations
+- No additional correctness defect was confirmed in this review, so no speculative code change was made.
+- The current implementation does not guarantee that iOS runs BGAppRefresh every 30 minutes or after the user force-quits the app.
+- A failed background fetch leaves the last accepted schedule in place until normal reconciliation/freshness rules invalidate it.
+- No physical-device expiration or multi-place network-failure test was performed during this review.
+
+### CI status at review
+- Runs #970–973 completed successfully. #971 and #973 each passed frost unit tests, iOS device Release build, unsigned IPA packaging, and artifact upload.
+- Run #974 remains in progress at frost unit tests.
+- Runs #975–981 remain queued or awaiting runner capacity; run #981 is the PR validation for HEAD `b1ff43c3c06dac31afc64ff1c37f6fc2e21fa4ca`.
+- The successful runs above validate earlier commits, not the current HEAD. No green result is claimed for `b1ff43c` yet.
+
+### Files reviewed
+- `VADER/WeatherService.swift`
+- `VADER/VADERApp.swift`
+- `VADER/WeatherNotificationScheduler.swift`
+- `.github/workflows/build.yml`
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Documentation-only change; no application code changed in this review.
+- PR #1 remains open and unmerged.
+- No IPA was distributed.
+
+### Remaining
+- Confirm a complete successful workflow run for the current HEAD, including tests, device build, package validation and artifact upload.
+- Perform physical-device tests for multiple monitored locations, background expiration, app force-quit limitations, and notification tap routing.
+- Keep PR #1 open; do not merge without approval.
