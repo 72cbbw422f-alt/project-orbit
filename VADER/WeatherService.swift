@@ -351,7 +351,9 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
     }
 
     func removePlace(_ place: SavedWeatherPlace) {
-        monitoringRequestIDs[place.id] = UUID()
+        let removalGeneration = UUID()
+        monitoringRequestIDs[place.id] = removalGeneration
+        persistMonitoringGeneration(removalGeneration, for: place.id)
         monitoredPlaceIDs.remove(place.id)
         persistMonitoredPlaces()
         WeatherNotificationScheduler.removeNotifications(latitude: place.latitude, longitude: place.longitude)
