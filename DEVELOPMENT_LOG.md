@@ -1,3 +1,32 @@
+## 2026-11-28 – synkronisera BGAppRefresh-diagnostik med faktisk completion-vinnare
+
+### Fynd
+- Den låsskyddade completion-grinden förhindrade redan dubbla anrop till `setTaskCompleted(...)`.
+- Diagnostikstatus skrevs däremot före eller oberoende av att completion-grinden avgjort vilken väg som vann. Vid en mycket snäv race mellan normal avslutning och iOS-expiration kunde den förlorande vägen därför skriva över statusen från den vinnande vägen.
+
+### Ändring
+- `BackgroundRefreshCompletion.finish(...)` returnerar nu `true` endast för den väg som först tar completion-grinden.
+- Normal avslutning skriver `completedAt` och slutstatus endast om den vann.
+- Expiration skriver motsvarande tidsstämpel och avbrottsstatus endast om expiration-vägen vann.
+- Detta håller den sparade diagnostiken konsekvent med det enda completion-resultat som skickas till iOS.
+
+### Filer
+- `VADER/VADERApp.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verifiering
+- Kodändringen är committad på `feature/frost-notification-audit`.
+- Föregående HEAD `8d5ccc6b8ac7a90b354b803eceb6697591be31ce` har passerat GitHub Actions workflow #1010: XCTest, iOS Release-bygge, Info.plist-validering och osignerad IPA-paketering.
+- Denna nya race-fix måste verifieras i en ny GitHub Actions-körning.
+- Verklig iOS-expiration och completion-race kräver fortfarande enhetstest på iPhone; CI kan inte simulera iOS schemaläggarens exakta timing.
+
+### Git
+- Kodcommit: `06919c3a25556e096ae5c10d52a2e48a1a0f077d`
+- Branch: `feature/frost-notification-audit`
+- PR #1 hålls öppen och mergas inte.
+
+---
+
 ## 2026-11-28 – avsluta BGAppRefresh direkt vid iOS-expiration
 
 ### Ändring
@@ -17,7 +46,7 @@
 
 ### Git
 - Kodcommit: `03fa07ff19d52e09c8b7e0b2a7fe82a5a50caa62`
-- Dokumentationscommit: pending
+- Dokumentationscommit: `8d5ccc6b8ac7a90b354b803eceb6697591be31ce`
 
 ---
 
