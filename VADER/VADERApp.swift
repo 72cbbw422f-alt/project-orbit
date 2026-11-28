@@ -3,6 +3,23 @@ import BackgroundTasks
 import UserNotifications
 import UIKit
 
+/// Makes BGTask completion idempotent when normal completion races expiration.
+private final class BackgroundRefreshCompletion {
+    private let lock = NSLock()
+    private var hasCompleted = false
+
+    func finish(_ task: BGAppRefreshTask, success: Bool) {
+        lock.lock()
+        guard !hasCompleted else {
+            lock.unlock()
+            return
+        }
+        hasCompleted = true
+        lock.unlock()
+        task.setTaskCompleted(success: success)
+    }
+}
+
 @MainActor
 final class RegnvaktAppDelegate: NSObject, UIApplicationDelegate {
     private static let weatherRefreshIdentifier = "app.walnut8211.vadra.weather-refresh"
@@ -49,16 +66,21 @@ final class RegnvaktAppDelegate: NSObject, UIApplicationDelegate {
         defaults.set(Date().timeIntervalSince1970, forKey: "Regnvakt.backgroundRefresh.startedAt")
         defaults.set("Bakgrundsuppdatering körs", forKey: "Regnvakt.backgroundRefresh.status")
         scheduleNextWeatherRefresh()
+        let completion = BackgroundRefreshCompletion()
         let refresh = Task { @MainActor in
             let succeeded = await WeatherViewModel.refreshMonitoredForecastsInBackground()
             let expired = Task.isCancelled
             defaults.set(Date().timeIntervalSince1970, forKey: "Regnvakt.backgroundRefresh.completedAt")
             defaults.set(expired ? "Avbruten av iOS tidsgräns" : (succeeded ? "Prognos hämtad och vakter uppdaterade" : "Ingen prognos kunde uppdateras"), forKey: "Regnvakt.backgroundRefresh.status")
-            task.setTaskCompleted(success: succeeded && !expired)
+            completion.finish(task, success: succeeded && !expired)
         }
         task.expirationHandler = {
             refresh.cancel()
             defaults.set("Avbruten av iOS tidsgräns", forKey: "Regnvakt.backgroundRefresh.status")
+            // Complete immediately when iOS revokes the execution window. The
+            // async work may take time to observe cancellation while suspended
+            // in URLSession or UserNotifications.
+            completion.finish(task, success: false)
         }
     }
 }
