@@ -53,19 +53,19 @@ enum WeatherNotificationScheduler {
     /// is still running in an unstructured Task. Await the global reconciliation
     /// so iOS does not suspend the app between forecast fetch and notification add.
     static func refreshAndWait(place: String, latitude: Double, longitude: Double,
-                               hours: [HourForecast], currentTemperature: Int? = nil) async {
+                               hours: [HourForecast], currentTemperature: Int? = nil) async -> Bool {
         // A revoked background execution must not persist a late response or
         // begin a new reconciliation after its task has been cancelled.
-        guard !Task.isCancelled else { return }
+        guard !Task.isCancelled else { return false }
         guard let locationKey = storeForecast(place: place, latitude: latitude, longitude: longitude,
-                                              hours: hours, currentTemperature: currentTemperature) else { return }
+                                              hours: hours, currentTemperature: currentTemperature) else { return false }
         let defaults = UserDefaults.standard
         let globalToken = UUID().uuidString
         defaults.set(globalToken, forKey: globalScheduleTokenKey)
         guard let registryData = defaults.data(forKey: forecastRegistryKey),
               let registry = try? JSONDecoder().decode([String: StoredForecast].self, from: registryData),
-              !registry.isEmpty else { return }
-        await reconcileGlobally(
+              !registry.isEmpty else { return false }
+        return await reconcileGlobally(
             registry: registry,
             registrySnapshot: registryData,
             globalToken: globalToken,
@@ -175,7 +175,7 @@ enum WeatherNotificationScheduler {
         globalToken: String,
         allowImmediateCurrentFrost: Bool,
         immediateFrostLocationID: String?
-    ) async {
+    ) async -> Bool {
         let defaults = UserDefaults.standard
         let center = UNUserNotificationCenter.current()
         func isCurrentBatch() -> Bool {
@@ -183,20 +183,20 @@ enum WeatherNotificationScheduler {
                 (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken &&
                 defaults.data(forKey: forecastRegistryKey) == registrySnapshot
         }
-        guard isCurrentBatch() else { return }
+        guard isCurrentBatch() else { return false }
 
         let globallyEnabled = defaults.object(forKey: "Regnvakt.notifications.enabled") as? Bool ?? true
         let authorization = await center.notificationSettings()
-        guard isCurrentBatch() else { return }
+        guard isCurrentBatch() else { return false }
         let allowed = authorization.authorizationStatus == .authorized ||
             authorization.authorizationStatus == .provisional ||
             authorization.authorizationStatus == .ephemeral
 
         // A single pending and delivered snapshot is shared by all locations.
         let pending = await center.pendingNotificationRequests()
-        guard isCurrentBatch() else { return }
+        guard isCurrentBatch() else { return false }
         let delivered = await center.deliveredNotifications()
-        guard isCurrentBatch() else { return }
+        guard isCurrentBatch() else { return false }
 
         let pendingIDs = pending.map(\.identifier)
         let deliveredIDs = Set(delivered.map { $0.request.identifier })
@@ -234,7 +234,7 @@ enum WeatherNotificationScheduler {
         guard globallyEnabled, allowed else {
             let staleIDs = pendingIDs.filter { $0.hasPrefix(prefix) }
             center.removePendingNotificationRequests(withIdentifiers: staleIDs)
-            guard isCurrentBatch() else { return }
+            guard isCurrentBatch() else { return false }
             defaults.set(0, forKey: scheduledCountKey)
             defaults.set(Date().timeIntervalSince1970, forKey: scheduleUpdatedKey)
             defaults.set(globallyEnabled
@@ -251,7 +251,7 @@ enum WeatherNotificationScheduler {
         var staleForecastCount = 0
         var staleLocationIDs = Set<String>()
         for stored in registry.values.sorted(by: { $0.locationID < $1.locationID }) {
-            guard isCurrentBatch() else { return }
+            guard isCurrentBatch() else { return false }
             let age = Date().timeIntervalSince(stored.savedAt)
             let fresh = age >= 0 && age <= 2 * 60 * 60
             if fresh { freshForecastCount += 1 } else {
@@ -333,13 +333,13 @@ enum WeatherNotificationScheduler {
             forecastPrefix: prefix
         )
 
-        guard isCurrentBatch() else { return }
+        guard isCurrentBatch() else { return false }
         center.removePendingNotificationRequests(withIdentifiers: plan.pendingIdentifiersToRemove)
 
         var schedulingFailureCount = 0
         var firstSchedulingError: String?
         for identifier in plan.identifiersToAdd {
-            guard isCurrentBatch(), let request = requestsByID[identifier] else { return }
+            guard isCurrentBatch(), let request = requestsByID[identifier] else { return false }
             do {
                 try await center.add(request)
                 // A newer reconciliation may have taken its pending snapshot
@@ -381,17 +381,17 @@ enum WeatherNotificationScheduler {
                     }
                 }
             } catch {
-                guard isCurrentBatch() else { return }
+                guard isCurrentBatch() else { return false }
                 schedulingFailureCount += 1
                 if firstSchedulingError == nil {
                     firstSchedulingError = error.localizedDescription
                 }
             }
-            guard isCurrentBatch() else { return }
+            guard isCurrentBatch() else { return false }
         }
 
         let finalPending = await center.pendingNotificationRequests()
-        guard isCurrentBatch() else { return }
+        guard isCurrentBatch() else { return false }
         let finalCount = finalPending.filter { $0.identifier.hasPrefix(prefix) }.count
         defaults.set(finalCount, forKey: scheduledCountKey)
         defaults.set(Date().timeIntervalSince1970, forKey: scheduleUpdatedKey)
@@ -406,6 +406,7 @@ enum WeatherNotificationScheduler {
         }
         let diagnostics = "\(registry.count) bevakade platser • \(freshForecastCount) färska prognoser • \(staleForecastCount) för gamla prognoser • \(candidates.count) riskhändelser • \(selectedIDs.count) valda"
         defaults.set("\(outcome) • \(diagnostics)", forKey: scheduleStatusKey)
+        return isCurrentBatch()
     }
 
     static func removeAll() {
