@@ -163,14 +163,19 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                 // Use the latest persisted display name after the network
                 // suspension. A rename during the fetch must not restore an
                 // obsolete city label in the notification payload or registry.
-                await WeatherNotificationScheduler.refreshAndWait(
+                let reconciliationCompleted = await WeatherNotificationScheduler.refreshAndWait(
                     place: latestPlace.name,
                     latitude: latestPlace.latitude,
                     longitude: latestPlace.longitude,
                     hours: forecast.hours,
                     currentTemperature: forecast.current.temperature
                 )
-                refreshedCount += 1
+                if reconciliationCompleted {
+                    refreshedCount += 1
+                } else {
+                    skippedCount += 1
+                    if Task.isCancelled { break }
+                }
             } catch {
                 // URLSession commonly throws CancellationError when iOS expires
                 // the BGAppRefresh task. Count that as skipped work, not as a
