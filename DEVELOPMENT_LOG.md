@@ -1,3 +1,31 @@
+## 2026-11-28 – behåll korrekt status under aktiv bakgrundsuppdatering
+
+### Fynd
+- `handle(...)` skrev först statusen `Bakgrundsuppdatering körs` och anropade därefter `scheduleNextWeatherRefresh()`.
+- Schemaläggningsfunktionen skriver själv statusen för nästa begäran. Det innebar att den aktiva körningens status omedelbart kunde ersättas med `Begäran registrerad hos iOS`, trots att hämtningen fortfarande pågick.
+
+### Ändring
+- Flyttade schemaläggningen av nästa BGAppRefresh-begäran före skrivningen av statusen för den aktiva körningen.
+- Den pågående körningen behåller därmed sin status tills dess vinnande completion-väg skriver slutresultatet.
+- Apple dokumenterar att en ny submission för samma ännu ej körda task identifier ersätter den tidigare begäran. De befintliga schemaläggningsanropen vid start, bakgrundsövergång och task-start skapar därför inte flera parallella refresh-begäranden för samma identifierare.
+
+### Filer
+- `VADER/VADERApp.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verifiering
+- Kodändringen är committad på `feature/frost-notification-audit`.
+- Apple dokumenterar även att `earliestBeginDate` är en tidigaste starttid, inte en garanti för när iOS kör uppgiften.
+- GitHub Actions måste verifiera den nya HEAD-versionen. Enhetstest av statussekvens och verklig iOS-bakgrundskörning återstår.
+
+### Git
+- Kodcommit: `2682134c2a1c213d7fc4bad32f29985518d0f5a4`
+- Föregående race-säkring: `06919c3a25556e096ae5c10d52a2e48a1a0f077d`
+- Branch: `feature/frost-notification-audit`
+- PR #1 hålls öppen och mergas inte.
+
+---
+
 ## 2026-11-28 – synkronisera BGAppRefresh-diagnostik med faktisk completion-vinnare
 
 ### Fynd
