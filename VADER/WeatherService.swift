@@ -225,6 +225,18 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
         loadWeather(latitude: place.latitude, longitude: place.longitude, placeName: place.name)
     }
 
+    func openWeatherPlaceFromNotification(locationID: String, placeName: String) {
+        let coordinates = locationID.split(separator: ",")
+        guard coordinates.count == 2,
+              let latitude = Double(coordinates[0]),
+              let longitude = Double(coordinates[1]),
+              (-90.0...90.0).contains(latitude),
+              (-180.0...180.0).contains(longitude) else { return }
+
+        lastFetch = nil
+        loadWeather(latitude: latitude, longitude: longitude, placeName: placeName)
+    }
+
     func savePlace(_ place: PlaceSearchResult) {
         let latitude = place.coordinate.latitude
         let longitude = place.coordinate.longitude
