@@ -99,6 +99,26 @@ enum WeatherNotificationScheduler {
         refreshFromStoredForecast(allowImmediateCurrentFrost: false, immediateFrostLocationID: nil)
     }
 
+    /// Reconcile persisted forecasts after a background fetch failure.
+    /// This lets stale pending alerts expire even when no place produced a new forecast.
+    static func reconcileStoredForecastsAndWait() async -> Bool {
+        guard !Task.isCancelled else { return false }
+        let defaults = UserDefaults.standard
+        let globalToken = UUID().uuidString
+        defaults.set(globalToken, forKey: globalScheduleTokenKey)
+        let registryData = defaults.data(forKey: forecastRegistryKey)
+        guard let registryData,
+              let registry = try? JSONDecoder().decode([String: StoredForecast].self, from: registryData),
+              !registry.isEmpty else { return false }
+        return await reconcileGlobally(
+            registry: registry,
+            registrySnapshot: registryData,
+            globalToken: globalToken,
+            allowImmediateCurrentFrost: false,
+            immediateFrostLocationID: nil
+        )
+    }
+
     private static func refreshFromStoredForecast(allowImmediateCurrentFrost: Bool, immediateFrostLocationID: String?) {
         let defaults = UserDefaults.standard
         // Every new batch invalidates any older batch before it can continue
