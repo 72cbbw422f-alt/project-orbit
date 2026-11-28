@@ -592,3 +592,31 @@
 - Scheduler commit: `3088abd2435958d9eefd8936da2ec0534c0101fc`
 - Documentation commit: pending
 - PR #1 remains open and unmerged.
+
+
+## 2026-11-28 — protect newly monitored places from legacy notification cleanup
+
+### Findings
+- The one-time legacy cleanup reads the current forecast registry, derives valid location prefixes, then asynchronously asks iOS for pending notifications.
+- A new location could be registered and scheduled while that notification-center read was suspended.
+- Without revalidation, the old cleanup snapshot could classify the new location's requests as legacy orphans and delete them.
+
+### Changes
+- Capture the exact forecast-registry data snapshot before starting the asynchronous pending-request read.
+- Revalidate that the registry is unchanged in the callback before removing any notification identifiers.
+- If the registry changed, the stale cleanup exits without touching the notification queue.
+
+### Files
+- `VADER/WeatherNotificationScheduler.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source change committed; GitHub Actions validation is pending.
+- No physical-device rapid add/remove test has been performed.
+- The guard prevents stale legacy cleanup from applying an obsolete location-prefix snapshot.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Scheduler commit: `74cb4e168fdcba6a7e32333cfedc217221d5288e`
+- Documentation commit: pending
+- PR #1 remains open and unmerged.
