@@ -620,3 +620,30 @@
 - Scheduler commit: `74cb4e168fdcba6a7e32333cfedc217221d5288e`
 - Documentation commit: pending
 - PR #1 remains open and unmerged.
+
+
+## 2026-11-28 — audit global notification disable / re-enable lifecycle
+
+### Review
+- The global notification preference is observed by the settings view and triggers a new global reconciliation for both disable and re-enable transitions.
+- Each reconciliation writes a new global generation token before its asynchronous work. Older batches revalidate that token after notification-center awaits and cannot continue as current work.
+- The global reconciliation checks the preference again after reading notification settings and before applying the pending-queue plan.
+- When globally disabled, it removes only Regnvakt forecast pending requests, preserves unrelated notification namespaces, and records a zero scheduled count plus an explicit disabled status.
+- Re-enabling starts reconciliation from the persisted forecast registry. Fresh stored forecasts can be scheduled again; stale forecasts are not treated as fresh.
+- No additional code change was justified by this audit. Delivered notifications remain in Notification Center when the global switch is turned off; this is intentional separation from cancelling future pending alerts, and no requirement was found to clear the user's already-delivered notification history.
+
+### Files reviewed
+- `VADER/NotificationSettingsView.swift`
+- `VADER/WeatherNotificationScheduler.swift`
+- `VADER/WeatherNotificationBudget.swift`
+- `Tests/WeatherNotificationBudgetTests.swift`
+
+### Verification and limitations
+- Source-level lifecycle review completed.
+- Existing CI runs #970–973 remain in progress at the frost unit-test step; runs #974–977 are queued. No fresh test result is claimed.
+- No physical-device disable/re-enable race test has been performed.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- No code commit created in this audit.
+- PR #1 remains open and unmerged.
