@@ -75,6 +75,9 @@ final class RegnvaktNotificationDelegate: NSObject, UNUserNotificationCenterDele
         let userInfo = response.notification.request.content.userInfo
         if let locationID = userInfo["locationID"] as? String,
            let place = userInfo["place"] as? String {
+            // Persist before publishing: on a cold launch SwiftUI may not yet
+            // have installed ContentView's NotificationCenter subscription.
+            NotificationRouteStore.save(locationID: locationID, place: place)
             NotificationCenter.default.post(
                 name: .regnvaktOpenWeatherPlace,
                 object: nil,
@@ -124,4 +127,30 @@ struct VADERApp: App {
 
 extension Notification.Name {
     static let regnvaktOpenWeatherPlace = Notification.Name("Regnvakt.openWeatherPlace")
+}
+
+
+/// Holds a notification destination until the SwiftUI root view is ready.
+/// UserDefaults is used only as a tiny hand-off across app-launch timing.
+enum NotificationRouteStore {
+    private static let key = "Regnvakt.pendingNotificationRoute.v1"
+
+    static func save(locationID: String, place: String) {
+        UserDefaults.standard.set(
+            ["locationID": locationID, "place": place],
+            forKey: key
+        )
+    }
+
+    static func consume() -> (locationID: String, place: String)? {
+        guard let route = UserDefaults.standard.dictionary(forKey: key),
+              let locationID = route["locationID"] as? String,
+              let place = route["place"] as? String else { return nil }
+        UserDefaults.standard.removeObject(forKey: key)
+        return (locationID, place)
+    }
+
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: key)
+    }
 }
