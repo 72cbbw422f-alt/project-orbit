@@ -1,3 +1,26 @@
+## 2026-11-28 – stoppa notisavstämning efter utgången bakgrundstid
+
+### Ändring
+- `WeatherNotificationScheduler.refreshAndWait(...)` avbryter innan prognosen sparas om bakgrundsuppgiften redan har avbrutits.
+- `reconcileGlobally(...)` behandlar nu en avbruten Task som en ogiltig batch vid varje befintlig generationskontroll.
+- Om en notis läggs till precis när batchen blir ogiltig startas en ny avstämning endast när batchen ersatts av en nyare körning. En utgången bakgrundsuppgift startar inte själv nytt arbete.
+- Detta begränsar risken att en BGAppRefresh som iOS har avslutat fortsätter lägga till notiser eller återstartar schemaläggning utanför sin tilldelade körtid.
+
+### Filer
+- `VADER/WeatherNotificationScheduler.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verifiering
+- Källändringen är incheckad på `feature/frost-notification-audit`.
+- XCTest och iOS Release-build ska verifieras i GitHub Actions.
+- Fysisk iPhone-verifiering krävs fortfarande. iOS styr när BGAppRefresh körs och kan skjuta upp eller utelämna den.
+
+### Git
+- Scheduler-commit: `394a2cf8f326a8efbec8e1562f1e81b0ae124064`
+- Dokumentationscommit: pending
+
+---
+
 ## 2026-11-28 – await notification scheduling before background task completion
 
 ### Change
