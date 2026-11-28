@@ -8,15 +8,17 @@ private final class BackgroundRefreshCompletion {
     private let lock = NSLock()
     private var hasCompleted = false
 
-    func finish(_ task: BGAppRefreshTask, success: Bool) {
+    @discardableResult
+    func finish(_ task: BGAppRefreshTask, success: Bool) -> Bool {
         lock.lock()
         guard !hasCompleted else {
             lock.unlock()
-            return
+            return false
         }
         hasCompleted = true
         lock.unlock()
         task.setTaskCompleted(success: success)
+        return true
     }
 }
 
@@ -70,17 +72,21 @@ final class RegnvaktAppDelegate: NSObject, UIApplicationDelegate {
         let refresh = Task { @MainActor in
             let succeeded = await WeatherViewModel.refreshMonitoredForecastsInBackground()
             let expired = Task.isCancelled
-            defaults.set(Date().timeIntervalSince1970, forKey: "Regnvakt.backgroundRefresh.completedAt")
-            defaults.set(expired ? "Avbruten av iOS tidsgräns" : (succeeded ? "Prognos hämtad och vakter uppdaterade" : "Ingen prognos kunde uppdateras"), forKey: "Regnvakt.backgroundRefresh.status")
-            completion.finish(task, success: succeeded && !expired)
+            let didComplete = completion.finish(task, success: succeeded && !expired)
+            if didComplete {
+                defaults.set(Date().timeIntervalSince1970, forKey: "Regnvakt.backgroundRefresh.completedAt")
+                defaults.set(expired ? "Avbruten av iOS tidsgräns" : (succeeded ? "Prognos hämtad och vakter uppdaterade" : "Ingen prognos kunde uppdateras"), forKey: "Regnvakt.backgroundRefresh.status")
+            }
         }
         task.expirationHandler = {
             refresh.cancel()
-            defaults.set("Avbruten av iOS tidsgräns", forKey: "Regnvakt.backgroundRefresh.status")
             // Complete immediately when iOS revokes the execution window. The
             // async work may take time to observe cancellation while suspended
             // in URLSession or UserNotifications.
-            completion.finish(task, success: false)
+            if completion.finish(task, success: false) {
+                defaults.set(Date().timeIntervalSince1970, forKey: "Regnvakt.backgroundRefresh.completedAt")
+                defaults.set("Avbruten av iOS tidsgräns", forKey: "Regnvakt.backgroundRefresh.status")
+            }
         }
     }
 }
