@@ -564,3 +564,31 @@
 - Code commit: `87024b435ff57784d3f2a1b627bb1778959175eb`
 - Documentation commit: pending
 - PR #1 remains open and unmerged.
+
+
+## 2026-11-28 — reconcile late notification additions from superseded batches
+
+### Findings
+- Global reconciliation correctly checks its generation token before each asynchronous notification-center add and again after the add.
+- However, `center.add(request)` suspends. A newer reconciliation can take its pending-request snapshot while the older add is still in flight. If the older add completes afterward, the old batch exits as superseded, but the newer batch's snapshot may not include the late request.
+- This creates a narrow race where an obsolete request can remain pending until the next refresh.
+
+### Changes
+- After a successful notification-center add, the scheduler now rechecks whether its reconciliation batch is still current.
+- If superseded during the await, it immediately starts a fresh reconciliation from the latest stored forecast registry before returning.
+- The replacement reconciliation does not enable immediate current-frost replay.
+
+### Files
+- `VADER/WeatherNotificationScheduler.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source change committed; GitHub Actions validation is pending.
+- No physical-device concurrency test has been performed.
+- The change closes the late-add snapshot gap by forcing a fresh reconciliation; it does not change iOS delivery guarantees.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Scheduler commit: `3088abd2435958d9eefd8936da2ec0534c0101fc`
+- Documentation commit: pending
+- PR #1 remains open and unmerged.
