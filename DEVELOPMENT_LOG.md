@@ -1,3 +1,11 @@
+## 2026-11-28 – Prioriteringsbeslut: vanliga vädervakter
+
+- Beslut: SMHI-notiser ska inte vidareutvecklas i denna arbetsström. SMHI-varningar ligger kvar i appens vyer och kan läsas manuellt.
+- All fortsatt utveckling och verifiering prioriterar vanliga vädervakter: korrekt händelsedetektering, schemaläggning, leverans i bakgrund/efter force-quit, borttagning av inaktuella notiser, samtliga bevakade orter samt korrekt destinationsnavigering vid notistryck.
+- Ingen SMHI-ortkoppling eller serverlösning ska byggas som del av detta arbete.
+- Senaste kod-HEAD vid beslutet: `4145a9556427918b5934aac13aa078ba9d7ffbd2`. CI #962 och #963 är köade för denna HEAD; tidigare CI #956 och #957 lyckades på föregående HEAD `5008c520`.
+- PR #1 hålls öppen och mergas inte. Ingen IPA distribueras innan senaste HEAD har grön build och användaren ber om testversion.
+
 ## 2026-11-28 – Säker notisnavigering vid kallstart
 
 - `VADER/VADERApp.swift`: notisens ortdestination sparas nu i `UserDefaults` innan appen publicerar navigeringseventet. Det skyddar mot att SwiftUI-vyn ännu inte hunnit registrera sin prenumeration när iOS startar appen efter ett notistryck.
