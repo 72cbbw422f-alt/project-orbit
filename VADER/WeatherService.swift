@@ -43,6 +43,9 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
     private let geocoder = CLGeocoder()
     private var lastFetch: Date?
     private var weatherRequestID = UUID()
+    // A manually selected or notification-targeted place must not be replaced
+    // by the delayed startup GPS callback. Explicit refresh re-enables GPS.
+    private var prefersExplicitPlaceSelection = false
     // Invalidates forecast fetches started by an older monitoring toggle.
     private var monitoringRequestIDs: [UUID: UUID] = [:]
 
@@ -194,6 +197,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
     }
 
     func refresh() {
+        prefersExplicitPlaceSelection = false
         lastFetch = nil
         requestLocation()
     }
@@ -229,6 +233,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
     }
 
     func selectPlace(_ place: PlaceSearchResult) {
+        prefersExplicitPlaceSelection = true
         savePlace(place)
         lastFetch = nil
         status = "Hämtar prognos för \(place.name)…"
@@ -236,11 +241,13 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
     }
 
     func selectSavedPlace(_ place: SavedWeatherPlace) {
+        prefersExplicitPlaceSelection = true
         lastFetch = nil
         loadWeather(latitude: place.latitude, longitude: place.longitude, placeName: place.name)
     }
 
     func openWeatherPlaceFromNotification(locationID: String, placeName: String) {
+        prefersExplicitPlaceSelection = true
         let coordinates = locationID.split(separator: ",")
         guard coordinates.count == 2,
               let latitude = Double(coordinates[0]),
@@ -375,7 +382,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
         let latitude = location.coordinate.latitude
         let longitude = location.coordinate.longitude
         Task { @MainActor [weak self] in
-            guard let self else { return }
+            guard let self, !self.prefersExplicitPlaceSelection else { return }
             if let lastFetch, Date().timeIntervalSince(lastFetch) < 300 { return }
             lastFetch = Date()
             // Claim the request before reverse geocoding. Otherwise a slow
