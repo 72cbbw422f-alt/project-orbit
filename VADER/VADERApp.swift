@@ -66,8 +66,10 @@ final class RegnvaktAppDelegate: NSObject, UIApplicationDelegate {
     private func handle(_ task: BGAppRefreshTask) {
         let defaults = UserDefaults.standard
         defaults.set(Date().timeIntervalSince1970, forKey: "Regnvakt.backgroundRefresh.startedAt")
-        defaults.set("Bakgrundsuppdatering körs", forKey: "Regnvakt.backgroundRefresh.status")
+        // Queue the next opportunity first; this method also writes a scheduling
+        // status, which must not overwrite the active-run status below.
         scheduleNextWeatherRefresh()
+        defaults.set("Bakgrundsuppdatering körs", forKey: "Regnvakt.backgroundRefresh.status")
         let completion = BackgroundRefreshCompletion()
         let refresh = Task { @MainActor in
             let succeeded = await WeatherViewModel.refreshMonitoredForecastsInBackground()
