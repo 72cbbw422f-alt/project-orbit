@@ -1,3 +1,26 @@
+## 2026-11-28 – avsluta BGAppRefresh direkt vid iOS-expiration
+
+### Ändring
+- Lade till `BackgroundRefreshCompletion`, som gör `BGAppRefreshTask.setTaskCompleted(...)` idempotent med en lås-skyddad engångsgrind.
+- När iOS anropar `expirationHandler` avbryts arbetet och bakgrundsuppgiften markeras omedelbart som misslyckad. Appen väntar inte längre på att pågående URLSession- eller UserNotifications-anrop först ska återvända innan uppgiften avslutas.
+- Om den normala async-vägen senare återkommer kan den inte rapportera completion en andra gång eller skriva över completion-resultatet.
+- Detta skiljer tydligt på att avbryta själva arbetet och att meddela iOS att bakgrundstiden är slut.
+
+### Filer
+- `VADER/VADERApp.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verifiering
+- Kodändringen är incheckad på `feature/frost-notification-audit`.
+- GitHub Actions ska verifiera kompilering, XCTest och iOS Release-bygge på denna HEAD.
+- Simulator-/enhetstest av faktisk BGTask-expiration återstår; GitHub-build kan inte simulera iOS schemaläggarens verkliga tidsgräns.
+
+### Git
+- Kodcommit: `03fa07ff19d52e09c8b7e0b2a7fe82a5a50caa62`
+- Dokumentationscommit: pending
+
+---
+
 ## 2026-11-28 – korrekt diagnostik för slutförd bakgrundsschemaläggning
 
 ### Ändring
