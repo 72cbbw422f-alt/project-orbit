@@ -1,3 +1,33 @@
+## 2026-11-28 – rensa utgångna vädernotiser även när alla bakgrundshämtningar misslyckas
+
+### Fynd
+- Bakgrundsloopen behöll tidigare pending-notiser när en Open-Meteo-hämtning misslyckades, vilket är rimligt för ett kortvarigt nätverksfel.
+- Om samtliga bevakade platser misslyckades startades däremot ingen global reconciliation alls. En gammal prognos kunde då lämna redan schemalagda notiser kvar längre än Regnvakts tvåtimmarsgräns för färsk prognos, tills nästa lyckade hämtning eller appstart.
+
+### Ändring
+- Lade till `WeatherNotificationScheduler.reconcileStoredForecastsAndWait()`, som avstämmer det senast sparade prognosregistret utan att tillåta en ny omedelbar aktuell-frostnotis.
+- När alla bakgrundshämtningar misslyckas och uppgiften inte har avbrutits körs denna avstämning ändå.
+- Prognoser inom färskhetsfönstret kan fortsätta bära giltiga framtida notiser; prognoser äldre än två timmar används inte för nya kandidater och gamla pending-notiser bevaras endast om deras metadata, händelsetid och trigger fortfarande klarar de befintliga giltighetskontrollerna.
+- Bakgrundsuppgiften rapporterar fortfarande inte en lyckad prognoshämtning när samtliga nätverksanrop misslyckas. Städningen är underhåll, inte en falsk väderuppdatering.
+
+### Filer
+- `VADER/WeatherNotificationScheduler.swift`
+- `VADER/WeatherService.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verifiering
+- Föregående HEAD `03efc166d87061ce5594f2418b4f7565596efe67` passerade GitHub Actions workflow #1014: XCTest, iOS Release-bygge, Info.plist-validering, osignerad IPA-paketering och artefaktuppladdning.
+- Denna ändring kräver en ny CI-körning.
+- Enhetstest av scenariot där samtliga nätverksanrop misslyckas och fysisk iPhone-verifiering av gammal pending-notis återstår.
+
+### Git
+- Scheduler-commit: `b17beef813169f52d70afeec5c571a558a7f6c58`
+- Bakgrundsflöde: `992957d0ca9d887bdb8a97ff5d4e41f3a597b732`
+- Branch: `feature/frost-notification-audit`
+- PR #1 hålls öppen och mergas inte.
+
+---
+
 ## 2026-11-28 – behåll korrekt status under aktiv bakgrundsuppdatering
 
 ### Fynd
