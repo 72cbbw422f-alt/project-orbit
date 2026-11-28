@@ -462,10 +462,15 @@ enum WeatherNotificationScheduler {
             center.removePendingNotificationRequests(withIdentifiers: pendingIDs)
 
             let delivered = await center.deliveredNotifications()
-            // Delivered alerts from a removed location are stale even if another
-            // location starts a newer global batch while this cleanup is running.
-            // Clear them independently; never let a stale cleanup touch pending
-            // requests after its generation token has been superseded.
+            // A rapid re-add of the same coordinates must retain delivered alerts:
+            // the next global reconciliation uses them to restore frost deduplication.
+            // A newer batch for another location may supersede this cleanup, but
+            // removal is still safe while this location remains absent from registry.
+            let latestRegistryData = defaults.data(forKey: forecastRegistryKey)
+            let latestRegistry = latestRegistryData.flatMap {
+                try? JSONDecoder().decode([String: StoredForecast].self, from: $0)
+            } ?? [:]
+            guard latestRegistry[rawLocationID] == nil else { return }
             let deliveredIDs = WeatherNotificationBudget.forecastIdentifiers(
                 for: rawLocationID,
                 in: delivered.map { $0.request.identifier },
