@@ -784,3 +784,28 @@
 - The remaining risk is platform execution timing: the actual iOS notification-center callbacks and rapid disable/re-enable behavior still require device verification.
 - GitHub Actions run #987 remains queued; no XCTest or device build result is claimed from this audit.
 - No IPA was distributed. PR #1 remains open and unmerged.
+
+
+## 2026-11-28 — reject stale forecast responses after rapid watch toggles
+
+### Finding
+- A foreground refresh of other monitored places captured only the monitored-place list. If a watch was disabled and quickly re-enabled while an older request was suspended, the old response could pass the boolean monitored check and overwrite a newer forecast.
+- The background refresh had the same disable/re-enable gap because it re-read the enabled IDs but had no persisted generation marker to distinguish the new activation from the old one.
+
+### Change
+- Persist a per-place monitoring generation token whenever a watch is enabled, disabled, or its place is removed.
+- Foreground multi-place refreshes capture the token before fetching and compare it after the network suspension before writing a forecast.
+- Background refresh captures the persisted token snapshot and revalidates it together with the latest monitored IDs, coordinates, and display name.
+- Added pure rule tests for unchanged generations, legacy nil tokens, and stale responses invalidated by a later toggle.
+
+### Files
+- `VADER/WeatherService.swift`
+- `VADER/WeatherWatchRules.swift`
+- `Tests/WeatherNotificationBudgetTests.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source changes committed on `feature/frost-notification-audit`.
+- GitHub Actions XCTest, Release device build, and unsigned IPA packaging are required; no successful run is claimed yet.
+- Rapid toggle behavior still requires physical iPhone verification.
+- No IPA was distributed. PR #1 remains open and unmerged.
