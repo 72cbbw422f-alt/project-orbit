@@ -740,3 +740,24 @@
 - GitHub Actions validation is required for XCTest, Release device build, and unsigned IPA packaging.
 - Physical iPhone verification remains required: launch Regnvakt from a notification for a non-favorite monitored place while the initial GPS callback is delayed; confirm the notification destination remains selected. Then use explicit refresh and confirm GPS selection works again.
 - No IPA was distributed. PR #1 remains open and unmerged.
+
+
+## 2026-11-28 — use latest saved place metadata after background fetch
+
+### Finding
+- Background refresh correctly re-read the monitored-place registry after each network suspension and rejected disabled, removed, or coordinate-edited places.
+- It nevertheless scheduled the accepted forecast using the old loop snapshot's place name. If a user renamed a saved place while Open-Meteo was responding, the next notification payload and forecast registry could restore the old name.
+
+### Change
+- The background refresh now schedules with the revalidated `latestPlace` name and coordinates.
+- The existing monitored-ID and coordinate equality checks remain in place; no response for a removed or edited place is allowed to update its schedule.
+
+### Files
+- `VADER/WeatherService.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Committed on `feature/frost-notification-audit`.
+- GitHub Actions run #985 was queued for the preceding documentation commit; a fresh successful run for this code change is still required.
+- XCTest, Release device build, unsigned IPA packaging, and physical iPhone background/rename/removal checks are not yet verified.
+- No IPA was distributed. PR #1 remains open and unmerged.
