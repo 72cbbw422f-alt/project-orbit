@@ -242,7 +242,7 @@ enum WeatherNotificationScheduler {
                     ? "iPhone blockerar notiser – inga väderaviseringar är schemalagda"
                     : "Notisbehörighet saknas – inga väderaviseringar är schemalagda")
                 : "Aviseringar avstängda i Regnvakt", forKey: scheduleStatusKey)
-            return
+            return false
         }
 
         var requestsByID: [String: UNNotificationRequest] = [:]
@@ -361,7 +361,7 @@ enum WeatherNotificationScheduler {
                     } else {
                         refreshFromStoredForecast()
                     }
-                    return
+                    return false
                 }
                 // Persist the current-frost daily deduplication as soon as iOS
                 // accepts the immediate request. Relying only on delivered
