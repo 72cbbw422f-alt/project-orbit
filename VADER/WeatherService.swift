@@ -472,6 +472,13 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
         // Check official warnings independently from the forecast request so a
         // failed Open-Meteo response can never prevent an SMHI warning check.
         refreshSMHIWarnings()
+        let requestedMonitoredPlace = savedPlaces.first {
+            monitoredPlaceIDs.contains($0.id) &&
+            abs($0.latitude - latitude) < 0.015 &&
+            abs($0.longitude - longitude) < 0.015
+        }
+        let generationSnapshot = UserDefaults.standard.dictionary(forKey: Self.monitoringGenerationKey) as? [String: String] ?? [:]
+        let expectedSelectedGeneration = requestedMonitoredPlace.flatMap { generationSnapshot[$0.id.uuidString] }
         status = "Hämtar prognos för \(placeName)…"
         Task {
             do {
@@ -489,20 +496,29 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                 lastUpdated = updateTime
                 days = result.days
                 hours = result.hours
-                let selectedPlace = savedPlaces.first {
-                    abs($0.latitude - latitude) < 0.015 && abs($0.longitude - longitude) < 0.015
-                }
-                if let selectedPlace, monitoredPlaceIDs.contains(selectedPlace.id) {
-                    // A GPS fix can drift slightly between refreshes. Use the
-                    // saved place's stable coordinates for notification identity
-                    // so one monitored town cannot accumulate several location IDs.
-                    WeatherNotificationScheduler.refresh(
-                        place: selectedPlace.name,
-                        latitude: selectedPlace.latitude,
-                        longitude: selectedPlace.longitude,
-                        hours: result.hours,
-                        currentTemperature: updatedSnapshot.temperature
-                    )
+                if let requestedMonitoredPlace,
+                   let activePlace = savedPlaces.first(where: { $0.id == requestedMonitoredPlace.id }),
+                   monitoredPlaceIDs.contains(activePlace.id) {
+                    let latestGeneration = UserDefaults.standard.dictionary(forKey: Self.monitoringGenerationKey) as? [String: String] ?? [:]
+                    // A selected-place response is subject to the same generation
+                    // check as secondary monitored places. Enabling a watch while
+                    // this request is already in flight must not let an old result
+                    // overwrite the dedicated fetch started by that activation.
+                    if WeatherWatchRules.isCurrentMonitoringGeneration(
+                        expected: expectedSelectedGeneration,
+                        current: latestGeneration[activePlace.id.uuidString]
+                    ) {
+                        // A GPS fix can drift slightly between refreshes. Use the
+                        // saved place's stable coordinates for notification identity
+                        // so one monitored town cannot accumulate several location IDs.
+                        WeatherNotificationScheduler.refresh(
+                            place: activePlace.name,
+                            latitude: activePlace.latitude,
+                            longitude: activePlace.longitude,
+                            hours: result.hours,
+                            currentTemperature: updatedSnapshot.temperature
+                        )
+                    }
                 }
 
                 // Only explicitly enabled places receive notifications.
