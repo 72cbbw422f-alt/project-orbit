@@ -717,3 +717,25 @@
 - Confirm a complete successful workflow run for the current HEAD, including tests, device build, package validation and artifact upload.
 - Perform physical-device tests for multiple monitored locations, background expiration, app force-quit limitations, and notification tap routing.
 - Keep PR #1 open; do not merge without approval.
+
+
+## 2026-11-28 — preserve notification destination against delayed startup GPS
+
+### Finding
+- A notification tap can arrive while the app's initial Core Location request is still in flight.
+- The existing request UUID prevented a GPS lookup that had already started from overriding a manual selection, but did not prevent a GPS callback arriving after the notification route from starting a newer request and replacing the target city.
+
+### Change
+- Added an explicit-place selection guard to `WeatherViewModel`.
+- Manual place selection, saved-place selection, and notification navigation now keep their selected destination stable against delayed startup GPS callbacks.
+- The normal explicit refresh action clears the guard and requests the device's current location again.
+
+### Files
+- `VADER/WeatherService.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source change committed to `feature/frost-notification-audit`.
+- GitHub Actions validation is required for XCTest, Release device build, and unsigned IPA packaging.
+- Physical iPhone verification remains required: launch Regnvakt from a notification for a non-favorite monitored place while the initial GPS callback is delayed; confirm the notification destination remains selected. Then use explicit refresh and confirm GPS selection works again.
+- No IPA was distributed. PR #1 remains open and unmerged.
