@@ -1,3 +1,12 @@
+## 2026-11-28 – Säker notisnavigering vid kallstart
+
+- `VADER/VADERApp.swift`: notisens ortdestination sparas nu i `UserDefaults` innan appen publicerar navigeringseventet. Det skyddar mot att SwiftUI-vyn ännu inte hunnit registrera sin prenumeration när iOS startar appen efter ett notistryck.
+- `VADER/ContentView.swift`: konsumerar en väntande destination vid `onAppear` och använder samma navigeringsfunktion för event som kommer när vyn redan är aktiv. Favoritorten ändras inte.
+- SMHI-notiser är ännu inte kopplade till ortnavigering. Granskningen visar att deras nuvarande `userInfo` innehåller `watch`, `warningID`, `area` och varningsmetadata, men ingen koordinat eller `locationID`. Att gissa ort utifrån varningstexten vore osäkert; nästa steg är att koppla varje varning till den bevakade koordinat som faktiskt matchade dess geografiska område.
+- Verifiering: tidigare CI #956 lyckades på föregående HEAD `5008c520`. Den här ändringen är committad men ännu inte build-verifierad. Fysisk iPhone-testning av bakgrunds- och kallstartsnavigering återstår.
+- Berörda filer: `VADER/VADERApp.swift`, `VADER/ContentView.swift`, `DEVELOPMENT_LOG.md`.
+- Branch: `feature/frost-notification-audit`. PR #1 hålls öppen och mergas inte.
+
 ## 2026-11-28 — open the correct city from weather notifications
 
 ### Changes
