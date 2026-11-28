@@ -647,3 +647,32 @@
 - Branch: `feature/frost-notification-audit`
 - No code commit created in this audit.
 - PR #1 remains open and unmerged.
+
+
+## 2026-11-28 — prevent duplicate macOS CI runs for pull-request commits
+
+### Finding
+- The build workflow was triggered by both `push` to `feature/frost-notification-audit` and `pull_request` targeting `feature/wind-radar`.
+- Each commit pushed to the PR branch therefore started two identical macOS simulator/test/device-build jobs.
+- The Actions queue showed paired runs for the same commit, consuming runner capacity and delaying later validation.
+
+### Change
+- Restrict automatic `push` validation to `main`.
+- Keep `pull_request` validation for PRs targeting `feature/wind-radar`.
+- Keep `workflow_dispatch` for deliberate manual runs.
+- Feature-branch commits continue to be validated through the open PR, but no longer launch a duplicate push run.
+
+### Files
+- `.github/workflows/build.yml`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Workflow trigger change committed; its new PR-triggered run is pending.
+- Existing runs #970–979 were created before this change and are not retroactively cancelled.
+- No build or test result is claimed for this workflow edit.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Workflow commit: `2a5ff681c220f356c7f5d2d2eb645f66d02c5014`
+- Documentation commit: pending
+- PR #1 remains open and unmerged.
