@@ -23,6 +23,12 @@ enum WeatherWatchRules {
         date.addingTimeInterval(notificationHorizonHours * 60 * 60)
     }
 
+    /// A response may update a watch only if no later enable/disable action
+    /// has replaced the generation captured when its request began.
+    static func isCurrentMonitoringGeneration(expected: String?, current: String?) -> Bool {
+        expected == current
+    }
+
     /// Determines whether an event can claim the first-alert slot for its risk
     /// type. Routine alerts need their configured lead time. Safety-critical
     /// forecast events may still claim the slot after the lead time has passed;
