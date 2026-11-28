@@ -163,7 +163,7 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
                 // Use the latest persisted display name after the network
                 // suspension. A rename during the fetch must not restore an
                 // obsolete city label in the notification payload or registry.
-                WeatherNotificationScheduler.refresh(
+                await WeatherNotificationScheduler.refreshAndWait(
                     place: latestPlace.name,
                     latitude: latestPlace.latitude,
                     longitude: latestPlace.longitude,
