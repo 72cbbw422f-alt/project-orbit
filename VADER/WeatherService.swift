@@ -192,6 +192,13 @@ final class WeatherViewModel: NSObject, ObservableObject, CLLocationManagerDeleg
             }
         }
 
+        // If every network fetch failed, still reconcile the last stored forecasts.
+        // This removes expired pending alerts after the two-hour freshness window
+        // instead of leaving them armed indefinitely merely because no new forecast arrived.
+        if failedCount > 0 && refreshedCount == 0 && !Task.isCancelled {
+            _ = await WeatherNotificationScheduler.reconcileStoredForecastsAndWait()
+        }
+
         saveDiagnostic("placeCount", monitoredPlaces.count)
         saveDiagnostic("successCount", refreshedCount)
         saveDiagnostic("failureCount", failedCount)
