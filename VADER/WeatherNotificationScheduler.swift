@@ -347,9 +347,18 @@ enum WeatherNotificationScheduler {
                 // immediately reconcile the latest registry again so this late
                 // add cannot remain as an orphan outside the newer snapshot.
                 guard isCurrentBatch() else {
-                    // Superseded batches should reconcile the latest registry,
-                    // but an expired background task must simply stop.
-                    if !Task.isCancelled {
+                    // If iOS cancelled this batch after the notification center
+                    // accepted the request, remove that late request only when
+                    // this batch still owns the registry generation. If a newer
+                    // batch superseded it, leave cleanup to that newer batch.
+                    let sameGeneration =
+                        (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken &&
+                        defaults.data(forKey: forecastRegistryKey) == registrySnapshot
+                    if Task.isCancelled {
+                        if sameGeneration {
+                            center.removePendingNotificationRequests(withIdentifiers: [identifier])
+                        }
+                    } else {
                         refreshFromStoredForecast()
                     }
                     return
