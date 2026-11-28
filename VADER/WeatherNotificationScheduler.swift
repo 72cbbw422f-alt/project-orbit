@@ -43,7 +43,38 @@ enum WeatherNotificationScheduler {
     }
 
     static func refresh(place: String, latitude: Double, longitude: Double, hours: [HourForecast], currentTemperature: Int? = nil) {
-        guard let data = try? JSONEncoder().encode(hours) else { return }
+        guard let locationKey = storeForecast(place: place, latitude: latitude, longitude: longitude,
+                                              hours: hours, currentTemperature: currentTemperature) else { return }
+        // Foreground refreshes can schedule asynchronously; iOS keeps the app active.
+        refreshFromStoredForecast(allowImmediateCurrentFrost: true, immediateFrostLocationID: locationKey)
+    }
+
+    /// Background refresh must not report completion while notification scheduling
+    /// is still running in an unstructured Task. Await the global reconciliation
+    /// so iOS does not suspend the app between forecast fetch and notification add.
+    static func refreshAndWait(place: String, latitude: Double, longitude: Double,
+                               hours: [HourForecast], currentTemperature: Int? = nil) async {
+        guard let locationKey = storeForecast(place: place, latitude: latitude, longitude: longitude,
+                                              hours: hours, currentTemperature: currentTemperature) else { return }
+        let defaults = UserDefaults.standard
+        let globalToken = UUID().uuidString
+        defaults.set(globalToken, forKey: globalScheduleTokenKey)
+        guard let registryData = defaults.data(forKey: forecastRegistryKey),
+              let registry = try? JSONDecoder().decode([String: StoredForecast].self, from: registryData),
+              !registry.isEmpty else { return }
+        await reconcileGlobally(
+            registry: registry,
+            registrySnapshot: registryData,
+            globalToken: globalToken,
+            allowImmediateCurrentFrost: true,
+            immediateFrostLocationID: locationKey
+        )
+    }
+
+    @discardableResult
+    private static func storeForecast(place: String, latitude: Double, longitude: Double,
+                                      hours: [HourForecast], currentTemperature: Int?) -> String? {
+        guard let data = try? JSONEncoder().encode(hours) else { return nil }
         let defaults = UserDefaults.standard
         let locationKey = String(format: "%.4f,%.4f", latitude, longitude)
         defaults.set(locationKey, forKey: Self.locationKey)
@@ -58,11 +89,7 @@ enum WeatherNotificationScheduler {
             defaults.set(currentTemperature, forKey: currentTemperatureKey)
             defaults.set(Date().timeIntervalSince1970, forKey: currentTemperatureUpdatedKey)
         }
-        // All registered forecasts are scheduled through one serialized batch.
-        // This prevents each refresh from launching a competing per-place task.
-        // A freshly fetched live forecast may evaluate an immediate current-frost alert.
-        // Restoring persisted forecasts at launch must never replay that alert.
-        refreshFromStoredForecast(allowImmediateCurrentFrost: true, immediateFrostLocationID: locationKey)
+        return locationKey
     }
 
     static func refreshFromStoredForecast() {
