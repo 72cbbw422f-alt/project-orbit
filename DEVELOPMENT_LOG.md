@@ -1,3 +1,27 @@
+## 2026-11-28 – await notification scheduling before background task completion
+
+### Change
+- Added `WeatherNotificationScheduler.refreshAndWait(...)` for the background weather-watch path.
+- Background forecast refresh now awaits the global notification reconciliation after each successful monitored-place fetch instead of launching an unstructured scheduling `Task` and immediately reporting the BGAppRefresh task complete.
+- Extracted forecast persistence into `storeForecast(...)` so foreground and background paths share the same registry update logic.
+- This closes a lifecycle gap where iOS could suspend the app after the background task reported completion but before pending weather notifications had been added.
+
+### Files
+- `VADER/WeatherNotificationScheduler.swift`
+- `VADER/WeatherService.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verification
+- Source updated on `feature/frost-notification-audit`.
+- GitHub Actions iOS build and XCTest are required; local Xcode is unavailable in this environment.
+- Physical iPhone verification remains required to confirm background delivery. iOS still controls when BGAppRefresh runs and may defer or omit it.
+
+### Git
+- Branch: `feature/frost-notification-audit`
+- Commit: pending
+
+---
+
 ## 2026-11-28 – Prioriteringsbeslut: vanliga vädervakter
 
 - Beslut: SMHI-notiser ska inte vidareutvecklas i denna arbetsström. SMHI-varningar ligger kvar i appens vyer och kan läsas manuellt.
