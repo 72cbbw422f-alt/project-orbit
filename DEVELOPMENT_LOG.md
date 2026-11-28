@@ -728,6 +728,7 @@
 ### Change
 - Added an explicit-place selection guard to `WeatherViewModel`.
 - Manual place selection, saved-place selection, and notification navigation now keep their selected destination stable against delayed startup GPS callbacks.
+- Notification navigation enables the guard only after the destination coordinates pass validation, so malformed payloads cannot suppress normal GPS startup.
 - The normal explicit refresh action clears the guard and requests the device's current location again.
 
 ### Files
