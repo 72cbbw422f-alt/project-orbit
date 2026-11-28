@@ -690,7 +690,7 @@ enum WeatherNotificationScheduler {
             content.title = "\(weatherIcon) \(event.title)\(riskLabel)"
             content.body = "\(event.body) • \(place)"
             content.sound = .default
-            content.userInfo = ["watch": event.type, "place": place, "safetyCritical": event.safetyCritical, "immediate": deliverImmediately, "alertDay": swedishCalendar.startOfDay(for: event.date), "forecastEventDate": event.date.timeIntervalSince1970, "forecastSnapshotAt": now, "leadMinutes": lead]
+            content.userInfo = ["watch": event.type, "place": place, "locationID": locationID, "safetyCritical": event.safetyCritical, "immediate": deliverImmediately, "alertDay": swedishCalendar.startOfDay(for: event.date), "forecastEventDate": event.date.timeIntervalSince1970, "forecastSnapshotAt": now, "leadMinutes": lead]
             var components = swedishCalendar.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
             components.timeZone = swedishTimeZone
             let trigger: UNNotificationTrigger
