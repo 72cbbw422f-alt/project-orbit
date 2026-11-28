@@ -794,7 +794,7 @@
 
 ### Change
 - Persist a per-place monitoring generation token whenever a watch is enabled, disabled, or its place is removed.
-- Foreground multi-place refreshes capture the token before fetching and compare it after the network suspension before writing a forecast.
+- Foreground selected-place and multi-place refreshes capture the token before fetching and compare it after the network suspension before writing a forecast.
 - Background refresh captures the persisted token snapshot and revalidates it together with the latest monitored IDs, coordinates, and display name.
 - Added pure rule tests for unchanged generations, legacy nil tokens, and stale responses invalidated by a later toggle.
 
