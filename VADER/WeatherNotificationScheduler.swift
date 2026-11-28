@@ -439,7 +439,8 @@ enum WeatherNotificationScheduler {
         let defaults = UserDefaults.standard
         guard !defaults.bool(forKey: key) else { return }
 
-        let registry = defaults.data(forKey: forecastRegistryKey)
+        let registrySnapshot = defaults.data(forKey: forecastRegistryKey)
+        let registry = registrySnapshot
             .flatMap { try? JSONDecoder().decode([String: StoredForecast].self, from: $0) } ?? [:]
         let validPlacePrefixes = registry.values.map {
             prefix + $0.locationID.replacingOccurrences(of: ",", with: "_") + "."
@@ -449,6 +450,10 @@ enum WeatherNotificationScheduler {
         defaults.set(true, forKey: key)
 
         UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
+            // A place can be added while this asynchronous legacy cleanup is
+            // waiting for iOS. Never apply the old prefix snapshot to a newer
+            // registry, or its newly scheduled notifications could be deleted.
+            guard defaults.data(forKey: forecastRegistryKey) == registrySnapshot else { return }
             let ids = requests.map(\.identifier).filter { identifier in
                 identifier.hasPrefix(prefix) &&
                     !validPlacePrefixes.contains(where: { identifier.hasPrefix($0) })
