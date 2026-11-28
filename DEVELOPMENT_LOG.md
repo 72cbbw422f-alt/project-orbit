@@ -1,3 +1,28 @@
+## 2026-11-28 – korrekt diagnostik för slutförd bakgrundsschemaläggning
+
+### Ändring
+- `WeatherNotificationScheduler.refreshAndWait(...)` returnerar nu `true` endast när den globala avstämningen har nått slutet och fortfarande äger aktuell generation/register-snapshot.
+- Avbrutna, ersatta eller ofullständiga avstämningar returnerar `false`.
+- `WeatherService.refreshMonitoredForecastsInBackground()` räknar bara en plats som lyckad när schemaläggningen faktiskt slutförts. Avstämningar som inte slutförs räknas som `skipped`, inte som lyckade prognosuppdateringar.
+- Detta korrigerar diagnostiken: tidigare kunde en prognoshämtning räknas som lyckad trots att notisavstämningen avbröts eller ersattes innan den blev klar.
+
+### Filer
+- `VADER/WeatherNotificationScheduler.swift`
+- `VADER/WeatherService.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verifiering
+- Ändringen är incheckad på `feature/frost-notification-audit`.
+- GitHub Actions med XCTest och iOS Release-build måste köras på den nya HEAD-versionen.
+- Fysisk iPhone-verifiering av bakgrundsleverans återstår. iOS styr fortfarande när BGAppRefresh körs.
+
+### Git
+- Scheduler: `98890d06f97072cf4d4506decd9c3f1bb906d287`
+- Bakgrundsdiagnostik: `0c4cb291bb4816ee5d336f56fbb1720cfb3382e7`
+- Tidig-retur-korrigering: `1d73b116e0245ebe676d5c667afdc191759ff7b6`
+
+---
+
 ## 2026-11-28 – bevara levererade notiser vid snabb återaktivering av ort
 
 ### Ändring
