@@ -1,3 +1,25 @@
+## 2026-11-28 – bevara levererade notiser vid snabb återaktivering av ort
+
+### Ändring
+- `removeNotifications(...)` kontrollerar nu det senaste prognosregistret efter den asynkrona hämtningen av levererade notiser.
+- Om samma koordinater har lagts till igen avbryts den gamla borttagningens städning av levererade notiser. Det bevarar historiken som den globala avstämningen använder för att återställa daglig deduplicering av omedelbar frost.
+- Städningen av väntande notiser är fortsatt generationsskyddad och hanteras separat.
+
+### Filer
+- `VADER/WeatherNotificationScheduler.swift`
+- `DEVELOPMENT_LOG.md`
+
+### Verifiering
+- Källkod uppdaterad på `feature/frost-notification-audit`.
+- GitHub Actions och XCTest måste verifiera ändringen; inga lokala iOS-byggverktyg finns här.
+- Snabb borttagning/återaktivering och levererad frostnotis behöver dessutom testas på fysisk iPhone.
+
+### Git
+- Kodcommit: `8aa11edd440aebb416e687f108f443aec71a867e`
+- Dokumentationscommit: pending
+
+---
+
 ## 2026-11-28 – stoppa notisavstämning efter utgången bakgrundstid
 
 ### Ändring
