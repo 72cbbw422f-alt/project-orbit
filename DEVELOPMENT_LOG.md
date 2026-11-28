@@ -20,6 +20,8 @@
 - Uppföljande kodcommit för sen accepterad request: `05f719634f17515da8ae9be48fcf3eee075b671e`
 - Dokumentationscommit för uppföljningen: `5f54be183b959858785e93017862bd75e086e808`
 - Ytterligare avbrottsskydd: om iOS avbryter uppgiften efter att Notification Center har accepterat en request tas just den requesten bort, men endast om den avbrutna batchen fortfarande äger samma globala generations-token och register-snapshot. Om en nyare batch har tagit över lämnas städningen till den batchen.
+- Bakgrundshämtningens felhantering skiljer nu även på nätverksfel och avbrott från iOS: en avbruten URLSession-hämtning räknas som `skipped` och avbryter ortloopen i stället för att felaktigt öka `failureCount`.
+- Ytterligare kodcommit: `f25d723df6ddfa3b389af70b1e418b7c2629a80e`.
 
 ---
 
