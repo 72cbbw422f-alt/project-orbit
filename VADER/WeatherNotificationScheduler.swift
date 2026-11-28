@@ -54,6 +54,9 @@ enum WeatherNotificationScheduler {
     /// so iOS does not suspend the app between forecast fetch and notification add.
     static func refreshAndWait(place: String, latitude: Double, longitude: Double,
                                hours: [HourForecast], currentTemperature: Int? = nil) async {
+        // A revoked background execution must not persist a late response or
+        // begin a new reconciliation after its task has been cancelled.
+        guard !Task.isCancelled else { return }
         guard let locationKey = storeForecast(place: place, latitude: latitude, longitude: longitude,
                                               hours: hours, currentTemperature: currentTemperature) else { return }
         let defaults = UserDefaults.standard
@@ -176,7 +179,8 @@ enum WeatherNotificationScheduler {
         let defaults = UserDefaults.standard
         let center = UNUserNotificationCenter.current()
         func isCurrentBatch() -> Bool {
-            (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken &&
+            !Task.isCancelled &&
+                (defaults.string(forKey: globalScheduleTokenKey) ?? "initial") == globalToken &&
                 defaults.data(forKey: forecastRegistryKey) == registrySnapshot
         }
         guard isCurrentBatch() else { return }
@@ -343,7 +347,11 @@ enum WeatherNotificationScheduler {
                 // immediately reconcile the latest registry again so this late
                 // add cannot remain as an orphan outside the newer snapshot.
                 guard isCurrentBatch() else {
-                    refreshFromStoredForecast()
+                    // Superseded batches should reconcile the latest registry,
+                    // but an expired background task must simply stop.
+                    if !Task.isCancelled {
+                        refreshFromStoredForecast()
+                    }
                     return
                 }
                 // Persist the current-frost daily deduplication as soon as iOS
