@@ -1,8 +1,11 @@
 name: Build Regnvakt iOS
 
 on:
+  # Feature branches are validated by the pull_request event below. Running
+  # both push and pull_request for every PR commit doubles expensive macOS
+  # simulator/build jobs and can starve the queue.
   push:
-    branches: [main, feature/frost-notification-audit]
+    branches: [main]
   pull_request:
     branches: [feature/wind-radar]
   workflow_dispatch:
