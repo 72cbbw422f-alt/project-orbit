@@ -17,9 +17,10 @@
 
 ### Git
 - Scheduler-commit: `394a2cf8f326a8efbec8e1562f1e81b0ae124064`
-- Dokumentationscommit: pending
-
+- Uppföljande kodcommit för sen accepterad request: `05f719634f17515da8ae9be48fcf3eee075b671e`
+- Dokumentationscommit för uppföljningen: `5f54be183b959858785e93017862bd75e086e808`
 - Ytterligare avbrottsskydd: om iOS avbryter uppgiften efter att Notification Center har accepterat en request tas just den requesten bort, men endast om den avbrutna batchen fortfarande äger samma globala generations-token och register-snapshot. Om en nyare batch har tagit över lämnas städningen till den batchen.
+
 ---
 
 ## 2026-11-28 – await notification scheduling before background task completion
